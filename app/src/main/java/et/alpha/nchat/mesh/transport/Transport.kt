@@ -1,6 +1,7 @@
 package et.alpha.nchat.mesh.transport
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * A link layer the mesh can speak over: Nearby Connections today, BLE later.
@@ -20,11 +21,29 @@ interface Transport {
     /** Payloads handed to us by a connected peer, in arrival order. */
     val incoming: Flow<InboundPayload>
 
+    /**
+     * Currently reachable peers, as state rather than events.
+     *
+     * [connectionEvents] is a single-consumer stream the router owns; anything
+     * that needs to render or count who is reachable — the notification, the peer
+     * list — observes this instead.
+     */
+    val connectedPeers: StateFlow<Set<String>>
+
     /** Makes this device discoverable to peers looking for the mesh. */
     suspend fun startAdvertising()
 
     /** Starts looking for peers advertising the mesh. */
     suspend fun startDiscovery()
+
+    /**
+     * Stops looking for peers, leaving advertising and existing connections up.
+     *
+     * Separate from [stop] because duty cycling pauses scanning — by far the most
+     * expensive part of the radio's work — while staying discoverable so peers
+     * scanning on their own schedule can still find us.
+     */
+    suspend fun stopDiscovery()
 
     /**
      * Sends [bytes] to a single connected peer.

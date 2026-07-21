@@ -1,3 +1,25 @@
 <resources>
     <string name="app_name">NChat</string>
+
+    <!-- Foreground service notification -->
+    <string name="mesh_channel_name">Mesh</string>
+    <string name="mesh_channel_description">Shows that the mesh is running and how many devices are in range.</string>
+    <string name="mesh_notification_title">Mesh active</string>
+    <plurals name="mesh_peer_count">
+        <item quantity="zero">No devices in range</item>
+        <item quantity="one">%d device in range</item>
+        <item quantity="other">%d devices in range</item>
+    </plurals>
+
+    <!-- Permission flow. Written to explain what the permission is for in terms
+         of what the user gets, not in terms of the API that needs it. -->
+    <string name="permission_title">Let NChat find nearby phones</string>
+    <string name="permission_body">NChat sends messages directly between phones over Bluetooth, with no internet and no mobile network. To do that it needs permission to find and connect to devices around you.\n\nNothing is uploaded anywhere.</string>
+    <string name="permission_body_retry">Without this permission NChat cannot see other phones, so there is no one to message.\n\nIt is used only to find nearby devices and pass messages between them. Nothing leaves the mesh.</string>
+    <string name="permission_grant">Continue</string>
+
+    <string name="permission_blocked_title">Permission needed</string>
+    <string name="permission_blocked_body">Android will not ask again, so this has to be turned on in Settings.\n\nOpen Settings, then Permissions, and allow the nearby device permissions.</string>
+    <string name="permission_open_settings">Open Settings</string>
+    <string name="permission_recheck">I have allowed it</string>
 </resources>

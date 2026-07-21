@@ -103,14 +103,7 @@ class NearbyTransport(
 
     private val _connectedPeers = MutableStateFlow<Set<String>>(emptySet())
 
-    /**
-     * Currently connected endpoint ids, as state rather than events.
-     *
-     * [connectionEvents] is a single-consumer stream owned by the router; anything
-     * else that needs to know who is reachable (the peer list UI, the forward
-     * queue) observes this instead.
-     */
-    val connectedPeers: StateFlow<Set<String>> = _connectedPeers.asStateFlow()
+    override val connectedPeers: StateFlow<Set<String>> = _connectedPeers.asStateFlow()
 
     // region Transport
 
@@ -126,6 +119,14 @@ class NearbyTransport(
         val options = DiscoveryOptions.Builder().setStrategy(STRATEGY).build()
         client.startDiscovery(serviceId, discoveryCallback, options)
             .awaitUnit("startDiscovery")
+    }
+
+    override suspend fun stopDiscovery() {
+        // Advertising is deliberately left running: if both ends duty-cycled
+        // discovery *and* advertising, two devices scanning on independent
+        // schedules would rarely overlap and could take minutes to meet.
+        Log.d(TAG, "pausing discovery")
+        client.stopDiscovery()
     }
 
     override suspend fun send(peerId: String, bytes: ByteArray): Boolean {

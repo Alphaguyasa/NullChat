@@ -83,9 +83,19 @@ Payloads exceeding the negotiated MTU are split into FRAGMENT packets carrying
 - Do not write custom cryptographic primitives. Use Tink or libsignal.
 
 ## Permissions required
-`BLUETOOTH_SCAN`, `BLUETOOTH_ADVERTISE`, `BLUETOOTH_CONNECT`,
-`ACCESS_FINE_LOCATION` (SDK < 31), `NEARBY_WIFI_DEVICES` (SDK 33+),
-`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`.
+`BLUETOOTH_SCAN`, `BLUETOOTH_ADVERTISE`, `BLUETOOTH_CONNECT` (SDK 31+),
+`ACCESS_FINE_LOCATION` (SDK <= 31, **inclusive**), `NEARBY_WIFI_DEVICES` (SDK 33+),
+`POST_NOTIFICATIONS` (SDK 33+), `FOREGROUND_SERVICE`,
+`FOREGROUND_SERVICE_CONNECTED_DEVICE`.
+
+Android 12 (SDK 31) needs `ACCESS_FINE_LOCATION` *and* the three `BLUETOOTH_*`
+permissions together — Nearby Connections refuses to advertise or discover if any
+required permission is missing, so capping location at SDK 30 breaks the app on
+Android 12 with no error. Google's sample manifest uses `maxSdkVersion="31"`.
+
+`POST_NOTIFICATIONS` is requested but never treated as essential: without it the
+mesh still runs, the user just cannot see the foreground service notification.
+See `ui/permissions/MeshPermissions.kt`, which is the single source of truth.
 
 ## Testing notes
 - BLE and Wi-Fi Direct do NOT work on emulators. Transport code must be

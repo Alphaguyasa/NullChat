@@ -13,6 +13,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -51,6 +54,8 @@ class MeshNetwork {
         adjacency.getValue(b).add(a)
         transports.getValue(a).announce(ConnectionEvent.Connected(b))
         transports.getValue(b).announce(ConnectionEvent.Connected(a))
+        publishPeers(a)
+        publishPeers(b)
     }
 
     /**
@@ -66,13 +71,18 @@ class MeshNetwork {
 
     /** Severs a link and announces it, for partition tests. */
     fun unlink(a: String, b: String) {
-        adjacency.getValue(a).remove(b)
-        adjacency.getValue(b).remove(a)
+        severSilently(a, b)
         transports.getValue(a).announce(ConnectionEvent.Disconnected(b))
         transports.getValue(b).announce(ConnectionEvent.Disconnected(a))
+        publishPeers(a)
+        publishPeers(b)
     }
 
     fun neighbours(name: String): Set<String> = adjacency[name].orEmpty()
+
+    private fun publishPeers(name: String) {
+        transports.getValue(name).publishPeers(neighbours(name))
+    }
 
     /** Transmissions grouped as `from -> to` pairs, which is what most assertions want. */
     fun hops(): List<Pair<String, String>> = transmissions.map { it.from to it.to }
@@ -114,6 +124,9 @@ class FakeTransport(
     override val incoming: Flow<InboundPayload> = inbox.receiveAsFlow()
     override val connectionEvents: Flow<ConnectionEvent> = events.receiveAsFlow()
 
+    private val _connectedPeers = MutableStateFlow<Set<String>>(emptySet())
+    override val connectedPeers: StateFlow<Set<String>> = _connectedPeers.asStateFlow()
+
     var advertising: Boolean = false
         private set
     var discovering: Boolean = false
@@ -129,10 +142,19 @@ class FakeTransport(
         discovering = true
     }
 
+    override suspend fun stopDiscovery() {
+        discovering = false
+    }
+
     override suspend fun stop() {
         advertising = false
         discovering = false
         stopped = true
+    }
+
+    /** Mirrors what the network says this node can currently reach. */
+    internal fun publishPeers(peers: Set<String>) {
+        _connectedPeers.value = peers
     }
 
     override suspend fun send(peerId: String, bytes: ByteArray): Boolean =

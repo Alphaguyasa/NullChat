@@ -16,10 +16,19 @@
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
 
-    <!-- BLE scanning was location-gated before SDK 31 -->
+    <!-- BLE scanning was location-gated through SDK 31 inclusive. Nearby
+         Connections still requires this on Android 12 even alongside the new
+         BLUETOOTH_* permissions, and refuses to start advertising or discovering
+         without it; maxSdkVersion=30 silently breaks the app on Android 12.
+         https://developers.google.com/nearby/connections/android/get-started -->
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
+        android:maxSdkVersion="31" />
+    <!-- Android 12 added the precise/approximate toggle: a FINE request without
+         COARSE alongside it is denied outright by the system. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        android:maxSdkVersion="31" />
 
     <!-- Wi-Fi Direct / Nearby, SDK 33+ -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
@@ -27,6 +36,11 @@
     <!-- Background mesh operation -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+
+    <!-- SDK 33+. Not a mesh permission, but without it the foreground service's
+         notification is never shown, and a service the user cannot see is one
+         they cannot stop. Requested alongside the others, not enforced. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature
         android:name="android.hardware.bluetooth_le"
@@ -54,6 +68,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- connectedDevice is the type that matches what this actually does;
+             the platform rejects a mismatched type at startForeground time. -->
+        <service
+            android:name=".service.MeshForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
     </application>
 
 </manifest>
