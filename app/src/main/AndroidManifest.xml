@@ -33,6 +33,17 @@
     <!-- Wi-Fi Direct / Nearby, SDK 33+ -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
 
+    <!-- Install-time, not runtime, and required by Nearby Connections through
+         SDK 31. Omitting these does not fail the build or the permission flow:
+         startDiscovery just returns 8032 MISSING_PERMISSION_ACCESS_WIFI_STATE on
+         every scan, which only shows up on a device. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_WIFI_STATE"
+        android:maxSdkVersion="31" />
+    <uses-permission
+        android:name="android.permission.CHANGE_WIFI_STATE"
+        android:maxSdkVersion="31" />
+
     <!-- Background mesh operation -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />

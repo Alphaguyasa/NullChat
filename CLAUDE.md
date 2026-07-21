@@ -88,6 +88,12 @@ Payloads exceeding the negotiated MTU are split into FRAGMENT packets carrying
 `POST_NOTIFICATIONS` (SDK 33+), `FOREGROUND_SERVICE`,
 `FOREGROUND_SERVICE_CONNECTED_DEVICE`.
 
+Install-time (not runtime, so absent from the permission flow but still required):
+`ACCESS_WIFI_STATE` and `CHANGE_WIFI_STATE`, both SDK <= 31. Nearby needs these
+even for Bluetooth-only operation; without them `startDiscovery` fails with
+`8032 MISSING_PERMISSION_ACCESS_WIFI_STATE` on every scan and the mesh silently
+never finds anyone.
+
 Android 12 (SDK 31) needs `ACCESS_FINE_LOCATION` *and* the three `BLUETOOTH_*`
 permissions together — Nearby Connections refuses to advertise or discover if any
 required permission is missing, so capping location at SDK 30 breaks the app on
