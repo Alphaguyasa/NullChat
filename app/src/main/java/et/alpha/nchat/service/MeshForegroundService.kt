@@ -17,12 +17,20 @@ import et.alpha.nchat.mesh.crypto.PlaceholderLocalIdentity
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.transport.DutyCycle
 import et.alpha.nchat.mesh.transport.NearbyTransport
+import et.alpha.nchat.mesh.transport.RadioBlocker
+import et.alpha.nchat.mesh.transport.RadioMonitor
+import et.alpha.nchat.mesh.transport.RadioState
 import et.alpha.nchat.mesh.transport.Transport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -46,6 +54,7 @@ class MeshForegroundService : Service() {
     private lateinit var identity: LocalIdentity
     private lateinit var transport: NearbyTransport
     private lateinit var router: MeshRouter
+    private lateinit var radio: StateFlow<RadioState>
 
     private val dutyCycle = DutyCycle()
 
@@ -58,16 +67,24 @@ class MeshForegroundService : Service() {
         Log.i(TAG, "starting")
 
         createNotificationChannel()
+
+        // Sampled before the first post so the notification is accurate on its
+        // very first frame, rather than flashing "paused" on a healthy device.
+        val monitor = RadioMonitor(this)
+        val initialRadio = monitor.current()
+
         // Posted before anything else can fail: a foreground service that does not
         // call startForeground within a few seconds of being started is killed.
-        startForeground(NOTIFICATION_ID, buildNotification(peerCount = 0))
+        startForeground(NOTIFICATION_ID, buildNotification(peerCount = 0, initialRadio))
 
         identity = PlaceholderLocalIdentity(this)
         transport = NearbyTransport(context = this, localPeerId = identity.peerId)
         router = MeshRouter(transport = transport, localId = identity.peerId, scope = scope)
 
+        radio = monitor.state.stateIn(scope, SharingStarted.Eagerly, initialRadio)
+
         router.start()
-        observePeerCount()
+        observeNotificationState()
         runDutyCycle()
     }
 
@@ -89,30 +106,31 @@ class MeshForegroundService : Service() {
     }
 
     /**
-     * Republishes the notification whenever the reachable peer set changes.
+     * Republishes the notification whenever the peer count or the radio state
+     * changes.
      *
-     * Driven by transport state rather than connection events because the router
-     * consumes those, and because a count is state: after a reconnect storm we
-     * want the current number, not a replay of every transition.
+     * Peers come from transport state rather than connection events because the
+     * router consumes those, and because a count is state: after a reconnect
+     * storm we want the current number, not a replay of every transition.
      */
-    private fun observePeerCount() = scope.launch {
-        transport.connectedPeers.collect { peers ->
-            Log.d(TAG, "peer count now ${peers.size}")
-            notifications.notify(NOTIFICATION_ID, buildNotification(peers.size))
+    private fun observeNotificationState() = scope.launch {
+        combine(transport.connectedPeers, radio) { peers, radioState ->
+            peers.size to radioState
+        }.collect { (peerCount, radioState) ->
+            Log.d(TAG, "peers=$peerCount blockers=${radioState.blockers}")
+            notifications.notify(NOTIFICATION_ID, buildNotification(peerCount, radioState))
         }
     }
 
     /**
-     * Scans in bursts instead of continuously.
+     * Scans in bursts instead of continuously, and not at all while the radio
+     * cannot work.
      *
-     * Advertising is started once and left up; only discovery cycles. See
-     * [DutyCycle] for why, and [Transport.stopDiscovery] for why advertising
-     * must not cycle with it.
+     * Advertising is started once per readiness window and left up; only
+     * discovery cycles. See [DutyCycle] for why, and [Transport.stopDiscovery]
+     * for why advertising must not cycle with it.
      */
     private fun runDutyCycle() = scope.launch {
-        runCatching { transport.startAdvertising() }
-            .onFailure { Log.e(TAG, "advertising failed to start: ${it.message}") }
-
         // A peer appearing resets the backoff, so a device that has gone quiet for
         // five minutes returns to fast scanning the moment anyone turns up.
         launch {
@@ -122,18 +140,38 @@ class MeshForegroundService : Service() {
         }
 
         while (isActive) {
-            val backedOff = dutyCycle.isBackedOff()
-            runCatching { transport.startDiscovery() }
-                .onFailure { Log.e(TAG, "discovery failed to start: ${it.message}") }
+            // Waiting beats scanning into a disabled radio: Nearby would fail every
+            // single window with a misleading permission error, and the wakeups
+            // would cost battery to accomplish exactly nothing.
+            if (!radio.value.isReady) {
+                Log.i(TAG, "radio not ready (${radio.value.blockers}), pausing mesh")
+                radio.first { it.isReady }
+                Log.i(TAG, "radio ready, resuming mesh")
+            }
 
-            delay(dutyCycle.scanMillis)
+            runCatching { transport.startAdvertising() }
+                .onFailure { Log.e(TAG, "advertising failed to start: ${it.message}") }
 
-            runCatching { transport.stopDiscovery() }
-                .onFailure { Log.w(TAG, "stopDiscovery failed: ${it.message}") }
+            while (isActive && radio.value.isReady) {
+                val backedOff = dutyCycle.isBackedOff()
+                runCatching { transport.startDiscovery() }
+                    .onFailure { Log.e(TAG, "discovery failed to start: ${it.message}") }
 
-            val idle = dutyCycle.idleMillis()
-            Log.d(TAG, "scan window closed, idling ${idle}ms (backedOff=$backedOff)")
-            delay(idle)
+                delay(dutyCycle.scanMillis)
+
+                runCatching { transport.stopDiscovery() }
+                    .onFailure { Log.w(TAG, "stopDiscovery failed: ${it.message}") }
+
+                val idle = dutyCycle.idleMillis()
+                Log.d(TAG, "scan window closed, idling ${idle}ms (backedOff=$backedOff)")
+                delay(idle)
+            }
+
+            // The radio went away mid-session. Release everything rather than hold
+            // endpoints that cannot possibly still be live.
+            Log.i(TAG, "radio lost, releasing transport")
+            runCatching { transport.stop() }
+                .onFailure { Log.w(TAG, "transport stop failed: ${it.message}") }
         }
     }
 
@@ -151,7 +189,7 @@ class MeshForegroundService : Service() {
         notifications.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(peerCount: Int): Notification {
+    private fun buildNotification(peerCount: Int, radioState: RadioState): Notification {
         val open = PendingIntent.getActivity(
             this,
             0,
@@ -159,14 +197,26 @@ class MeshForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        val text = resources.getQuantityString(
-            R.plurals.mesh_peer_count,
-            peerCount,
-            peerCount,
-        )
+        // The whole point of surfacing blockers here: the service runs with no UI
+        // on screen, so this notification is the only place a user can find out
+        // why they have been sitting at "0 devices in range" for an hour.
+        val blockers = radioState.blockers
+        val text = when {
+            blockers.size > 1 -> getString(R.string.mesh_notification_blocked_both)
+            blockers.firstOrNull() == RadioBlocker.BLUETOOTH_OFF ->
+                getString(R.string.mesh_notification_blocked_bluetooth)
+            blockers.firstOrNull() == RadioBlocker.LOCATION_SERVICES_OFF ->
+                getString(R.string.mesh_notification_blocked_location)
+            else -> resources.getQuantityString(R.plurals.mesh_peer_count, peerCount, peerCount)
+        }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.mesh_notification_title))
+            .setContentTitle(
+                getString(
+                    if (blockers.isEmpty()) R.string.mesh_notification_title
+                    else R.string.mesh_notification_title_paused,
+                ),
+            )
             .setContentText(text)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentIntent(open)

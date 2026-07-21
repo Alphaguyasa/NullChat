@@ -2,6 +2,7 @@ package et.alpha.nchat.ui.permissions
 
 import android.Manifest
 import android.os.Build
+import et.alpha.nchat.mesh.transport.LOCATION_REQUIRED_MAX_SDK
 
 /**
  * Which runtime permissions the mesh needs, which differs sharply by API level.
@@ -33,7 +34,7 @@ object MeshPermissions {
         // advertise or discover if any required permission is missing, so getting
         // this boundary wrong by one shows up as a mesh that finds nobody rather
         // than as an error. Google's own manifest sample uses maxSdkVersion=31.
-        if (sdkInt <= Build.VERSION_CODES.S) {
+        if (sdkInt <= LOCATION_REQUIRED_MAX_SDK) {
             // Below 12, BLUETOOTH and BLUETOOTH_ADMIN are install-time and need no
             // request. This is the one permission users balk at — hence the
             // rationale screen.

@@ -5,6 +5,10 @@
     <string name="mesh_channel_name">Mesh</string>
     <string name="mesh_channel_description">Shows that the mesh is running and how many devices are in range.</string>
     <string name="mesh_notification_title">Mesh active</string>
+    <string name="mesh_notification_title_paused">Mesh paused</string>
+    <string name="mesh_notification_blocked_bluetooth">Bluetooth is off. Tap to fix.</string>
+    <string name="mesh_notification_blocked_location">Location is off. Tap to fix.</string>
+    <string name="mesh_notification_blocked_both">Bluetooth and location are off. Tap to fix.</string>
     <plurals name="mesh_peer_count">
         <item quantity="zero">No devices in range</item>
         <item quantity="one">%d device in range</item>
@@ -22,4 +26,14 @@
     <string name="permission_blocked_body">Android will not ask again, so this has to be turned on in Settings.\n\nOpen Settings, then Permissions, and allow the nearby device permissions.</string>
     <string name="permission_open_settings">Open Settings</string>
     <string name="permission_recheck">I have allowed it</string>
+
+    <!-- Radio preconditions. Named concretely — "Bluetooth is off" — because the
+         user's next action differs per blocker, and a vague "mesh unavailable"
+         leaves them with nothing to do about it. -->
+    <string name="radio_title">Almost there</string>
+    <string name="radio_body_bluetooth">NChat needs Bluetooth switched on to reach phones around you.</string>
+    <string name="radio_body_location">Android requires Location to be switched on before any app can find nearby devices over Bluetooth.\n\nNChat does not use your location, and never records where you are.</string>
+    <string name="radio_body_both">NChat needs Bluetooth switched on to reach phones around you.\n\nAndroid also requires Location to be on before any app can scan for nearby devices. NChat does not use your location, and never records where you are.</string>
+    <string name="radio_enable_bluetooth">Turn on Bluetooth</string>
+    <string name="radio_open_location_settings">Open Location settings</string>
 </resources>

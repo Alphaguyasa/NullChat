@@ -16,6 +16,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import et.alpha.nchat.service.MeshForegroundService
 import et.alpha.nchat.ui.MeshChatScreen
 import et.alpha.nchat.ui.permissions.PermissionGate
+import et.alpha.nchat.ui.permissions.RadioGate
 import et.alpha.nchat.ui.theme.NChatTheme
 
 @AndroidEntryPoint
@@ -30,8 +31,13 @@ class MainActivity : ComponentActivity() {
                     // it: starting the mesh without permissions produces a
                     // foreground service that can only fail, and on SDK 34+ that
                     // is grounds for the platform to kill it outright.
+                    // Permissions first, then radios: asking someone to switch
+                    // Bluetooth on before they have granted permission to use it
+                    // is asking them to fix the wrong thing.
                     PermissionGate(modifier = Modifier.padding(innerPadding)) {
-                        MeshHost(modifier = Modifier.padding(innerPadding))
+                        RadioGate(modifier = Modifier.padding(innerPadding)) {
+                            MeshHost(modifier = Modifier.padding(innerPadding))
+                        }
                     }
                 }
             }
