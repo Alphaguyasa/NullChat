@@ -42,11 +42,32 @@ android {
             it.useJUnitPlatform()
         }
     }
+
+    // Exported Room schemas ship into the instrumented-test APK so
+    // MigrationTestHelper can open an old schema and replay migrations against it.
+    sourceSets {
+        getByName("androidTest") {
+            assets.directories.add("$projectDir/schemas")
+        }
+    }
 }
 
 // Room schema export, so migrations can be diffed in review.
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// The Compose BOM pins kotlinx-serialization-core to strictly 1.7.3, but
+// room-testing's schema-bundle serializers are generated against 1.8.x and call
+// a core method that 1.7.3 does not declare — MigrationTestHelper dies with
+// AbstractMethodError while parsing schema JSON. Raise core to match, on the
+// instrumented-test classpath only, so the app's own runtime keeps the version
+// Compose pinned.
+configurations.matching { it.name.contains("AndroidTest") }.configureEach {
+    resolutionStrategy {
+        force("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1")
+        force("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.8.1")
+    }
 }
 
 dependencies {
@@ -90,7 +111,18 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.mockk.android)
+    // mockk-android drags in JUnit 5 transitively. Instrumented tests run on
+    // JUnit 4, so those jars are dead weight that only collide on packaging.
+    androidTestImplementation(libs.mockk.android) {
+        exclude(group = "org.junit.jupiter")
+        exclude(group = "org.junit.platform")
+    }
+    androidTestImplementation(libs.androidx.test.core.ktx)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.turbine)
+    // Room DAO and migration tests run on a device against a real SQLite.
+    androidTestImplementation(libs.room.testing)
 
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
