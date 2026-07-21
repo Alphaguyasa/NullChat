@@ -160,11 +160,10 @@ class FakeTransport(
     override suspend fun send(peerId: String, bytes: ByteArray): Boolean =
         network.transmit(from = name, to = peerId, bytes = bytes)
 
-    override suspend fun broadcast(bytes: ByteArray) {
-        for (peer in network.neighbours(name)) {
+    override suspend fun broadcast(bytes: ByteArray): Int =
+        network.neighbours(name).count { peer ->
             network.transmit(from = name, to = peer, bytes = bytes)
         }
-    }
 
     internal fun deliver(from: String, bytes: ByteArray) {
         inbox.trySend(InboundPayload(from, bytes))

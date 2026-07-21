@@ -10,10 +10,10 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import dagger.hilt.android.AndroidEntryPoint
 import et.alpha.nchat.MainActivity
 import et.alpha.nchat.R
-import et.alpha.nchat.mesh.crypto.LocalIdentity
-import et.alpha.nchat.mesh.crypto.PlaceholderLocalIdentity
+import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.transport.DutyCycle
 import et.alpha.nchat.mesh.transport.NearbyTransport
@@ -21,6 +21,7 @@ import et.alpha.nchat.mesh.transport.RadioBlocker
 import et.alpha.nchat.mesh.transport.RadioMonitor
 import et.alpha.nchat.mesh.transport.RadioState
 import et.alpha.nchat.mesh.transport.Transport
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -38,22 +39,24 @@ import kotlinx.coroutines.runBlocking
 /**
  * Keeps the mesh alive while the app is in the background.
  *
- * Owns the lifecycle of exactly two things — the [Transport] and the
- * [MeshRouter] — and nothing else. It creates them in [onCreate], runs the
- * discovery duty cycle, keeps the notification's peer count current, and tears
- * everything down in [onDestroy].
+ * Runs the discovery duty cycle, keeps the notification current, and pauses the
+ * mesh when the radio goes away. It no longer *constructs* the [Transport] or
+ * [MeshRouter]: those are process-wide singletons from `MeshModule`, because the
+ * UI has to be able to send through the same router this service is driving.
  *
- * The service is the only place these objects are constructed, so there is one
- * router and one transport per process no matter how many times the app is
- * launched.
+ * What that leaves is a lifecycle owner, not a container.
  */
+@AndroidEntryPoint
 class MeshForegroundService : Service() {
+
+    @Inject lateinit var coordinator: MeshCoordinator
+
+    @Inject lateinit var transport: NearbyTransport
+
+    @Inject lateinit var radioMonitor: RadioMonitor
 
     private val scope = CoroutineScope(SupervisorJob())
 
-    private lateinit var identity: LocalIdentity
-    private lateinit var transport: NearbyTransport
-    private lateinit var router: MeshRouter
     private lateinit var radio: StateFlow<RadioState>
 
     private val dutyCycle = DutyCycle()
@@ -70,20 +73,17 @@ class MeshForegroundService : Service() {
 
         // Sampled before the first post so the notification is accurate on its
         // very first frame, rather than flashing "paused" on a healthy device.
-        val monitor = RadioMonitor(this)
-        val initialRadio = monitor.current()
+        val initialRadio = radioMonitor.current()
 
         // Posted before anything else can fail: a foreground service that does not
         // call startForeground within a few seconds of being started is killed.
         startForeground(NOTIFICATION_ID, buildNotification(peerCount = 0, initialRadio))
 
-        identity = PlaceholderLocalIdentity(this)
-        transport = NearbyTransport(context = this, localPeerId = identity.peerId)
-        router = MeshRouter(transport = transport, localId = identity.peerId, scope = scope)
+        radio = radioMonitor.state.stateIn(scope, SharingStarted.Eagerly, initialRadio)
 
-        radio = monitor.state.stateIn(scope, SharingStarted.Eagerly, initialRadio)
-
-        router.start()
+        // Idempotent: START_STICKY can recreate this service against singletons
+        // that are already running, and MeshRouter.start() throws on a second call.
+        coordinator.ensureStarted()
         observeNotificationState()
         runDutyCycle()
     }

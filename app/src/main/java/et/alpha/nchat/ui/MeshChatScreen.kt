@@ -1,36 +1,46 @@
 package et.alpha.nchat.ui
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import et.alpha.nchat.ui.theme.NChatTheme
+import androidx.compose.runtime.saveable.rememberSaveable
+import et.alpha.nchat.ui.chat.ChatScreen
+import et.alpha.nchat.ui.peers.PeerListScreen
 
 /**
- * Placeholder screen used to verify the build runs on a device.
- * Replaced by PeerList once a transport exists.
+ * Host for the two chat screens.
+ *
+ * No navigation graph: with exactly two destinations, a nullable "open
+ * conversation" value plus [BackHandler] is less machinery than a nav library
+ * and has no argument-passing to get wrong.
+ *
+ * The open conversation is a [rememberSaveable] so a rotation does not throw the
+ * user back to the peer list mid-conversation.
  */
 @Composable
 fun MeshChatScreen(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Mesh Chat",
-            style = MaterialTheme.typography.headlineMedium
-        )
-    }
-}
+    // Two pieces of state rather than one nullable, because null is already
+    // meaningful: it is the broadcast thread, not "no thread open".
+    var isChatOpen by rememberSaveable { mutableStateOf(false) }
+    var openPeerId by rememberSaveable { mutableStateOf<String?>(null) }
 
-@Preview(showBackground = true)
-@Composable
-private fun MeshChatScreenPreview() {
-    NChatTheme {
-        MeshChatScreen()
+    if (isChatOpen) {
+        BackHandler { isChatOpen = false }
+        ChatScreen(
+            peerId = openPeerId,
+            onBack = { isChatOpen = false },
+            modifier = modifier,
+        )
+    } else {
+        PeerListScreen(
+            onOpenConversation = { peerId ->
+                openPeerId = peerId
+                isChatOpen = true
+            },
+            modifier = modifier,
+        )
     }
 }

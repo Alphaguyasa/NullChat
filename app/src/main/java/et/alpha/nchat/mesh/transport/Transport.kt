@@ -53,8 +53,14 @@ interface Transport {
      */
     suspend fun send(peerId: String, bytes: ByteArray): Boolean
 
-    /** Sends [bytes] to every currently connected peer. */
-    suspend fun broadcast(bytes: ByteArray)
+    /**
+     * Sends [bytes] to every currently connected peer.
+     *
+     * @return how many peers the payload was actually handed to. Zero means the
+     *   mesh is empty right now, which is not an error — it is the caller's cue
+     *   to leave the message pending and try again when someone appears.
+     */
+    suspend fun broadcast(bytes: ByteArray): Int
 
     /**
      * Stops advertising and discovery and drops all connections.

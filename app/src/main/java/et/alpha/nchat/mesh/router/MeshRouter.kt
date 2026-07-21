@@ -108,10 +108,14 @@ class MeshRouter(
      * The id is marked seen first, so that when the packet floods back from a
      * neighbour it is dropped as a duplicate rather than delivered to our own UI
      * or relayed a second time.
+     *
+     * @return true if at least one peer took the packet. False means the mesh is
+     *   currently empty — the packet is not lost, it simply never left, and the
+     *   caller decides whether to retry.
      */
-    suspend fun originate(packet: Packet) {
+    suspend fun originate(packet: Packet): Boolean {
         seenCache.markSeen(packet.messageId)
-        transport.broadcast(PacketCodec.encode(packet))
+        return transport.broadcast(PacketCodec.encode(packet)) > 0
     }
 
     private fun onConnectionEvent(event: ConnectionEvent) {

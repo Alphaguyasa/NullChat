@@ -142,12 +142,17 @@ class NearbyTransport(
             .isSuccess
     }
 
-    override suspend fun broadcast(bytes: ByteArray) {
+    override suspend fun broadcast(bytes: ByteArray): Int {
         val targets = synchronized(lock) { connectedEndpoints.toList() }
-        if (targets.isEmpty()) return
+        if (targets.isEmpty()) return 0
         // One call rather than a loop: Nearby fans out a single Payload itself.
-        runCatching { client.sendPayload(targets, Payload.fromBytes(bytes)).awaitUnit("broadcast") }
-            .onFailure { Log.w(TAG, "broadcast to ${targets.size} peer(s) failed: ${it.message}") }
+        // All-or-nothing, so a failure means nobody got it, not "some did".
+        return runCatching {
+            client.sendPayload(targets, Payload.fromBytes(bytes)).awaitUnit("broadcast")
+            targets.size
+        }.onFailure {
+            Log.w(TAG, "broadcast to ${targets.size} peer(s) failed: ${it.message}")
+        }.getOrDefault(0)
     }
 
     override suspend fun stop() {
