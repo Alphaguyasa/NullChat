@@ -24,7 +24,13 @@ data class Packet(
     val timestamp: Long,
     /** Ciphertext. Never log this. */
     val payload: ByteArray,
-    /** Ed25519 signature over every preceding byte. See [PacketCodec.signedBytes]. */
+    /**
+     * Ed25519 signature over every preceding byte **except [ttl]**.
+     *
+     * The hop counter is the one field every relay is required to modify, so
+     * signing it would invalidate the signature on the first forward and make
+     * multi-hop delivery unverifiable by construction. See [PacketCodec.signedBytes].
+     */
     val signature: ByteArray,
 ) {
     init {
@@ -52,6 +58,9 @@ data class Packet(
 
     /** Total encoded size in bytes, without actually encoding. */
     val encodedSize: Int get() = HEADER_SIZE + payload.size + SIGNATURE_SIZE
+
+    /** Size of the region the signature covers: the header without [ttl], plus payload. */
+    val signedSize: Int get() = HEADER_SIZE - TTL_SIZE + payload.size
 
     /**
      * A copy with [ttl] reduced by one, or null when the packet has run out of
@@ -102,6 +111,9 @@ data class Packet(
         const val MESSAGE_ID_SIZE: Int = 16
         const val PEER_ID_SIZE: Int = 8
         const val SIGNATURE_SIZE: Int = 64
+
+        /** Width of the hop counter, which the signature deliberately skips. */
+        const val TTL_SIZE: Int = 1
 
         /** version + type + messageId + senderId + recipientId + ttl + timestamp + payloadLen. */
         const val HEADER_SIZE: Int =

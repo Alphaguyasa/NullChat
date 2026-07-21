@@ -14,11 +14,11 @@ import java.nio.ByteOrder
  * messageId    16B
  * senderId     8B
  * recipientId  8B    // all zero = broadcast
- * ttl          u8
+ * ttl          u8    // NOT signed: every relay decrements it
  * timestamp    u64
  * payloadLen   u16
  * payload      bytes // encrypted
- * signature    64B   // Ed25519 over all preceding bytes
+ * signature    64B   // Ed25519 over all preceding bytes except ttl
  * ```
  *
  * [decode] treats its input as hostile: every length is bounds-checked against
@@ -29,23 +29,32 @@ object PacketCodec {
     /** Serializes [packet] into its complete wire form, signature included. */
     fun encode(packet: Packet): ByteArray {
         val buffer = ByteBuffer.allocate(packet.encodedSize).order(ByteOrder.BIG_ENDIAN)
-        writeSignedFields(buffer, packet)
+        writeFields(buffer, packet, includeTtl = true)
         buffer.put(packet.signature)
         return buffer.array()
     }
 
     /**
      * The exact bytes an Ed25519 signature must cover: everything from the
-     * version byte through the end of the payload.
+     * version byte through the end of the payload, **skipping the ttl**.
+     *
+     * The ttl is excluded because routing rule 4 requires every relay to
+     * decrement it. Were it signed, a packet's signature would fail verification
+     * at the second hop and nothing beyond a direct neighbour could ever be
+     * authenticated — the hop counter is mutable in transit by design, so it
+     * cannot also be covered by an end-to-end signature.
+     *
+     * The consequence is that ttl is unauthenticated: a hostile relay can lower
+     * it to truncate delivery, or raise it to make a packet circulate longer than
+     * the sender intended. Both are bounded by the dedup cache and are the
+     * accepted trade for verifiable multi-hop delivery.
      *
      * The crypto layer signs and verifies through this so the signed region can
      * never drift out of step with [encode].
      */
     fun signedBytes(packet: Packet): ByteArray {
-        val buffer = ByteBuffer
-            .allocate(packet.encodedSize - Packet.SIGNATURE_SIZE)
-            .order(ByteOrder.BIG_ENDIAN)
-        writeSignedFields(buffer, packet)
+        val buffer = ByteBuffer.allocate(packet.signedSize).order(ByteOrder.BIG_ENDIAN)
+        writeFields(buffer, packet, includeTtl = false)
         return buffer.array()
     }
 
@@ -111,14 +120,20 @@ object PacketCodec {
         )
     }
 
-    /** Writes every field the signature covers, in wire order. */
-    private fun writeSignedFields(buffer: ByteBuffer, packet: Packet) {
+    /**
+     * Writes header and payload in wire order.
+     *
+     * [includeTtl] is the single difference between the encoded form and the
+     * signed form; both are written from this one function so the two can never
+     * disagree about field order.
+     */
+    private fun writeFields(buffer: ByteBuffer, packet: Packet, includeTtl: Boolean) {
         buffer.put(packet.version.toByte())
         buffer.put(packet.type.wire.toByte())
         buffer.put(packet.messageId)
         buffer.put(packet.senderId)
         buffer.put(packet.recipientId)
-        buffer.put(packet.ttl.toByte())
+        if (includeTtl) buffer.put(packet.ttl.toByte())
         buffer.putLong(packet.timestamp)
         buffer.putShort(packet.payload.size.toShort())
         buffer.put(packet.payload)

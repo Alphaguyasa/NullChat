@@ -6,6 +6,7 @@ import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.transport.ConnectionEvent
 import et.alpha.nchat.mesh.transport.InboundPayload
 import et.alpha.nchat.mesh.transport.Transport
+import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -52,7 +53,18 @@ class MeshNetwork {
         transports.getValue(b).announce(ConnectionEvent.Connected(a))
     }
 
-    /** Severs a link, for partition tests. */
+    /**
+     * Severs a link *without* telling either side.
+     *
+     * Models the real race the transport's `send` return value exists for: a peer
+     * that is gone while the router still believes it is connected.
+     */
+    fun severSilently(a: String, b: String) {
+        adjacency.getValue(a).remove(b)
+        adjacency.getValue(b).remove(a)
+    }
+
+    /** Severs a link and announces it, for partition tests. */
     fun unlink(a: String, b: String) {
         adjacency.getValue(a).remove(b)
         adjacency.getValue(b).remove(a)
@@ -106,6 +118,8 @@ class FakeTransport(
         private set
     var discovering: Boolean = false
         private set
+    var stopped: Boolean = false
+        private set
 
     override suspend fun startAdvertising() {
         advertising = true
@@ -113,6 +127,12 @@ class FakeTransport(
 
     override suspend fun startDiscovery() {
         discovering = true
+    }
+
+    override suspend fun stop() {
+        advertising = false
+        discovering = false
+        stopped = true
     }
 
     override suspend fun send(peerId: String, bytes: ByteArray): Boolean =
@@ -167,7 +187,8 @@ class MeshTestbed(
      * scheduler work, so it advances normally, and because nothing awaits its job
      * `runTest` still returns instead of hanging on the infinite collectors.
      */
-    private val scope = CoroutineScope(StandardTestDispatcher(testScope.testScheduler) + Job())
+    val detachedScope = CoroutineScope(StandardTestDispatcher(testScope.testScheduler) + Job())
+    private val scope get() = detachedScope
 
     val network = MeshNetwork()
     private val nodes = linkedMapOf<String, TestNode>()
@@ -237,9 +258,18 @@ suspend fun TestScope.meshTest(jitterMillis: Long = 100L, body: suspend MeshTest
     }
 }
 
-/** A deterministic 8-byte peer id derived from a node's test name. */
+/**
+ * A deterministic 8-byte peer id derived from a node's test name.
+ *
+ * Derived the way production derives a real one — the leading bytes of a
+ * SHA-256 — rather than by repeating the first character, which would hand
+ * "A1" and "A2" the same id and quietly break any topology whose node names
+ * share a first letter.
+ */
 fun peerId(name: String): ByteArray =
-    ByteArray(Packet.PEER_ID_SIZE) { name[0].code.toByte() }
+    MessageDigest.getInstance("SHA-256")
+        .digest(name.toByteArray())
+        .copyOf(Packet.PEER_ID_SIZE)
 
 private val nextMessage = AtomicInteger()
 

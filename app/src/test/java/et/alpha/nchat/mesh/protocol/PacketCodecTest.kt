@@ -273,14 +273,20 @@ class PacketCodecTest {
     // region signing surface
 
     @Test
-    fun `signedBytes covers every byte preceding the signature`() {
+    fun `signedBytes covers every byte preceding the signature except ttl`() {
         val packet = samplePacket(PacketType.MESSAGE)
         val encoded = PacketCodec.encode(packet)
 
         val signed = PacketCodec.signedBytes(packet)
 
-        assertEquals(encoded.size - Packet.SIGNATURE_SIZE, signed.size)
-        assertArrayEquals(encoded.copyOf(signed.size), signed)
+        assertEquals(encoded.size - Packet.SIGNATURE_SIZE - Packet.TTL_SIZE, signed.size)
+
+        // Everything up to the ttl byte, then everything after it, with the one
+        // mutable field spliced out.
+        val ttlOffset = 1 + 1 + Packet.MESSAGE_ID_SIZE + Packet.PEER_ID_SIZE + Packet.PEER_ID_SIZE
+        val expected = encoded.copyOf(ttlOffset) +
+            encoded.copyOfRange(ttlOffset + Packet.TTL_SIZE, encoded.size - Packet.SIGNATURE_SIZE)
+        assertArrayEquals(expected, signed)
     }
 
     @Test
@@ -292,13 +298,29 @@ class PacketCodecTest {
     }
 
     @Test
+    fun `signedBytes survives a hop`() {
+        // The reason ttl is excluded at all: a relay decrements it on every
+        // forward, so if this were not stable, nothing past a direct neighbour
+        // could ever verify.
+        val packet = samplePacket(PacketType.MESSAGE).copy(ttl = 6)
+        val relayed = packet.decrementTtl()!!
+
+        assertEquals(5, relayed.ttl)
+        assertArrayEquals(PacketCodec.signedBytes(packet), PacketCodec.signedBytes(relayed))
+    }
+
+    @Test
     fun `changing any signed field changes the signed bytes`() {
         val base = PacketCodec.signedBytes(samplePacket(PacketType.MESSAGE))
         val variants = listOf(
-            samplePacket(PacketType.MESSAGE).copy(ttl = 5),
             samplePacket(PacketType.MESSAGE).copy(timestamp = 1L),
             samplePacket(PacketType.MESSAGE).copy(type = PacketType.ACK),
             samplePacket(PacketType.MESSAGE).copy(payload = "other".toByteArray()),
+            samplePacket(PacketType.MESSAGE).copy(senderId = ByteArray(Packet.PEER_ID_SIZE) { 9 }),
+            samplePacket(PacketType.MESSAGE)
+                .copy(recipientId = ByteArray(Packet.PEER_ID_SIZE) { 9 }),
+            samplePacket(PacketType.MESSAGE)
+                .copy(messageId = ByteArray(Packet.MESSAGE_ID_SIZE) { 9 }),
         )
 
         variants.forEach { assertFalse(base.contentEquals(PacketCodec.signedBytes(it))) }

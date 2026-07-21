@@ -36,6 +36,14 @@ interface Transport {
 
     /** Sends [bytes] to every currently connected peer. */
     suspend fun broadcast(bytes: ByteArray)
+
+    /**
+     * Stops advertising and discovery and drops all connections.
+     *
+     * Must be idempotent: the foreground service calls it on teardown regardless
+     * of how far startup actually got.
+     */
+    suspend fun stop()
 }
 
 /**

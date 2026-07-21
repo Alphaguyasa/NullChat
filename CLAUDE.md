@@ -32,12 +32,17 @@ packetType   u8    // 1=ANNOUNCE 2=MESSAGE 3=ACK 4=KEY_EXCHANGE 5=FRAGMENT
 messageId    16B   // UUID, used for dedup
 senderId     8B    // first 8 bytes of SHA-256 of sender public key
 recipientId  8B    // all zero = broadcast
-ttl          u8    // starts at 6, decremented per hop
+ttl          u8    // starts at 6, decremented per hop. NOT covered by the signature
 timestamp    u64   // epoch millis
 payloadLen   u16
 payload      bytes // encrypted
-signature    64B   // Ed25519 over all preceding bytes
+signature    64B   // Ed25519 over all preceding bytes EXCEPT ttl
 ```
+
+The signature deliberately skips `ttl`. Every relay must decrement it, so signing
+it would invalidate the signature on the first forward and make multi-hop
+delivery unverifiable. The trade is that `ttl` is unauthenticated in transit;
+`PacketCodec.signedBytes` is the single source of truth for the signed region.
 
 ## Routing rules
 Flooding with deduplication. No routing tables.

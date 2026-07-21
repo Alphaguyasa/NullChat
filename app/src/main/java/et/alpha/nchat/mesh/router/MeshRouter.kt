@@ -6,14 +6,15 @@ import et.alpha.nchat.mesh.protocol.PacketDecodeException
 import et.alpha.nchat.mesh.transport.ConnectionEvent
 import et.alpha.nchat.mesh.transport.InboundPayload
 import et.alpha.nchat.mesh.transport.Transport
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -44,7 +45,17 @@ class MeshRouter(
         }
     }
 
-    private val _delivered = MutableSharedFlow<Packet>(extraBufferCapacity = DELIVERY_BUFFER)
+    /**
+     * Buffered rather than broadcast, because delivery must not be lossy: a
+     * `MutableSharedFlow` with no subscriber attached discards what it is handed,
+     * and a discarded packet here is a chat message the user never receives.
+     * An unbounded channel holds messages that arrive before the consumer is
+     * ready, which is exactly what happens during service startup.
+     *
+     * The corollary is that this has a *single* consumer — the repository that
+     * persists messages. The UI observes Room, not the router.
+     */
+    private val deliveries = Channel<Packet>(Channel.UNLIMITED)
 
     /**
      * Packets addressed to this device (or broadcast to everyone), in arrival order.
@@ -53,23 +64,42 @@ class MeshRouter(
      * SessionCipher, which does not exist yet; the router deliberately stops at
      * the routing boundary rather than growing a crypto stub.
      */
-    val delivered: SharedFlow<Packet> = _delivered.asSharedFlow()
+    val delivered: Flow<Packet> = deliveries.receiveAsFlow()
 
     /** Directly reachable peers, as reported by the transport. */
     private val peers = linkedSetOf<String>()
 
     private val _droppedMalformed = AtomicLong()
+    private val _failedForwards = AtomicLong()
 
     /** Packets discarded because they did not parse. Useful as a health signal. */
     val droppedMalformed: Long get() = _droppedMalformed.get()
 
     /**
+     * Relay attempts that failed because the peer had gone by the time we sent.
+     *
+     * Nothing recovers these yet — that is `ForwardQueue`'s job, and it is not
+     * built. Counting them keeps the gap visible instead of silent.
+     */
+    val failedForwards: Long get() = _failedForwards.get()
+
+    private val started = AtomicBoolean(false)
+
+    /**
      * Begins routing. Returns the supervising job so a foreground service can
      * cancel the whole router in one call.
+     *
+     * Guarded against a second call: a service restarted in place would otherwise
+     * attach a duplicate set of collectors to the same transport.
+     *
+     * @throws IllegalStateException if called twice.
      */
-    fun start(): Job = scope.launch {
-        launch { transport.connectionEvents.collect(::onConnectionEvent) }
-        launch { transport.incoming.collect(::onInbound) }
+    fun start(): Job {
+        check(started.compareAndSet(false, true)) { "MeshRouter.start() called twice" }
+        return scope.launch {
+            launch { transport.connectionEvents.collect(::onConnectionEvent) }
+            launch { transport.incoming.collect(::onInbound) }
+        }
     }
 
     /**
@@ -116,7 +146,7 @@ class MeshRouter(
         // Rule 3: deliver anything addressed to us or to everyone.
         val isForUs = packet.recipientId.contentEquals(localId)
         if (isForUs || packet.isBroadcast) {
-            _delivered.tryEmit(packet)
+            deliveries.trySend(packet)
             // A unicast that has arrived is finished travelling. A broadcast is
             // for us *and* for everyone past us, so it falls through to relaying.
             if (isForUs) return
@@ -146,14 +176,12 @@ class MeshRouter(
         val targets = synchronized(peers) { peers.filterTo(ArrayList()) { it != arrivedFrom } }
         if (targets.isEmpty()) return
 
-        // NOTE: re-encoding here produces a packet whose Ed25519 signature no
-        // longer matches, because the wire format signs the ttl byte and we just
-        // decremented it. Resolving that is a wire-format decision for the crypto
-        // layer (exclude ttl from the signed region, or re-sign per hop); the
-        // router is not the place to unilaterally change the packet format.
+        // Re-encoding with a decremented ttl leaves the signature valid: the
+        // signed region excludes the ttl byte precisely so a relay can spend a hop
+        // without invalidating end-to-end authentication. See PacketCodec.signedBytes.
         val bytes = PacketCodec.encode(packet)
         for (peer in targets) {
-            transport.send(peer, bytes)
+            if (!transport.send(peer, bytes)) _failedForwards.incrementAndGet()
         }
     }
 
@@ -161,7 +189,5 @@ class MeshRouter(
         /** Rule 5's jitter window, in milliseconds. */
         const val MIN_JITTER_MILLIS: Long = 50
         const val MAX_JITTER_MILLIS: Long = 500
-
-        private const val DELIVERY_BUFFER = 64
     }
 }

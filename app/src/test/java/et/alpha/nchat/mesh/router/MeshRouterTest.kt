@@ -1,12 +1,16 @@
 package et.alpha.nchat.mesh.router
 
 import et.alpha.nchat.mesh.protocol.Packet
+import et.alpha.nchat.mesh.protocol.PacketCodec
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 /**
  * Multi-hop routing, verified entirely in memory.
@@ -139,6 +143,88 @@ class MeshRouterTest {
             // The relays did forward — this is not passing because nothing moved.
             assertEquals(listOf("C"), hopsFrom("B"))
             assertEquals(listOf("B"), hopsFrom("C"))
+        }
+    }
+
+    @Test
+    fun `a relayed packet keeps a verifiable signature`() = runTest {
+        meshTest {
+            val (a, _, _, _, e) = chain("A", "B", "C", "D", "E")
+            settle()
+
+            val original = testPacket(from = a.id, to = e.id, ttl = 6)
+            a.router.originate(original)
+            settle()
+
+            // Four hops and four decrements later, the bytes an Ed25519 verifier
+            // would check are still bit-identical to what A signed. Without ttl
+            // excluded from the signed region this fails at the first relay.
+            assertArrayEquals(
+                PacketCodec.signedBytes(original),
+                PacketCodec.signedBytes(e.delivered.single()),
+            )
+        }
+    }
+
+    @Test
+    fun `messages delivered before a consumer attaches are not lost`() = runTest {
+        meshTest {
+            val (a, b) = chain("A", "B")
+            settle()
+
+            // b's collector is attached by the testbed, so drain it and route a
+            // packet into a router nobody is listening to yet.
+            val late = MeshRouter(
+                transport = network.register("Z"),
+                localId = peerId("Z"),
+                scope = detachedScope,
+            )
+            network.link("B", "Z")
+            late.start()
+            settle()
+
+            a.router.originate(testPacket(from = a.id, to = peerId("Z"), ttl = 6))
+            settle()
+
+            // Nothing has ever collected `late.delivered`. The packet must still be
+            // waiting rather than discarded, which is why delivery is a channel and
+            // not a subscriber-less SharedFlow.
+            val received = mutableListOf<Packet>()
+            detachedScope.launch { late.delivered.collect { received.add(it) } }
+            settle()
+
+            assertEquals(1, received.size, "a packet routed before anyone subscribed")
+            assertTrue(b.delivered.isEmpty(), "B is only a relay here")
+        }
+    }
+
+    @Test
+    fun `starting twice is refused`() = runTest {
+        meshTest {
+            val a = node("A")
+            settle()
+
+            // A service restarted in place must not attach a second set of
+            // collectors to the same transport.
+            assertThrows<IllegalStateException> { a.router.start() }
+        }
+    }
+
+    @Test
+    fun `a forward to a departed peer is counted`() = runTest {
+        meshTest {
+            val (a, b, c) = chain("A", "B", "C")
+            settle()
+
+            // C drops off the mesh, but B has not heard about it yet: the link is
+            // gone while B still believes C is a peer.
+            network.severSilently("B", "C")
+
+            a.router.originate(testPacket(from = a.id, to = c.id, ttl = 6))
+            settle()
+
+            assertEquals(1L, b.router.failedForwards)
+            assertTrue(c.delivered.isEmpty())
         }
     }
 
