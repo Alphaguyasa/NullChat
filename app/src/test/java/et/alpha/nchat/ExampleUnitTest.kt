@@ -1,17 +1,15 @@
 package et.alpha.nchat
 
-import org.junit.Test
-
-import org.junit.Assert.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
 
 /**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
+ * Sanity check that the JUnit 5 unit-test toolchain is wired up.
+ * Protocol and router tests (pure JVM, no Android deps) belong in this source set.
  */
 class ExampleUnitTest {
     @Test
-    fun addition_isCorrect() {
+    fun `junit5 toolchain runs`() {
         assertEquals(4, 2 + 2)
     }
 }
