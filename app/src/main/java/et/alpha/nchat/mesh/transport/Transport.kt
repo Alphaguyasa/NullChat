@@ -1,0 +1,75 @@
+package et.alpha.nchat.mesh.transport
+
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * A link layer the mesh can speak over: Nearby Connections today, BLE later.
+ *
+ * Everything above this interface — [et.alpha.nchat.mesh.router.MeshRouter] in
+ * particular — works only in terms of opaque peer ids and byte arrays, so no
+ * transport-specific type ever leaks into the routing layer.
+ *
+ * Implementations are responsible for connection management; the router only
+ * observes the results through [connectionEvents].
+ */
+interface Transport {
+
+    /** Peers appearing and disappearing. Hot; missed events are missed. */
+    val connectionEvents: Flow<ConnectionEvent>
+
+    /** Payloads handed to us by a connected peer, in arrival order. */
+    val incoming: Flow<InboundPayload>
+
+    /** Makes this device discoverable to peers looking for the mesh. */
+    suspend fun startAdvertising()
+
+    /** Starts looking for peers advertising the mesh. */
+    suspend fun startDiscovery()
+
+    /**
+     * Sends [bytes] to a single connected peer.
+     *
+     * @return false if the peer is not currently reachable. Callers use this to
+     *   decide whether the packet belongs in the forward queue instead.
+     */
+    suspend fun send(peerId: String, bytes: ByteArray): Boolean
+
+    /** Sends [bytes] to every currently connected peer. */
+    suspend fun broadcast(bytes: ByteArray)
+}
+
+/**
+ * A payload as it arrived, tagged with the peer that handed it over.
+ *
+ * [fromPeer] is a *link-layer* id (a Nearby endpoint id, say) and is emphatically
+ * not the packet's 8-byte protocol `senderId`: on any hop past the first, the
+ * originating sender is several nodes away from whoever passed us the bytes.
+ * Routing rule 4 — rebroadcast to everyone except the peer it arrived from —
+ * depends on this distinction.
+ */
+class InboundPayload(val fromPeer: String, val bytes: ByteArray) {
+
+    override fun toString(): String = "InboundPayload(from=$fromPeer, ${bytes.size}B)"
+
+    // Content equality, so tests and buffers behave. ByteArray defaults to
+    // identity comparison, which silently makes every payload distinct.
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is InboundPayload) return false
+        return fromPeer == other.fromPeer && bytes.contentEquals(other.bytes)
+    }
+
+    override fun hashCode(): Int = 31 * fromPeer.hashCode() + bytes.contentHashCode()
+}
+
+/** Changes to the set of peers this device can currently reach directly. */
+sealed interface ConnectionEvent {
+
+    val peerId: String
+
+    /** A peer is connected and can be sent to. */
+    data class Connected(override val peerId: String) : ConnectionEvent
+
+    /** A peer went away; sends to it will fail until it returns. */
+    data class Disconnected(override val peerId: String) : ConnectionEvent
+}
