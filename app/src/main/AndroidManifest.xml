@@ -53,9 +53,21 @@
          they cannot stop. Requested alongside the others, not enforced. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- QR pairing only. Requested at the pairing screen rather than in the
+         app-wide permission gate: the mesh works perfectly well without a
+         camera, and blocking launch on a permission most users never need would
+         be disproportionate. See ui/permissions/MeshPermissions.kt. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <uses-feature
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
+
+    <!-- Not required: a device with no camera can still display its own code
+         for someone else to scan, which is half of pairing. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
 
     <application
         android:name=".NChatApplication"

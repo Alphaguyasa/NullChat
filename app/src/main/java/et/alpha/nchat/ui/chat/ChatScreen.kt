@@ -33,12 +33,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import et.alpha.nchat.R
 import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.mesh.protocol.MessagePacket
@@ -57,6 +59,7 @@ import java.util.Locale
 fun ChatScreen(
     peerId: String?,
     onBack: () -> Unit,
+    onPair: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
@@ -115,6 +118,20 @@ fun ChatScreen(
                 .padding(padding)
                 .imePadding(),
         ) {
+            // Shown for the *absence* of verification rather than its presence.
+            // A reassuring badge on a verified contact would train people to
+            // read "no badge" as "fine", which is exactly backwards when
+            // unverified is the default state of every contact.
+            if (state.isBroadcast) {
+                WarningBanner(text = stringResource(R.string.chat_broadcast_warning))
+            } else if (!state.isVerified) {
+                WarningBanner(
+                    text = stringResource(R.string.chat_unverified_warning),
+                    actionLabel = stringResource(R.string.chat_pair_action),
+                    onAction = onPair,
+                )
+            }
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -135,6 +152,38 @@ fun ChatScreen(
                 onDraftChange = viewModel::onDraftChange,
                 onSend = viewModel::onSend,
             )
+        }
+    }
+}
+
+/**
+ * A caution strip across the top of the thread.
+ *
+ * Deliberately not dismissible: the condition it reports does not go away by
+ * being acknowledged, and a warning the user can silence is one they will
+ * silence.
+ */
+@Composable
+internal fun WarningBanner(
+    text: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.weight(1f),
+        )
+        if (actionLabel != null && onAction != null) {
+            TextButton(onClick = onAction) { Text(text = actionLabel) }
         }
     }
 }

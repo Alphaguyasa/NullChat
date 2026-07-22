@@ -26,6 +26,16 @@ data class PeerRow(
     val isOnline: Boolean,
     val lastMessage: String?,
     val unreadCount: Int,
+    /**
+     * Whether the user has confirmed this peer's key out of band, by QR.
+     *
+     * False covers two very different situations that the UI deliberately does
+     * not distinguish: a peer whose key arrived over the radio and was accepted
+     * on trust, and one whose key we do not have at all. Neither has been
+     * checked by a human, and telling them apart would invite the user to treat
+     * the first as safe.
+     */
+    val isVerified: Boolean = false,
 ) {
     val isBroadcast: Boolean get() = peerId == null
 }
@@ -72,6 +82,7 @@ class PeerListViewModel @Inject constructor(
                 isOnline = peer.id in online,
                 lastMessage = summary?.lastMessageBody,
                 unreadCount = summary?.unreadCount ?: 0,
+                isVerified = peer.isVerified,
             )
         // Reachable peers first, then most recently heard from. Someone standing
         // next to you matters more than someone you spoke to yesterday.

@@ -36,4 +36,24 @@
     <string name="radio_body_both">NChat needs Bluetooth switched on to reach phones around you.\n\nAndroid also requires Location to be on before any app can scan for nearby devices. NChat does not use your location, and never records where you are.</string>
     <string name="radio_enable_bluetooth">Turn on Bluetooth</string>
     <string name="radio_open_location_settings">Open Location settings</string>
+
+    <!-- QR pairing -->
+    <string name="pair_title">Pair a contact</string>
+    <string name="pair_my_code">Your code</string>
+    <string name="pair_my_code_description">A QR code containing your public key</string>
+    <string name="pair_fingerprint_hint">Read these six words aloud to check you both see the same ones. Scanning the code is the stronger check.</string>
+    <string name="pair_scan_title">Scan their code</string>
+    <string name="pair_camera_rationale">Pairing needs the camera to read the other phone\'s code. Nothing is recorded, and no image leaves this device.</string>
+    <string name="pair_camera_grant">Allow camera</string>
+    <string name="pair_scanned_self">That is your own code.</string>
+    <string name="pair_scanned_unknown">That is not an NChat pairing code.</string>
+    <string name="pair_verified">Verified %1$s</string>
+    <string name="pair_compare_hint">Check these words match the ones on their screen.</string>
+    <string name="pair_scan_another">Scan another</string>
+
+    <!-- Verification state -->
+    <string name="peer_unverified_badge">unverified</string>
+    <string name="chat_unverified_warning">You have not verified this contact. Pair by QR code to confirm their key really belongs to them.</string>
+    <string name="chat_broadcast_warning">Messages to Everyone are not encrypted. Anyone in range can read them.</string>
+    <string name="chat_pair_action">Pair</string>
 </resources>

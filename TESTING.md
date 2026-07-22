@@ -110,10 +110,10 @@ Start them within ~10 m of each other, no walls between.
 
 | # | Step | Expected |
 |---|---|---|
-| 7.1 | Type until the counter passes 71 | Counter turns red, **Send** greys out |
-| 7.2 | Delete back to ≤ 71 | Send re-enables |
+| 7.1 | Type until the counter passes 55 | Counter turns red, **Send** greys out |
+| 7.2 | Delete back to ≤ 55 | Send re-enables |
 | 7.3 | Paste ~20 emoji | Counter reads ~80 bytes and blocks, despite only 20 characters |
-| 7.4 | Send exactly 71 bytes of ASCII | Sends and arrives whole |
+| 7.4 | Send exactly 55 bytes of ASCII | Sends and arrives whole |
 
 ## 8. Range
 
@@ -131,7 +131,30 @@ Start them within ~10 m of each other, no walls between.
 | 9.2 | Send from A | B's notification stays accurate; message is there when B is reopened |
 | 9.3 | Lock B's screen, send from A, wait 2 min, unlock | Message present |
 
-## 10. Three phones — relay (optional)
+## 10. Verification and pairing
+
+| # | Step | Expected |
+|---|---|---|
+| 10.1 | On A, open B's thread before pairing | Red banner: *You have not verified this contact*, with a **Pair** button |
+| 10.2 | A's peer list | B's row carries a red **unverified** chip |
+| 10.3 | Open **Everyone** | Different banner: *Messages to Everyone are not encrypted* |
+| 10.4 | Tap **Pair a contact** on A | QR code, `You:` id, and six words |
+| 10.5 | Compare the six words on A with A's own words shown on B after pairing | They match |
+| 10.6 | On A, scan B's code | *Verified <B's id>* plus B's six words |
+| 10.7 | Back on A's peer list | B's **unverified** chip is gone |
+| 10.8 | Open B's thread on A | The unverified banner is gone |
+| 10.9 | Scan A's own code on A | *That is your own code* — refused, not paired |
+| 10.10 | Scan any non-NChat QR | *That is not an NChat pairing code* |
+
+> Pairing is one-directional. Scanning B's code on A verifies B **on A only**; B
+> must scan A's code to verify A. Both phones showing no banner is the finished
+> state.
+
+> 10.5 is the check that matters if you cannot scan: the six words are 48 bits,
+> so they are a spot-check for reading aloud, not a proof. Scanning compares all
+> 32 bytes.
+
+## 11. Three phones — relay (optional)
 
 Needs a third phone **C** and enough space that **A and C cannot hear each
 other** while both can hear **B**. Roughly 30–50 m apart with B in the middle,
@@ -139,10 +162,10 @@ or two rooms with B in the corridor.
 
 | # | Step | Expected |
 |---|---|---|
-| 10.1 | Confirm A lists B but **not** C, and C lists B but not A | Precondition — without this the test proves nothing |
-| 10.2 | From A, send in **Everyone** | Arrives on C, relayed by B |
-| 10.3 | Check B | Message shown once, not duplicated |
-| 10.4 | Send several | No storm, no repeats; each appears once everywhere |
+| 11.1 | Confirm A lists B but **not** C, and C lists B but not A | Precondition — without this the test proves nothing |
+| 11.2 | From A, send in **Everyone** | Arrives on C, relayed by B |
+| 11.3 | Check B | Message shown once, not duplicated |
+| 11.4 | Send several | No storm, no repeats; each appears once everywhere |
 
 > This is the only test that exercises multi-hop routing on real hardware. The
 > 4-hop chain, TTL expiry and no-echo behaviour are covered by
@@ -153,20 +176,20 @@ or two rooms with B in the corridor.
 
 ## Known-broken, do not report as bugs
 
-- **Messages are sent in plaintext.** `SessionCipher` does not exist. Anyone in
-  Bluetooth range with the right tooling reads everything. Do not use this for
-  anything real.
-- **Signatures are real but nothing is actually verified yet.** Every outgoing
-  packet is now Ed25519-signed, and the router checks incoming ones — but it can
-  only check a signature against a public key it holds, and no mechanism
-  distributes those yet. Until ANNOUNCE lands, every packet from another device
-  is `UNKNOWN_SENDER`: relayed onward, never shown as verified. **A device can
-  still claim any sender id.** Do not read "signing works" as "impersonation is
-  prevented"; those are two different milestones.
-- **Nothing is ever marked verified** in the UI. `QrPairScreen` is not built, so
-  `isVerified` is still false for every peer.
+- **Broadcast messages are sent in plaintext.** The **Everyone** thread has no
+  single recipient, so there is no pair of keys to agree on. Anyone in Bluetooth
+  range reads it. The thread carries a banner saying so.
+- **A direct message falls back to plaintext** if the recipient has not yet
+  announced itself, rather than failing to send. This is the weakest point in
+  the design: two phones that have only just met will exchange their first
+  messages in the clear. Watch for the `no key for …, sending in the clear`
+  warning in logcat.
+- **First key wins, forever.** A peer's key is trust-on-first-use and cannot be
+  replaced without forgetting the peer. There is no key rotation.
+- **The six-word fingerprint is 48 bits.** It is a spot-check for reading aloud,
+  not a proof — scanning the QR compares all 32 bytes and is the real check.
 - **No ACK**, so a sent message never advances past one tick to ✓✓.
-- **No display names** — peers show as 8 hex characters. QR pairing is not built.
+- **No display names** — peers show as 8 hex characters.
 - A message that fails to send is queued for its recipient and retried when that
   recipient connects. The queue holds 500 packets for 24 hours, evicting oldest
   first, and survives a restart. There is still no retry *limit* and no FAILED

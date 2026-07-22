@@ -15,21 +15,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Badge
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import et.alpha.nchat.R
 import et.alpha.nchat.ui.theme.NChatTheme
 
 /**
@@ -42,13 +46,18 @@ import et.alpha.nchat.ui.theme.NChatTheme
 @Composable
 fun PeerListScreen(
     onOpenConversation: (peerId: String?) -> Unit,
+    onOpenPairing: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PeerListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
 
     Column(modifier = modifier.fillMaxSize()) {
-        Header(onlineCount = state.onlineCount, selfId = state.selfId)
+        Header(
+            onlineCount = state.onlineCount,
+            selfId = state.selfId,
+            onOpenPairing = onOpenPairing,
+        )
         HorizontalDivider()
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -61,9 +70,20 @@ fun PeerListScreen(
 }
 
 @Composable
-private fun Header(onlineCount: Int, selfId: String) {
+private fun Header(onlineCount: Int, selfId: String, onOpenPairing: () -> Unit) {
     Column(modifier = Modifier.padding(16.dp)) {
-        Text(text = "Mesh", style = MaterialTheme.typography.headlineSmall)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "Mesh", style = MaterialTheme.typography.headlineSmall)
+            // The entry point to pairing hangs off the identity line, which is
+            // already where this screen talks about who you are.
+            TextButton(onClick = onOpenPairing) {
+                Text(text = stringResource(R.string.pair_title))
+            }
+        }
         Spacer(Modifier.size(4.dp))
         Text(
             text = when (onlineCount) {
@@ -88,7 +108,7 @@ private fun Header(onlineCount: Int, selfId: String) {
 }
 
 @Composable
-private fun PeerRowItem(row: PeerRow, onClick: () -> Unit) {
+internal fun PeerRowItem(row: PeerRow, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -100,12 +120,22 @@ private fun PeerRowItem(row: PeerRow, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = row.label,
-                style = MaterialTheme.typography.titleMedium,
-                fontFamily = if (row.isBroadcast) FontFamily.Default else FontFamily.Monospace,
-                fontWeight = if (row.unreadCount > 0) FontWeight.Bold else FontWeight.Normal,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = row.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = if (row.isBroadcast) FontFamily.Default else FontFamily.Monospace,
+                    fontWeight = if (row.unreadCount > 0) FontWeight.Bold else FontWeight.Normal,
+                )
+                // Shown on the unverified state rather than the verified one, on
+                // purpose. A badge that appears when things are *fine* trains
+                // people to ignore its absence; this way the default state of a
+                // contact nobody has checked is visibly flagged.
+                if (!row.isBroadcast && !row.isVerified) {
+                    Spacer(Modifier.width(6.dp))
+                    UnverifiedBadge()
+                }
+            }
             val subtitle = row.lastMessage
                 ?: if (row.isBroadcast) "Everyone in range" else "No messages yet"
             Text(
@@ -122,6 +152,22 @@ private fun PeerRowItem(row: PeerRow, onClick: () -> Unit) {
             Badge { Text(row.unreadCount.toString()) }
         }
     }
+}
+
+/** A small "unverified" chip, in the error colour so it reads as a caution. */
+@Composable
+internal fun UnverifiedBadge() {
+    Text(
+        text = stringResource(R.string.peer_unverified_badge),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier
+            .background(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(4.dp),
+            )
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    )
 }
 
 @Composable
@@ -148,7 +194,7 @@ private const val SHORT_ID_CHARS = 8
 private fun PeerListPreview() {
     NChatTheme {
         Column {
-            Header(onlineCount = 2, selfId = "1ac3f00d9e8b7a65")
+            Header(onlineCount = 2, selfId = "1ac3f00d9e8b7a65", onOpenPairing = {})
             HorizontalDivider()
             PeerRowItem(
                 row = PeerRow(null, "Everyone", true, "meet me at the north gate", 2),

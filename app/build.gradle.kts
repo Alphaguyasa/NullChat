@@ -99,6 +99,12 @@ dependencies {
     // Crypto
     implementation(libs.tink.android)
 
+    // QR pairing
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.zxing.core)
+
     // Unit tests (JVM, JUnit 5) — router and codec logic lives here.
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

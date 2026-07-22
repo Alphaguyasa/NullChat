@@ -8,6 +8,7 @@ import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.repo.MessageRepository
+import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.transport.NearbyTransport
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -28,6 +30,13 @@ data class ChatState(
     val title: String = "",
     val isPeerOnline: Boolean = false,
     val isBroadcast: Boolean = true,
+    /**
+     * Whether the user has confirmed this peer's key by QR.
+     *
+     * Drives the warning banner. False for a peer whose key merely arrived over
+     * the radio, because nothing about that ties the key to a person.
+     */
+    val isVerified: Boolean = false,
 )
 
 /**
@@ -42,6 +51,7 @@ data class ChatState(
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val messages: MessageRepository,
+    private val peers: PeerRepository,
     private val coordinator: MeshCoordinator,
     private val transport: NearbyTransport,
 ) : ViewModel() {
@@ -58,12 +68,16 @@ class ChatViewModel @Inject constructor(
             transport.connectedPeers.map { endpoints ->
                 peer == null || endpoints.any { transport.peerIdFor(it)?.toHexId() == peer }
             },
-        ) { rows, online ->
+            // A peer row may not exist yet for someone we have never heard from,
+            // which reads as unverified — correctly.
+            if (peer == null) flowOf(null) else peers.observePeer(peer),
+        ) { rows, online, peerRow ->
             ChatState(
                 messages = rows,
                 title = peer ?: EVERYONE,
                 isPeerOnline = online,
                 isBroadcast = peer == null,
+                isVerified = peerRow?.isVerified == true,
             )
         }
     }.stateIn(
