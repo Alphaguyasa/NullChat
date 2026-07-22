@@ -1,19 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+   Backup and device-transfer rules for API 31+. Keep in step with
+   backup_rules.xml, which covers older devices.
+
+   mesh_keys holds this device's Ed25519 and X25519 private key material. It is
+   excluded from both cloud backup and device transfer: the peer id is a hash of
+   the signing key, so a copy that travelled would let two devices claim one
+   identity. Losing the key on a new device is the correct outcome — it becomes
+   a new device, and pairing is what re-establishes trust.
+
+   mesh_identity is the superseded placeholder identity file.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude
+            domain="sharedpref"
+            path="mesh_keys.xml" />
+        <exclude
+            domain="sharedpref"
+            path="mesh_identity.xml" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude
+            domain="sharedpref"
+            path="mesh_keys.xml" />
+        <exclude
+            domain="sharedpref"
+            path="mesh_identity.xml" />
     </device-transfer>
-    -->
 </data-extraction-rules>

@@ -1,10 +1,8 @@
 package et.alpha.nchat.mesh.crypto
 
-import android.content.Context
-import et.alpha.nchat.data.db.hexIdToBytes
-import et.alpha.nchat.data.db.toHexId
-import et.alpha.nchat.mesh.protocol.Packet
-import java.security.SecureRandom
+import et.alpha.nchat.mesh.protocol.PacketSigner
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /** This device's stable mesh identity. */
 interface LocalIdentity {
@@ -13,55 +11,40 @@ interface LocalIdentity {
      * The 8-byte id this device is known by on the mesh.
      *
      * Stable across restarts: it keys conversations in the database and is what
-     * peers address packets to.
+     * peers address packets to. Derived from [publicKey], so it cannot be
+     * claimed by a device that does not hold the matching private key.
      */
     val peerId: ByteArray
+
+    /**
+     * This device's Ed25519 public key, 32 bytes.
+     *
+     * Published freely — it goes out in ANNOUNCE packets and QR codes, and is
+     * what peers verify our signatures against.
+     */
+    val publicKey: ByteArray
 }
 
 /**
- * A stand-in identity until `KeyManager` exists.
+ * The real identity, backed by [KeyManager]'s Ed25519 keypair.
  *
- * **This is not the real thing.** CLAUDE.md specifies the peer id as the first 8
- * bytes of SHA-256 of an Ed25519 public key held in the Android Keystore. There
- * is no keypair yet, so this generates 8 random bytes on first launch and keeps
- * them in preferences.
- *
- * The consequences, none of which matter before the crypto layer lands but all
- * of which matter after:
- * - The id is not bound to any key, so nothing can verify a peer is who its id
- *   claims. Packet signatures cannot be checked against it.
- * - Clearing app data mints a new identity and orphans existing conversations.
- * - The id does not survive a reinstall.
- *
- * Replacing this with a Keystore-backed implementation is a prerequisite for
- * shipping, not a nice-to-have. The [LocalIdentity] seam exists so that swap
- * touches this file only.
+ * Replaces the random-bytes placeholder that stood here until the crypto layer
+ * existed. The consequence of the swap is that **every device's peer id
+ * changes**: ids used to be 8 random bytes and are now a hash of the signing
+ * key. Conversations, messages and queued packets stored against an old id are
+ * orphaned, because an old id cannot be derived from a new key. The app is
+ * pre-v1 and `TESTING.md` already documents that clearing app data changes the
+ * id, so upgrading means clearing data rather than migrating to a value that
+ * does not exist.
  */
-class PlaceholderLocalIdentity(context: Context) : LocalIdentity {
+@Singleton
+class KeyManagerIdentity @Inject constructor(
+    private val keyManager: KeyManager,
+) : LocalIdentity, PacketSigner {
 
-    private val preferences =
-        context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    override val peerId: ByteArray get() = keyManager.peerId.copyOf()
 
-    override val peerId: ByteArray by lazy { loadOrCreate() }
+    override val publicKey: ByteArray get() = keyManager.signingPublicKey
 
-    private fun loadOrCreate(): ByteArray {
-        val stored = preferences.getString(KEY_PEER_ID, null)
-        if (stored != null) {
-            // Corrupt or truncated preferences are recoverable — mint a new id
-            // rather than crashing the service on every start.
-            runCatching { stored.hexIdToBytes() }
-                .getOrNull()
-                ?.takeIf { it.size == Packet.PEER_ID_SIZE }
-                ?.let { return it }
-        }
-
-        val generated = ByteArray(Packet.PEER_ID_SIZE).also { SecureRandom().nextBytes(it) }
-        preferences.edit().putString(KEY_PEER_ID, generated.toHexId()).apply()
-        return generated
-    }
-
-    private companion object {
-        const val PREFERENCES = "mesh_identity"
-        const val KEY_PEER_ID = "local_peer_id"
-    }
+    override fun sign(signedBytes: ByteArray): ByteArray = keyManager.sign(signedBytes)
 }

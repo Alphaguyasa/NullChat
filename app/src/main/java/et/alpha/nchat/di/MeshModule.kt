@@ -7,8 +7,12 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import et.alpha.nchat.data.db.RoomForwardQueueStore
+import et.alpha.nchat.mesh.crypto.DirectoryPacketVerifier
+import et.alpha.nchat.mesh.crypto.KeyManager
+import et.alpha.nchat.mesh.crypto.KeyManagerIdentity
 import et.alpha.nchat.mesh.crypto.LocalIdentity
-import et.alpha.nchat.mesh.crypto.PlaceholderLocalIdentity
+import et.alpha.nchat.mesh.protocol.PacketSigner
+import et.alpha.nchat.mesh.protocol.PacketVerifier
 import et.alpha.nchat.mesh.router.ForwardQueue
 import et.alpha.nchat.mesh.router.ForwardQueueStore
 import et.alpha.nchat.mesh.router.MeshRouter
@@ -53,8 +57,23 @@ object MeshModule {
 
     @Provides
     @Singleton
-    fun provideLocalIdentity(@ApplicationContext context: Context): LocalIdentity =
-        PlaceholderLocalIdentity(context)
+    fun provideKeyManager(@ApplicationContext context: Context): KeyManager = KeyManager(context)
+
+    @Provides
+    @Singleton
+    fun provideLocalIdentity(identity: KeyManagerIdentity): LocalIdentity = identity
+
+    /**
+     * The signer is the identity: signing with a key other than the one the
+     * peer id commits to would produce packets nobody can verify.
+     */
+    @Provides
+    @Singleton
+    fun providePacketSigner(identity: KeyManagerIdentity): PacketSigner = identity
+
+    @Provides
+    @Singleton
+    fun providePacketVerifier(verifier: DirectoryPacketVerifier): PacketVerifier = verifier
 
     /**
      * Provided as the concrete type as well as [Transport], because the
@@ -90,12 +109,16 @@ object MeshModule {
         transport: Transport,
         identity: LocalIdentity,
         forwardQueue: ForwardQueue,
+        signer: PacketSigner,
+        verifier: PacketVerifier,
         @MeshScope scope: CoroutineScope,
     ): MeshRouter = MeshRouter(
         transport = transport,
         localId = identity.peerId,
         scope = scope,
         forwardQueue = forwardQueue,
+        signer = signer,
+        verifier = verifier,
     )
 
     @Provides

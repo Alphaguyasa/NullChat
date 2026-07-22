@@ -3,7 +3,12 @@ package et.alpha.nchat.mesh.router
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketCodec
 import et.alpha.nchat.mesh.protocol.PacketDecodeException
+import et.alpha.nchat.mesh.protocol.PacketSigner
 import et.alpha.nchat.mesh.protocol.PacketType
+import et.alpha.nchat.mesh.protocol.PacketVerifier
+import et.alpha.nchat.mesh.protocol.Verification
+import et.alpha.nchat.mesh.protocol.signing
+import et.alpha.nchat.mesh.protocol.verifying
 import et.alpha.nchat.mesh.transport.ConnectionEvent
 import et.alpha.nchat.mesh.transport.InboundPayload
 import et.alpha.nchat.mesh.transport.Transport
@@ -36,6 +41,8 @@ class MeshRouter(
     private val scope: CoroutineScope,
     private val seenCache: SeenCache = SeenCache(),
     private val forwardQueue: ForwardQueue? = null,
+    private val signer: PacketSigner? = null,
+    private val verifier: PacketVerifier = PacketVerifier.AcceptAll,
     private val jitter: () -> Long = {
         Random.nextLong(MIN_JITTER_MILLIS, MAX_JITTER_MILLIS + 1)
     },
@@ -72,10 +79,20 @@ class MeshRouter(
     private val peers = linkedSetOf<String>()
 
     private val _droppedMalformed = AtomicLong()
+    private val _droppedUnverified = AtomicLong()
     private val _failedForwards = AtomicLong()
 
     /** Packets discarded because they did not parse. Useful as a health signal. */
     val droppedMalformed: Long get() = _droppedMalformed.get()
+
+    /**
+     * Packets discarded because they were signed by the wrong key.
+     *
+     * Counts only outright failures — a packet from a sender whose key we do not
+     * hold is not counted here, because nothing was disproved about it.
+     * A number above zero means someone is forging sender ids.
+     */
+    val droppedUnverified: Long get() = _droppedUnverified.get()
 
     /**
      * Relay attempts that failed because the peer had gone by the time we sent.
@@ -117,13 +134,19 @@ class MeshRouter(
      *   caller decides whether to retry.
      */
     suspend fun originate(packet: Packet): Boolean {
-        seenCache.markSeen(packet.messageId)
-        if (transport.broadcast(PacketCodec.encode(packet)) > 0) return true
+        // Signed here rather than where the packet is built, because this is the
+        // one point every outgoing packet passes through. A packet the queue
+        // replays is already signed and is re-sent verbatim, so nothing is
+        // signed twice and a replay stays byte-identical to the original.
+        val signed = signer?.signing(packet) ?: packet
+
+        seenCache.markSeen(signed.messageId)
+        if (transport.broadcast(PacketCodec.encode(signed)) > 0) return true
 
         // Nobody was in range. Hold it rather than lose it — the queue is what
         // makes composing a message with the mesh empty a delay instead of a
         // silent failure.
-        enqueueForLater(packet)
+        enqueueForLater(signed)
         return false
     }
 
@@ -195,22 +218,38 @@ class MeshRouter(
             return
         }
 
-        // NOTE: the signature is not verified here. Verification needs the sender's
-        // public key from mesh/crypto's KeyManager, which is not built yet. It
-        // belongs at exactly this point, before the packet is trusted enough to
-        // occupy a dedup slot.
+        // Verified before the dedup cache is touched, deliberately. markSeen is
+        // what claims a slot in a bounded LRU, so verifying afterwards would let
+        // an attacker evict genuine entries with forged ids and get real
+        // messages re-relayed or dropped.
+        val verification = verifier.verifying(packet)
+        if (verification == Verification.INVALID) {
+            _droppedUnverified.incrementAndGet()
+            return
+        }
 
         // Rules 1 and 2: drop if already seen, otherwise remember it. One atomic
         // step — see SeenCache.markSeen.
         if (!seenCache.markSeen(packet.messageId)) return
 
-        // Rule 3: deliver anything addressed to us or to everyone.
+        // Rule 3: deliver anything addressed to us or to everyone — but only if
+        // we could actually check who sent it.
+        //
+        // An UNKNOWN_SENDER packet still relays. A relay has usually never met
+        // the device that originated what it is carrying, so refusing to forward
+        // what it cannot verify would stop multi-hop delivery working at all.
+        // The cost is that an unknown sender can still occupy dedup slots; that
+        // is inherent to relaying for strangers and bounded by the LRU.
         val isForUs = packet.recipientId.contentEquals(localId)
-        if (isForUs || packet.isBroadcast) {
+        if (verification == Verification.VALID && (isForUs || packet.isBroadcast)) {
             deliveries.trySend(packet)
             // A unicast that has arrived is finished travelling. A broadcast is
             // for us *and* for everyone past us, so it falls through to relaying.
             if (isForUs) return
+        } else if (isForUs) {
+            // Addressed to us but unverifiable: nothing to relay onward, and
+            // nothing we are willing to show the user.
+            return
         }
 
         // Rule 4: spend a hop. Null means the budget ran out and this is the last stop.

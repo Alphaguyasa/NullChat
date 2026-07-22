@@ -8,6 +8,7 @@ import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.di.MeshScope
 import et.alpha.nchat.mesh.crypto.LocalIdentity
+import et.alpha.nchat.mesh.crypto.PublicKeyDirectory
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
@@ -17,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** What happened to a message the user tried to send. */
@@ -51,6 +53,7 @@ class MeshCoordinator @Inject constructor(
     private val identity: LocalIdentity,
     private val messages: MessageRepository,
     private val peers: PeerRepository,
+    private val keyDirectory: PublicKeyDirectory,
     @MeshScope private val scope: CoroutineScope,
 ) {
 
@@ -70,9 +73,30 @@ class MeshCoordinator @Inject constructor(
         if (!started.compareAndSet(false, true)) return
         Log.i(TAG, "starting mesh coordinator as ${Packet.tag(identity.peerId)}")
 
+        warmKeyDirectory()
         router.start()
         collectIncoming()
         collectPeers()
+    }
+
+    /**
+     * Loads known public keys into the directory the verifier reads.
+     *
+     * Room is the durable copy; the directory is the synchronous cache the
+     * router can consult from a non-suspend collector. Our own key goes in too,
+     * so a broadcast of ours flooding back verifies rather than looking like it
+     * came from a stranger.
+     *
+     * Until ANNOUNCE distribution lands, `PeerEntity.publicKey` is null for
+     * every peer, so in practice this loads exactly one key — ours. Everything
+     * arriving from another device verifies as UNKNOWN_SENDER and is relayed
+     * but not delivered.
+     */
+    private fun warmKeyDirectory() = scope.launch {
+        keyDirectory.record(identity.publicKey)
+        val stored = peers.observePeers().first()
+        stored.forEach { peer -> peer.publicKey?.let { keyDirectory.record(it) } }
+        Log.i(TAG, "key directory warmed with ${keyDirectory.size} key(s)")
     }
 
     /**

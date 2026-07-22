@@ -2,6 +2,7 @@ package et.alpha.nchat.mesh.router
 
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketCodec
+import et.alpha.nchat.mesh.protocol.PacketVerifier
 import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.transport.ConnectionEvent
 import et.alpha.nchat.mesh.transport.InboundPayload
@@ -238,6 +239,15 @@ class MeshTestbed(
      */
     val clock = FakeClock()
 
+    /**
+     * What every node's router makes of an incoming signature.
+     *
+     * Accepts everything by default so the tests that predate signing keep
+     * passing unchanged — they build packets with a placeholder signature and
+     * are not about verification. Signature tests swap in [ScriptedVerifier].
+     */
+    var verifier: PacketVerifier = PacketVerifier.AcceptAll
+
     fun node(name: String): TestNode = nodes.getOrPut(name) {
         val transport = network.register(name)
         val id = peerId(name)
@@ -248,6 +258,9 @@ class MeshTestbed(
             localId = id,
             scope = scope,
             forwardQueue = queue,
+            // Read through the testbed rather than captured, so a test can set
+            // the policy after the node has already been created.
+            verifier = { signed, signature, sender -> verifier.verify(signed, signature, sender) },
             jitter = { jitterMillis },
         )
         val delivered = mutableListOf<Packet>()

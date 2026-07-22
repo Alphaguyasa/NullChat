@@ -101,9 +101,10 @@ Start them within ~10 m of each other, no walls between.
 | 6.4 | Check `You:` id on each | **Unchanged** from before the restart |
 | 6.5 | Send a new message | Still works; new message appends below the old ones |
 
-> 6.4 matters: the id is stored in preferences by `PlaceholderLocalIdentity`. If
+> 6.4 matters: the id is now the first 8 bytes of SHA-256 of this device's
+> Ed25519 public key, which `KeyManager` seals under an Android Keystore key. If
 > it changes, existing threads orphan. Clearing app data *will* legitimately
-> change it.
+> change it — it discards the keypair, and the device becomes a different device.
 
 ## 7. Message length
 
@@ -155,9 +156,15 @@ or two rooms with B in the corridor.
 - **Messages are sent in plaintext.** `SessionCipher` does not exist. Anyone in
   Bluetooth range with the right tooling reads everything. Do not use this for
   anything real.
-- **Packets are unsigned** (64 zero bytes) and the router does not verify, so any
-  device can claim any sender id.
-- **Peer ids are random**, not derived from a public key.
+- **Signatures are real but nothing is actually verified yet.** Every outgoing
+  packet is now Ed25519-signed, and the router checks incoming ones — but it can
+  only check a signature against a public key it holds, and no mechanism
+  distributes those yet. Until ANNOUNCE lands, every packet from another device
+  is `UNKNOWN_SENDER`: relayed onward, never shown as verified. **A device can
+  still claim any sender id.** Do not read "signing works" as "impersonation is
+  prevented"; those are two different milestones.
+- **Nothing is ever marked verified** in the UI. `QrPairScreen` is not built, so
+  `isVerified` is still false for every peer.
 - **No ACK**, so a sent message never advances past one tick to ✓✓.
 - **No display names** — peers show as 8 hex characters. QR pairing is not built.
 - A message that fails to send is queued for its recipient and retried when that
