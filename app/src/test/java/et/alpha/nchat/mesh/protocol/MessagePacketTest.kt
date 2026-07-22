@@ -69,9 +69,19 @@ class MessagePacketTest {
         assertTrue(MessagePacket.fits(body))
         val packet = MessagePacket.build(messageId, senderId, null, body, 1L)
 
-        // Proves the budget arithmetic: a full payload still encodes inside the
-        // 180-byte packet ceiling rather than throwing at the codec.
-        assertEquals(Packet.MAX_PACKET_SIZE, packet.encodedSize)
+        // Proves the budget arithmetic. The packet is deliberately *not* full at
+        // the body limit any more: 16 bytes are held back for the AES-GCM tag
+        // that SessionCipher adds on the way out, so a longest-possible message
+        // still fits under the 180-byte ceiling once encrypted.
+        assertEquals(
+            Packet.MAX_PACKET_SIZE - MessagePacket.CIPHER_OVERHEAD_BYTES,
+            packet.encodedSize,
+        )
+        assertEquals(
+            Packet.MAX_PACKET_SIZE,
+            packet.encodedSize + MessagePacket.CIPHER_OVERHEAD_BYTES,
+            "an encrypted longest message must exactly fill the packet budget",
+        )
         assertEquals(body, MessagePacket.bodyOf(PacketCodec.decode(PacketCodec.encode(packet))))
     }
 

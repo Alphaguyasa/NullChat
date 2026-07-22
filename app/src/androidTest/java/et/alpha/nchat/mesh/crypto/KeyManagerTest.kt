@@ -7,9 +7,10 @@ import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketCodec
 import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.protocol.Verification
+import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.peerIdFor
 import et.alpha.nchat.mesh.protocol.signing
-import et.alpha.nchat.mesh.protocol.verifying
+
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -108,32 +109,32 @@ class KeyManagerTest {
     fun aSignedPacketVerifies() {
         val keys = KeyManager(context)
         val identity = KeyManagerIdentity(keys)
-        val directory = PublicKeyDirectory().apply { record(keys.signingPublicKey) }
+        val directory = PublicKeyDirectory().apply { recordSigningKey(keys.signingPublicKey) }
         val verifier = DirectoryPacketVerifier(directory)
 
         val signed = identity.signing(packetFrom(keys.peerId))
 
-        assertEquals(Verification.VALID, verifier.verifying(signed))
+        assertEquals(Verification.VALID, verifier.verify(signed))
     }
 
     @Test
     fun aTamperedPayloadFailsVerification() {
         val keys = KeyManager(context)
         val identity = KeyManagerIdentity(keys)
-        val directory = PublicKeyDirectory().apply { record(keys.signingPublicKey) }
+        val directory = PublicKeyDirectory().apply { recordSigningKey(keys.signingPublicKey) }
         val verifier = DirectoryPacketVerifier(directory)
 
         val signed = identity.signing(packetFrom(keys.peerId))
         val tampered = signed.copy(payload = "tampered".toByteArray())
 
-        assertEquals(Verification.INVALID, verifier.verifying(tampered))
+        assertEquals(Verification.INVALID, verifier.verify(tampered))
     }
 
     @Test
     fun aSignatureSurvivesAHop() {
         val keys = KeyManager(context)
         val identity = KeyManagerIdentity(keys)
-        val directory = PublicKeyDirectory().apply { record(keys.signingPublicKey) }
+        val directory = PublicKeyDirectory().apply { recordSigningKey(keys.signingPublicKey) }
         val verifier = DirectoryPacketVerifier(directory)
 
         val signed = identity.signing(packetFrom(keys.peerId))
@@ -141,20 +142,20 @@ class KeyManagerTest {
 
         // The reason ttl is outside the signed region. If this fails, nothing
         // beyond a direct neighbour can ever be authenticated.
-        assertEquals(Verification.VALID, verifier.verifying(relayed))
+        assertEquals(Verification.VALID, verifier.verify(relayed))
     }
 
     @Test
     fun aSignatureSurvivesAnEncodeDecodeRoundTrip() {
         val keys = KeyManager(context)
         val identity = KeyManagerIdentity(keys)
-        val directory = PublicKeyDirectory().apply { record(keys.signingPublicKey) }
+        val directory = PublicKeyDirectory().apply { recordSigningKey(keys.signingPublicKey) }
         val verifier = DirectoryPacketVerifier(directory)
 
         val signed = identity.signing(packetFrom(keys.peerId))
         val throughTheWire = PacketCodec.decode(PacketCodec.encode(signed))
 
-        assertEquals(Verification.VALID, verifier.verifying(throughTheWire))
+        assertEquals(Verification.VALID, verifier.verify(throughTheWire))
     }
 
     @Test
@@ -165,7 +166,7 @@ class KeyManagerTest {
 
         val signed = identity.signing(packetFrom(keys.peerId))
 
-        assertEquals(Verification.UNKNOWN_SENDER, verifier.verifying(signed))
+        assertEquals(Verification.UNKNOWN_SENDER, verifier.verify(signed))
     }
 
     @Test
@@ -173,28 +174,125 @@ class KeyManagerTest {
         val keys = KeyManager(context)
         val directory = PublicKeyDirectory()
 
-        val filed = directory.record(keys.signingPublicKey)
+        val filed = directory.recordSigningKey(keys.signingPublicKey)
 
         assertArrayEquals(keys.peerId, filed)
         assertTrue(directory.knows(keys.peerId))
-        assertArrayEquals(keys.signingPublicKey, directory.keyFor(keys.peerId))
+        assertArrayEquals(keys.signingPublicKey, directory.signingKeyFor(keys.peerId))
     }
 
     @Test
     fun theDirectoryKeepsTheFirstKeyItWasGiven() {
         val directory = PublicKeyDirectory()
         val original = KeyManager(context).signingPublicKey
-        directory.record(original)
+        directory.recordSigningKey(original)
 
         clearStoredKeys()
         val impostor = KeyManager(context).signingPublicKey
-        directory.record(impostor)
+        directory.recordSigningKey(impostor)
 
         // Different keys give different ids, so both are held — the point is
         // that neither displaced the other.
-        assertArrayEquals(original, directory.keyFor(peerIdFor(original)))
+        assertArrayEquals(original, directory.signingKeyFor(peerIdFor(original)))
         assertFalse(peerIdFor(original).contentEquals(peerIdFor(impostor)))
     }
+
+    @Test
+    fun anAnnounceVerifiesAgainstTheKeyItCarries() {
+        val keys = KeyManager(context)
+        val identity = KeyManagerIdentity(keys)
+        // An empty directory: the whole point is that an ANNOUNCE from a device
+        // we have never heard of is still checkable.
+        val verifier = DirectoryPacketVerifier(PublicKeyDirectory())
+
+        val announce = identity.signing(announcePacket(identity))
+
+        assertEquals(Verification.VALID, verifier.verify(announce))
+    }
+
+    @Test
+    fun anAnnounceClaimingSomeoneElsesIdIsRejected() {
+        val verifier = DirectoryPacketVerifier(PublicKeyDirectory())
+
+        // The victim is generated *and materialised* first. KeyManager loads its
+        // key material lazily, so building the attacker before clearing would
+        // hand it the victim's key on first access and the two would be the same
+        // device — which is a legitimate announcement, not a forgery.
+        val victimId = KeyManager(context).peerId
+
+        clearStoredKeys()
+        val identity = KeyManagerIdentity(KeyManager(context))
+        assertFalse(
+            "the two identities must actually differ for this test to mean anything",
+            identity.peerId.contentEquals(victimId),
+        )
+
+        // Correctly signed with the attacker's own key, but claiming the
+        // victim's id. The id-equals-hash-of-key check is the only thing
+        // standing between this and full impersonation.
+        val forged = identity.signing(announcePacket(identity).copy(senderId = victimId))
+
+        assertEquals(Verification.INVALID, verifier.verify(forged))
+    }
+
+    @Test
+    fun anAnnounceWithATamperedKeyIsRejected() {
+        val keys = KeyManager(context)
+        val identity = KeyManagerIdentity(keys)
+        val verifier = DirectoryPacketVerifier(PublicKeyDirectory())
+
+        val announce = identity.signing(announcePacket(identity))
+        val tampered = announce.copy(
+            payload = announce.payload.copyOf().also { it[0] = (it[0].toInt() xor 1).toByte() },
+        )
+
+        assertEquals(Verification.INVALID, verifier.verify(tampered))
+    }
+
+    @Test
+    fun anAnnounceWithAMalformedPayloadIsRejected() {
+        val keys = KeyManager(context)
+        val identity = KeyManagerIdentity(keys)
+        val verifier = DirectoryPacketVerifier(PublicKeyDirectory())
+
+        val stunted = identity.signing(
+            announcePacket(identity).copy(payload = ByteArray(10)),
+        )
+
+        assertEquals(Verification.INVALID, verifier.verify(stunted))
+    }
+
+    @Test
+    fun recordingAnAnnouncementSuppliesBothKeys() {
+        val keys = KeyManager(context)
+        val directory = PublicKeyDirectory()
+
+        directory.record(KeyManagerIdentity(keys).announcement)
+
+        assertArrayEquals(keys.signingPublicKey, directory.signingKeyFor(keys.peerId))
+        assertArrayEquals(keys.agreementPublicKey, directory.agreementKeyFor(keys.peerId))
+    }
+
+    @Test
+    fun anAnnouncementFillsInAnAgreementKeyLearnedLater() {
+        val keys = KeyManager(context)
+        val directory = PublicKeyDirectory()
+
+        // A peer restored from the database: signing key only, so verifiable
+        // but not yet encryptable.
+        directory.recordSigningKey(keys.signingPublicKey)
+        assertEquals(null, directory.agreementKeyFor(keys.peerId))
+
+        directory.record(KeyManagerIdentity(keys).announcement)
+
+        assertArrayEquals(keys.agreementPublicKey, directory.agreementKeyFor(keys.peerId))
+    }
+
+    private fun announcePacket(identity: KeyManagerIdentity) = announcementPacket(
+        messageId = ByteArray(Packet.MESSAGE_ID_SIZE) { it.toByte() },
+        announcement = identity.announcement,
+        timestamp = 1_700_000_000_000L,
+    )
 
     private fun packetFrom(senderId: ByteArray) = Packet(
         type = PacketType.MESSAGE,

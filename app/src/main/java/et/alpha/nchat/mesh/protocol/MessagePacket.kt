@@ -12,13 +12,29 @@ package et.alpha.nchat.mesh.protocol
 object MessagePacket {
 
     /**
+     * Overhead an encrypted payload pays: the AES-GCM authentication tag.
+     *
+     * Only the tag, because the nonce is taken from the packet's existing
+     * `messageId` rather than shipped alongside the ciphertext — see
+     * `SessionCipher`. Declared here rather than there so the pure protocol
+     * layer can size a message without importing Tink or Android.
+     */
+    const val CIPHER_OVERHEAD_BYTES: Int = 16
+
+    /**
      * The most chat text one packet can carry, in **bytes, not characters**.
      *
-     * 71 bytes: the 180-byte packet budget less a 45-byte header and a 64-byte
-     * signature. Until `Fragmenter` exists this is a hard ceiling on a message,
-     * and the send box enforces it before the user can hit send.
+     * 55 bytes: the 180-byte packet budget less a 45-byte header, a 64-byte
+     * signature, and the 16-byte AES-GCM tag. Until `Fragmenter` exists this is
+     * a hard ceiling on a message, and the send box enforces it before the user
+     * can hit send.
+     *
+     * The limit is the encrypted one even for broadcasts, which are sent in the
+     * clear and would technically fit 71 bytes. Two different limits would mean
+     * a message the user could send to everyone but not to one person, with the
+     * counter changing as they switched threads.
      */
-    const val MAX_BODY_BYTES: Int = Packet.MAX_PAYLOAD_SIZE
+    const val MAX_BODY_BYTES: Int = Packet.MAX_PAYLOAD_SIZE - CIPHER_OVERHEAD_BYTES
 
     /**
      * How many bytes [body] will occupy on the wire.
@@ -64,13 +80,15 @@ object MessagePacket {
                 ?: Packet.BROADCAST_ID,
             ttl = ttl,
             timestamp = timestamp,
-            // Plaintext. mesh/crypto's SessionCipher does not exist yet, so this
-            // is where encryption goes and currently does not happen — every
-            // message is readable by anyone in Bluetooth range.
+            // Plaintext at this point. `MeshCoordinator` seals it with
+            // `SessionCipher` before it goes anywhere, which cannot happen here
+            // without dragging Tink into the pure protocol layer. A broadcast
+            // stays in the clear — there is no single recipient to agree a key
+            // with.
             payload = payload,
-            // Unsigned. KeyManager does not exist, the router does not verify,
-            // and so any device can claim any sender id. Both gaps are tracked
-            // as v1 ship blockers.
+            // Zero for now; `MeshRouter.originate` signs every packet on its way
+            // out, so that the queue stores and replays an already-signed packet
+            // rather than re-signing it.
             signature = ByteArray(Packet.SIGNATURE_SIZE),
         )
     }
