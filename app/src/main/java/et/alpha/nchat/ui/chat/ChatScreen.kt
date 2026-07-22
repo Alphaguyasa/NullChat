@@ -1,11 +1,17 @@
 package et.alpha.nchat.ui.chat
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -21,9 +27,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -31,11 +40,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -43,11 +57,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import et.alpha.nchat.R
 import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
+import et.alpha.nchat.mesh.Transfer
+import et.alpha.nchat.mesh.TransferState
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.ui.theme.NChatTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * One conversation: history, live updates, and a send box.
@@ -68,6 +86,9 @@ fun ChatScreen(
     val state by viewModel.state.collectAsState()
     val draft by viewModel.draft.collectAsState()
     val draftBytes by viewModel.draftBytes.collectAsState()
+    val transfers by viewModel.transfers.collectAsState()
+    val isPreparingImage by viewModel.isPreparingImage.collectAsState()
+    val error by viewModel.errors.collectAsState()
 
     val listState = rememberLazyListState()
     // Follow the tail as messages arrive, which is what a chat log should do.
@@ -75,8 +96,25 @@ fun ChatScreen(
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
     }
 
+    // PickVisualMedia rather than GetContent: it runs in the system photo picker,
+    // which needs no storage permission at all and shows only what the user
+    // explicitly chooses. READ_MEDIA_IMAGES would mean asking for the whole
+    // gallery to send one picture.
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> uri?.let(viewModel::onImagePicked) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(error) {
+        error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.onErrorShown()
+        }
+    }
+
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -141,7 +179,11 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(state.messages, key = { it.id }) { message ->
-                    MessageBubble(message)
+                    MessageBubble(
+                        message = message,
+                        transfer = transfers[message.id],
+                        attachmentPath = message.attachmentFile?.let(viewModel::attachmentPath),
+                    )
                 }
             }
 
@@ -149,8 +191,14 @@ fun ChatScreen(
             SendBox(
                 draft = draft,
                 draftBytes = draftBytes,
+                isPreparingImage = isPreparingImage,
                 onDraftChange = viewModel::onDraftChange,
                 onSend = viewModel::onSend,
+                onPickImage = {
+                    picker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                },
             )
         }
     }
@@ -189,7 +237,11 @@ internal fun WarningBanner(
 }
 
 @Composable
-private fun MessageBubble(message: MessageEntity) {
+private fun MessageBubble(
+    message: MessageEntity,
+    transfer: Transfer? = null,
+    attachmentPath: String? = null,
+) {
     val outgoing = message.isOutgoing
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -225,7 +277,17 @@ private fun MessageBubble(message: MessageEntity) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(text = message.body, style = MaterialTheme.typography.bodyLarge)
+            if (attachmentPath != null) {
+                AttachmentImage(path = attachmentPath, transfer = transfer)
+            }
+            // An image with no caption has an empty body; a bare empty Text would
+            // still occupy a line and leave a gap under the picture.
+            if (message.body.isNotEmpty()) {
+                Text(text = message.body, style = MaterialTheme.typography.bodyLarge)
+            }
+            if (transfer != null && transfer.state != TransferState.COMPLETE) {
+                TransferIndicator(transfer)
+            }
             Spacer(Modifier.size(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -239,6 +301,101 @@ private fun MessageBubble(message: MessageEntity) {
                 }
             }
         }
+    }
+}
+
+/**
+ * An image attachment, decoded off the main thread.
+ *
+ * `produceState` rather than a plain `remember`: these are small JPEGs, but
+ * decoding one still costs milliseconds, and doing it inline in composition
+ * would stutter the list on every scroll past a picture. Keyed by path, so a
+ * bubble whose file appears later — an image still arriving — decodes as soon as
+ * the file lands rather than staying blank.
+ *
+ * No image-loading library. Coil would be the obvious choice, but the whole
+ * feature is one 14 KB JPEG from local storage, and BitmapFactory does that in
+ * three lines without adding a dependency.
+ */
+@Composable
+private fun AttachmentImage(path: String, transfer: Transfer?) {
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .widthIn(max = 240.dp)
+            .clip(RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        val image = bitmap
+        if (image != null) {
+            Image(
+                bitmap = image,
+                // Null rather than a generic "image": a description that says
+                // nothing is noise to a screen reader. The sender is announced
+                // by the bubble's own label.
+                contentDescription = null,
+                modifier = Modifier.fillMaxWidth(),
+                contentScale = ContentScale.FillWidth,
+            )
+        } else {
+            // A placeholder of roughly image proportions, so the bubble does not
+            // resize under the user when the picture finishes arriving.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(4f / 3f)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (transfer?.state == TransferState.FAILED) "!" else "…",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+    Spacer(Modifier.size(4.dp))
+}
+
+/**
+ * Progress for an image moving across the mesh in ~280 pieces.
+ *
+ * Shown as a determinate bar with a fragment count rather than a spinner,
+ * because on a slow link this genuinely takes tens of seconds and an
+ * indeterminate spinner for that long is indistinguishable from a hang.
+ */
+@Composable
+private fun TransferIndicator(transfer: Transfer) {
+    val failed = transfer.state == TransferState.FAILED
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (!failed) {
+            LinearProgressIndicator(
+                progress = { transfer.fraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+            )
+        }
+        Text(
+            text = when {
+                failed && transfer.isOutgoing -> "Not sent — nobody in range"
+                failed -> "Incomplete — pieces did not arrive"
+                transfer.isOutgoing -> "Sending ${transfer.completed}/${transfer.total}"
+                else -> "Receiving ${transfer.completed}/${transfer.total}"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = if (failed) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
     }
 }
 
@@ -285,8 +442,10 @@ private fun DeliveryIndicator(deliveryState: DeliveryState) {
 private fun SendBox(
     draft: String,
     draftBytes: Int,
+    isPreparingImage: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
+    onPickImage: () -> Unit,
 ) {
     val overLimit = draftBytes > MessagePacket.MAX_BODY_BYTES
     val canSend = draft.isNotBlank() && !overLimit
@@ -297,6 +456,18 @@ private fun SendBox(
             .padding(8.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
+        // Disabled while a pick is being downscaled, so a second pick cannot
+        // start before the first has a row to attach itself to.
+        IconButton(
+            onClick = onPickImage,
+            enabled = !isPreparingImage,
+            modifier = Modifier.padding(bottom = 24.dp),
+        ) {
+            Text(
+                text = if (isPreparingImage) "…" else "+",
+                style = MaterialTheme.typography.titleLarge,
+            )
+        }
         OutlinedTextField(
             value = draft,
             onValueChange = onDraftChange,
@@ -353,8 +524,27 @@ private fun ChatPreview() {
                     deliveryState = DeliveryState.PENDING, isOutgoing = true,
                 ),
             )
+            MessageBubble(
+                MessageEntity(
+                    id = "d", conversationId = "c", senderId = "1ac3f00d",
+                    body = "", timestamp = 1_700_000_180_000,
+                    deliveryState = DeliveryState.PENDING, isOutgoing = true,
+                    attachmentFile = "d.jpg",
+                ),
+                transfer = Transfer(
+                    messageId = "d", completed = 96, total = 282, isOutgoing = true,
+                ),
+                attachmentPath = "/nonexistent-in-preview.jpg",
+            )
             HorizontalDivider()
-            SendBox(draft = "hello", draftBytes = 5, onDraftChange = {}, onSend = {})
+            SendBox(
+                draft = "hello",
+                draftBytes = 5,
+                isPreparingImage = false,
+                onDraftChange = {},
+                onSend = {},
+                onPickImage = {},
+            )
         }
     }
 }

@@ -1,5 +1,6 @@
 package et.alpha.nchat.ui.chat
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -7,9 +8,14 @@ import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.toHexId
+import et.alpha.nchat.data.media.AttachmentStore
+import et.alpha.nchat.data.media.ImageScaler
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.mesh.MeshCoordinator
+import et.alpha.nchat.mesh.SendResult
+import et.alpha.nchat.mesh.Transfer
+import et.alpha.nchat.mesh.TransferTracker
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.transport.NearbyTransport
 import javax.inject.Inject
@@ -54,6 +60,9 @@ class ChatViewModel @Inject constructor(
     private val peers: PeerRepository,
     private val coordinator: MeshCoordinator,
     private val transport: NearbyTransport,
+    private val imageScaler: ImageScaler,
+    private val attachments: AttachmentStore,
+    transferTracker: TransferTracker,
 ) : ViewModel() {
 
     /** Null means the mesh-wide broadcast thread. */
@@ -61,6 +70,23 @@ class ChatViewModel @Inject constructor(
 
     private val _draft = MutableStateFlow("")
     val draft: StateFlow<String> = _draft.asStateFlow()
+
+    /** Progress bars for images in flight, keyed by message id. */
+    val transfers: StateFlow<Map<String, Transfer>> = transferTracker.transfers
+
+    /**
+     * True while a picked image is being downscaled.
+     *
+     * Separate from [transfers] because it happens before the message row exists:
+     * decoding and re-compressing a camera photo takes long enough on a
+     * mid-range phone to look like the button did nothing.
+     */
+    private val _isPreparingImage = MutableStateFlow(false)
+    val isPreparingImage: StateFlow<Boolean> = _isPreparingImage.asStateFlow()
+
+    /** One-shot user-facing failures — an unreadable pick, an empty mesh. */
+    private val _errors = MutableStateFlow<String?>(null)
+    val errors: StateFlow<String?> = _errors.asStateFlow()
 
     val state: StateFlow<ChatState> = peerId.flatMapLatest { peer ->
         combine(
@@ -117,6 +143,50 @@ class ChatViewModel @Inject constructor(
         val target = peerId.value
         _draft.value = ""
         viewModelScope.launch { coordinator.send(body = body, recipientHexId = target) }
+    }
+
+    /**
+     * Downscales a picked image and sends it.
+     *
+     * Scaling first, off the main thread, is what keeps a 12-megapixel pick from
+     * either freezing the UI or being handed to a mesh that cannot carry it —
+     * see `ImagePolicy` for why the ceiling is where it is.
+     */
+    fun onImagePicked(uri: Uri) {
+        if (_isPreparingImage.value) return
+        val target = peerId.value
+
+        viewModelScope.launch {
+            _isPreparingImage.value = true
+            val scaled = try {
+                imageScaler.scale(uri)
+            } finally {
+                _isPreparingImage.value = false
+            }
+
+            if (scaled == null) {
+                _errors.value = "That image could not be prepared for sending."
+                return@launch
+            }
+
+            when (val result = coordinator.sendImage(scaled.jpeg, target)) {
+                is SendResult.Rejected -> _errors.value = result.reason
+                // Images are not store-and-forwarded: a fragment that finds no
+                // peer ends the transfer, so this is a real failure the user has
+                // to know about, not the quiet "will go out later" that text gets.
+                SendResult.Pending ->
+                    _errors.value = "Nobody was in range for long enough to receive the image."
+
+                SendResult.Sent -> Unit
+            }
+        }
+    }
+
+    /** Absolute path of a stored attachment, for the bubble to decode. */
+    fun attachmentPath(fileName: String): String = attachments.pathFor(fileName)
+
+    fun onErrorShown() {
+        _errors.value = null
     }
 
     private fun conversationIdFor(peer: String?): String =

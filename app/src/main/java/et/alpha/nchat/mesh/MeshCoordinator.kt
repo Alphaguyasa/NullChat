@@ -6,6 +6,8 @@ import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.hexIdToBytes
 import et.alpha.nchat.data.db.newMessageId
 import et.alpha.nchat.data.db.toHexId
+import et.alpha.nchat.data.media.AttachmentStore
+import et.alpha.nchat.data.media.ImagePolicy
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.di.MeshScope
@@ -13,7 +15,13 @@ import et.alpha.nchat.mesh.crypto.LocalIdentity
 import et.alpha.nchat.mesh.crypto.PublicKeyDirectory
 import et.alpha.nchat.mesh.crypto.SessionCipher
 import et.alpha.nchat.mesh.protocol.Announcement
+import et.alpha.nchat.mesh.protocol.Attachment
+import et.alpha.nchat.mesh.protocol.ContentType
+import et.alpha.nchat.mesh.protocol.FragmentHeader
+import et.alpha.nchat.mesh.protocol.FragmentReassembler
+import et.alpha.nchat.mesh.protocol.Fragmenter
 import et.alpha.nchat.mesh.protocol.MessagePacket
+import et.alpha.nchat.mesh.protocol.ReassembledMessage
 import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
@@ -23,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -60,10 +69,21 @@ class MeshCoordinator @Inject constructor(
     private val peers: PeerRepository,
     private val keyDirectory: PublicKeyDirectory,
     private val cipher: SessionCipher,
+    private val attachments: AttachmentStore,
+    private val transfers: TransferTracker,
     @MeshScope private val scope: CoroutineScope,
 ) {
 
     private val started = AtomicBoolean(false)
+
+    /**
+     * Buffers for messages arriving in pieces.
+     *
+     * Owned here rather than by the router, because the router's job ends at
+     * "this packet is for us" — reassembly is about message content, which is
+     * this class's side of the boundary.
+     */
+    private val reassembler = FragmentReassembler()
 
     /** This device's own id, hex-encoded — the `senderId` on everything it sends. */
     val selfId: String by lazy { identity.peerId.toHexId() }
@@ -139,6 +159,133 @@ class MeshCoordinator @Inject constructor(
         } else {
             SendResult.Pending
         }
+    }
+
+    /**
+     * Sends an already-downscaled JPEG to [recipientHexId], or to everyone.
+     *
+     * ## Why images are best-effort
+     *
+     * A 14 KB image is ~280 FRAGMENT packets. `MeshRouter.enqueueForLater` holds
+     * only MESSAGE packets, so fragments are **not** store-and-forwarded, and
+     * that is deliberate: 280 entries through a 500-entry `ForwardQueue` would
+     * evict most of the pending text messages, and the receiver's 60 second
+     * reassembly window would have closed long before a queued fragment was
+     * replayed anyway. A half-delivered image is not worth a wiped queue.
+     *
+     * So an image needs a peer in range for the whole transfer. If the mesh is
+     * empty, or empties partway, the message is marked FAILED and the user is
+     * told — rather than left with a row that looks pending forever.
+     */
+    suspend fun sendImage(jpeg: ByteArray, recipientHexId: String?): SendResult {
+        if (!ImagePolicy.fits(jpeg.size)) {
+            return SendResult.Rejected(
+                "image is ${jpeg.size} bytes, over the " +
+                    "${ImagePolicy.MAX_ENCODED_BYTES} byte limit",
+            )
+        }
+
+        val messageId = newMessageId()
+        // Stored before anything is transmitted, same ordering as text: a crash
+        // mid-send leaves a visible row rather than a message that vanished.
+        val fileName = attachments.write(messageId, jpeg)
+            ?: return SendResult.Rejected("could not save the image")
+
+        val conversationId = conversationIdFor(recipientHexId)
+        val row = messages.recordOutgoing(
+            conversationId = conversationId,
+            selfId = selfId,
+            body = "",
+            peerId = recipientHexId,
+            messageId = messageId,
+            attachmentFile = fileName,
+        )
+
+        val fragments = runCatching { imageFragments(row.id, jpeg, recipientHexId, row.timestamp) }
+            .onFailure { Log.w(TAG, "could not fragment image: ${it.message}") }
+            .getOrNull()
+            ?: run {
+                messages.markFailed(row.id)
+                return SendResult.Rejected("could not prepare the image for sending")
+            }
+
+        return transmitFragments(row.id, fragments)
+    }
+
+    /**
+     * Wraps, encrypts and splits an image into FRAGMENT packets.
+     *
+     * The whole payload is encrypted **once, before** splitting, rather than each
+     * chunk separately. `SessionCipher` derives its nonce from the message id,
+     * and every fragment has a different packet id, so per-fragment encryption
+     * would need a different nonce per piece and 16 bytes of tag on each — a
+     * third of the 51-byte chunk spent on overhead. Encrypting first also means
+     * the content-type envelope is inside the sealed region rather than readable
+     * by anyone in range.
+     */
+    private fun imageFragments(
+        messageId: String,
+        jpeg: ByteArray,
+        recipientHexId: String?,
+        timestamp: Long,
+    ): List<Packet> {
+        val messageIdBytes = messageId.hexIdToBytes()
+        val recipientId = recipientHexId?.hexIdToBytes() ?: Packet.BROADCAST_ID
+        val envelope = Attachment.jpeg(jpeg).encode()
+
+        // A broadcast has no single recipient to agree a key with, so it goes out
+        // in the clear — the same trade `sealed` documents for text.
+        val payload = if (recipientHexId == null) {
+            envelope
+        } else {
+            cipher.encrypt(
+                peerId = recipientId,
+                messageId = messageIdBytes,
+                plaintext = envelope,
+            ) ?: run {
+                Log.w(TAG, "no key for ${Packet.tag(recipientId)}, sending image in the clear")
+                envelope
+            }
+        }
+
+        return Fragmenter.fragment(
+            messageId = messageIdBytes,
+            senderId = identity.peerId,
+            recipientId = recipientId,
+            payload = payload,
+            timestamp = timestamp,
+        )
+    }
+
+    /**
+     * Pushes every fragment into the mesh, reporting progress as it goes.
+     *
+     * Paced by [FRAGMENT_SPACING_MILLIS]. Handing Nearby ~280 packets in a tight
+     * loop fills its outbound queue faster than a Bluetooth link drains it, and
+     * the packets that overflow are simply lost — which for a fragmented message
+     * means the whole image fails. The spacing costs a few seconds and stays well
+     * inside the receiver's 60 second window.
+     */
+    private suspend fun transmitFragments(messageId: String, fragments: List<Packet>): SendResult {
+        transfers.start(messageId, fragments.size, isOutgoing = true)
+        Log.i(TAG, "sending image as ${fragments.size} fragments")
+
+        fragments.forEachIndexed { index, fragment ->
+            if (!router.originate(fragment)) {
+                // Nobody in range. Fragments are not queued, so the rest of this
+                // image would be shouting into an empty room.
+                Log.w(TAG, "image stalled at fragment $index/${fragments.size}, no peers")
+                transfers.fail(messageId)
+                messages.markFailed(messageId)
+                return SendResult.Pending
+            }
+            transfers.advance(messageId, index + 1)
+            if (index < fragments.lastIndex) delay(FRAGMENT_SPACING_MILLIS)
+        }
+
+        transfers.complete(messageId)
+        messages.markSent(messageId)
+        return SendResult.Sent
     }
 
     /**
@@ -222,6 +369,10 @@ class MeshCoordinator @Inject constructor(
                 recordAnnouncement(packet)
                 return@collect
             }
+            if (packet.type == PacketType.FRAGMENT) {
+                recordFragment(packet)
+                return@collect
+            }
             if (packet.type != PacketType.MESSAGE) return@collect
 
             val senderHex = packet.senderId.toHexId()
@@ -246,6 +397,119 @@ class MeshCoordinator @Inject constructor(
             // here is routine, not a fault.
             Log.d(TAG, "message from ${Packet.tag(packet.senderId)} new=$isNew")
         }
+    }
+
+    /**
+     * Feeds one fragment to the reassembler and reports the transfer's progress.
+     *
+     * Every fragment was individually signed and verified by the router before it
+     * got here, so a piece that arrives is known to come from the sender it
+     * claims. What is *not* checked is that all the pieces came from the same
+     * device — the reassembler keys buffers on (messageId, senderId) so that
+     * mixing two senders' fragments into one image is impossible by construction.
+     */
+    private suspend fun recordFragment(packet: Packet) {
+        val header = FragmentHeader.parse(packet.payload) ?: return
+        val messageId = header.messageId.toHexId()
+        val senderHex = packet.senderId.toHexId()
+        if (senderHex == selfId) return
+
+        // Flooding keeps delivering pieces of a message long after the last one
+        // needed has arrived. Without this, a straggler would open a fresh
+        // reassembly buffer and the UI would show "Receiving 1/282" underneath a
+        // picture the user is already looking at. The tracker catches it within a
+        // session; the message row catches it across a restart, when the tracker
+        // is empty but the history is not.
+        if (transfers.transfers.value[messageId]?.state == TransferState.COMPLETE) return
+        if (messages.findMessage(messageId) != null) return
+
+        val completed = reassembler.offer(packet)
+        if (completed != null) {
+            transfers.complete(messageId)
+            deliverReassembled(completed)
+            return
+        }
+
+        val progress = reassembler.progressFor(header.messageId, packet.senderId)
+        if (progress == null) {
+            // The buffer is gone: this message's 60 seconds ran out, or it was
+            // evicted. Say so rather than leaving a bar frozen at 80%.
+            transfers.fail(messageId)
+            return
+        }
+        if (progress.received == 1) {
+            peers.recordSeen(senderHex)
+            transfers.start(messageId, progress.total, isOutgoing = false)
+        }
+        transfers.advance(messageId, progress.received)
+    }
+
+    /**
+     * Turns a fully reassembled message into a row.
+     *
+     * Decryption happens here rather than per fragment because the payload was
+     * sealed once before splitting — see [imageFragments]. The plaintext fallback
+     * is the same one [openedBody] documents: a peer that does not hold our
+     * agreement key sends in the clear, and refusing to render that would make
+     * the app look broken to two users who have only just met.
+     */
+    private suspend fun deliverReassembled(message: ReassembledMessage) {
+        val senderHex = message.senderId.toHexId()
+
+        val plaintext = if (message.isBroadcast) {
+            message.payload
+        } else {
+            cipher.decrypt(
+                peerId = message.senderId,
+                messageId = message.messageId,
+                ciphertext = message.payload,
+            ) ?: message.payload
+        }
+
+        val attachment = Attachment.parse(plaintext)
+        if (attachment == null) {
+            Log.w(TAG, "reassembled message from ${Packet.tag(message.senderId)} was not readable")
+            return
+        }
+
+        val messageId = message.messageId.toHexId()
+        val conversationId =
+            if (message.isBroadcast) BROADCAST_CONVERSATION_ID else directConversationId(senderHex)
+
+        peers.recordSeen(senderHex)
+
+        val isNew = when (attachment.contentType) {
+            ContentType.IMAGE_JPEG -> {
+                val fileName = attachments.write(messageId, attachment.data)
+                if (fileName == null) {
+                    Log.w(TAG, "could not store image from ${Packet.tag(message.senderId)}")
+                    return
+                }
+                messages.recordIncoming(
+                    messageId = messageId,
+                    conversationId = conversationId,
+                    senderId = senderHex,
+                    body = "",
+                    timestamp = message.timestamp,
+                    peerId = senderHex,
+                    attachmentFile = fileName,
+                )
+            }
+
+            ContentType.TEXT_UTF8 -> messages.recordIncoming(
+                messageId = messageId,
+                conversationId = conversationId,
+                senderId = senderHex,
+                body = attachment.asText(),
+                timestamp = message.timestamp,
+                peerId = senderHex,
+            )
+        }
+
+        Log.d(
+            TAG,
+            "reassembled ${attachment.contentType} from ${Packet.tag(message.senderId)} new=$isNew",
+        )
     }
 
     /**
@@ -348,5 +612,14 @@ class MeshCoordinator @Inject constructor(
 
     private companion object {
         const val TAG = "MeshCoordinator"
+
+        /**
+         * Gap between consecutive fragments of one image.
+         *
+         * Slow enough that Nearby's outbound queue drains between packets, fast
+         * enough that ~280 fragments still clear the receiver's 60 second
+         * reassembly window with room to spare.
+         */
+        const val FRAGMENT_SPACING_MILLIS: Long = 20L
     }
 }

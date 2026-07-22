@@ -51,6 +51,7 @@ class MessageRepository @Inject constructor(
         peerId: String? = null,
         messageId: String = newMessageId(),
         now: Long = System.currentTimeMillis(),
+        attachmentFile: String? = null,
     ): MessageEntity {
         val message = MessageEntity(
             id = messageId,
@@ -60,6 +61,7 @@ class MessageRepository @Inject constructor(
             timestamp = now,
             deliveryState = DeliveryState.PENDING,
             isOutgoing = true,
+            attachmentFile = attachmentFile,
         )
         database.withTransaction {
             ensureConversation(conversationId, peerId, now)
@@ -84,6 +86,7 @@ class MessageRepository @Inject constructor(
         timestamp: Long,
         peerId: String? = senderId,
         now: Long = System.currentTimeMillis(),
+        attachmentFile: String? = null,
     ): Boolean = database.withTransaction {
         ensureConversation(conversationId, peerId, now)
         val rowId = messageDao.insert(
@@ -95,6 +98,7 @@ class MessageRepository @Inject constructor(
                 timestamp = timestamp,
                 deliveryState = DeliveryState.DELIVERED,
                 isOutgoing = false,
+                attachmentFile = attachmentFile,
             ),
         )
         val isNew = rowId != -1L

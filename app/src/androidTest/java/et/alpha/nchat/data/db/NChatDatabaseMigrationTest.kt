@@ -133,6 +133,72 @@ class NChatDatabaseMigrationTest {
         }
     }
 
+    /**
+     * The v2 → v3 upgrade that adds `messages.attachmentFile`.
+     *
+     * Two things are worth proving beyond "the column exists". First that chat
+     * history survives — the same point as every migration test here. Second
+     * that pre-existing rows read back with a *null* attachment rather than
+     * failing to map: the column is added without a default, and a message
+     * written before images existed genuinely has no image.
+     */
+    @Test
+    fun migratingToVersion3AddsAttachmentsAndKeepsHistory() {
+        helper.createDatabase(TEST_DB, 2).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO conversations
+                    (id, peerId, title, createdAt, lastActivityAt, lastReadAt)
+                VALUES ('direct:peer', 'peer', NULL, 1000, 1000, 0)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO messages
+                    (id, conversationId, senderId, body, timestamp, deliveryState, isOutgoing)
+                VALUES ('m1', 'direct:peer', 'peer', 'survived', 1000, 'DELIVERED', 0)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_2_3 and validates the result against schemas/3.json.
+        helper.runMigrationsAndValidate(TEST_DB, 3, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val stored = db.messageDao().findById("m1")
+                assertEquals("survived", stored?.body)
+                assertEquals(DeliveryState.DELIVERED, stored?.deliveryState)
+                // A message from before images existed has no image.
+                assertEquals(null, stored?.attachmentFile)
+                assertEquals(false, stored?.hasAttachment)
+
+                // And the new column round-trips a value.
+                db.messageDao().insert(
+                    MessageEntity(
+                        id = "m2",
+                        conversationId = "direct:peer",
+                        senderId = "peer",
+                        body = "",
+                        timestamp = 2000,
+                        deliveryState = DeliveryState.DELIVERED,
+                        isOutgoing = false,
+                        attachmentFile = "m2.jpg",
+                    ),
+                )
+                assertEquals("m2.jpg", db.messageDao().findById("m2")?.attachmentFile)
+            }
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

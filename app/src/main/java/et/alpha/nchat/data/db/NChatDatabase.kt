@@ -53,7 +53,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun forwardQueueDao(): ForwardQueueDao
 
     companion object {
-        const val VERSION: Int = 2
+        const val VERSION: Int = 3
 
         const val NAME: String = "nchat.db"
 
@@ -88,11 +88,25 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds `messages.attachmentFile`, the pointer to an image on disk.
+         *
+         * A single nullable column, which is the cheapest schema change there
+         * is: SQLite rewrites no rows, and existing messages read back as null,
+         * which is exactly what they are — text with no attachment. No default
+         * is declared for the same reason; null already means "no image".
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `messages` ADD COLUMN `attachmentFile` TEXT")
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
          * Room chains them to upgrade a database that skipped several releases.
          */
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }

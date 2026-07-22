@@ -131,7 +131,23 @@ data class MessageEntity(
     val timestamp: Long,
     val deliveryState: DeliveryState,
     val isOutgoing: Boolean,
-)
+    /**
+     * File name of this message's image in `AttachmentStore`, or null for an
+     * ordinary text message.
+     *
+     * A name rather than the bytes: a 14 KB BLOB here would be dragged through
+     * the cursor by every query on this table, and the chat list re-queries on
+     * every inbound packet.
+     *
+     * Non-null currently implies a JPEG, since that is the only attachment kind
+     * the mesh can carry. A second kind would need a companion type column
+     * rather than sniffing the extension.
+     */
+    val attachmentFile: String? = null,
+) {
+    /** Whether this message carries an image rather than text. */
+    val hasAttachment: Boolean get() = attachmentFile != null
+}
 
 /**
  * A packet held for a recipient that was not reachable when we tried to send it.
