@@ -190,6 +190,75 @@ or two rooms with B in the corridor.
 > `MeshRouterTest` on the JVM, but nothing has yet proven flooding works over
 > actual radios.
 
+## 12. Images
+
+Needs at least one photo in A's gallery — ideally a **portrait photo taken with
+the camera**, which is the only way to catch EXIF rotation.
+
+An image is ~280 packets where a text message is one, so most of this section is
+about a transfer that takes tens of seconds and can fail halfway. That is the
+feature working as designed, not a fault.
+
+| # | Step | Expected |
+|---|---|---|
+| 12.1 | On A, open B's thread, tap **+** | System photo picker opens with **no permission prompt** |
+| 12.2 | Pick a photo | **+** becomes **…** for a moment while it downscales |
+| 12.3 | Watch A's bubble | Image appears with a progress bar, *Sending n/282* |
+| 12.4 | Wait | Bar fills over ~10–20 s, then disappears and the bubble ticks **✓** |
+| 12.5 | Watch B while A sends | *Receiving n/282* under a grey placeholder, then the image |
+| 12.6 | Compare | Same picture, right way up, roughly 320 px on its long edge |
+| 12.7 | Send a **portrait** photo from the camera | Arrives upright, not rotated 90° |
+
+> 12.7 is worth doing deliberately. A camera writes the sensor's landscape frame
+> plus an EXIF rotation tag rather than rotating the pixels, and that tag does
+> not survive re-compression — so the rotation is baked in during scaling. If
+> this regresses, every portrait photo arrives sideways and nothing else does.
+
+### Failure paths — the important half
+
+| # | Step | Expected |
+|---|---|---|
+| 12.8 | Turn Bluetooth off on **B**. On A, send an image | Fails fast: bar turns to *Not sent — nobody in range*, bubble shows **!** |
+| 12.9 | Turn B's Bluetooth back on, wait for reconnect | The failed image does **not** retry — unlike a text message |
+| 12.10 | Start a transfer, then walk B out of range halfway | A reports *Not sent*; B's placeholder stays and never completes |
+| 12.11 | Walk back into range | B's half-received image is **gone**, not resumed |
+
+> 12.9 and 12.11 are the deliberate difference from text. Images are **not
+> store-and-forwarded**: `MeshRouter.enqueueForLater` holds only MESSAGE
+> packets. Queuing ~280 fragments would evict most of the 500-entry forward
+> queue — every pending text message — and the receiver's 60 second reassembly
+> window would have closed long before a queued fragment was replayed anyway.
+>
+> So an image needs a peer in range for the *whole* transfer. A text message
+> that fails waits; an image that fails is failed, and says so.
+
+> 12.11: B discards a partial image after 60 seconds from its **first**
+> fragment, not from its last. That is a budget for the whole message rather
+> than an idle timeout — see `FragmentReassembler`.
+
+### Persistence and broadcast
+
+| # | Step | Expected |
+|---|---|---|
+| 12.12 | Force-stop both apps, relaunch | Images are still in the threads, still rendering |
+| 12.13 | On A open **Everyone**, send an image | Arrives on B, labelled with A's short id |
+| 12.14 | Check the gallery on B | Received images are **not** in the camera roll |
+
+> 12.14 is intentional. Pictures arrive from whoever is in radio range, so they
+> are stored app-private in `filesDir` and left out of the media scanner.
+> Publishing them to the gallery is not a decision to make on the user's behalf.
+
+### Watching it work
+
+```bash
+adb -s <serial> logcat -s ImageScaler:* MeshCoordinator:*
+```
+
+`ImageScaler` logs the final dimensions, quality and fragment count for each
+pick — the quickest way to see the quality ladder (40 → 30 → 20) stepping down
+on a photo that will not compress. A pick that fails logs *why*, and every
+failure path logs something.
+
 ---
 
 ## Known-broken, do not report as bugs
@@ -212,7 +281,23 @@ or two rooms with B in the corridor.
   recipient connects. The queue holds 500 packets for 24 hours, evicting oldest
   first, and survives a restart. There is still no retry *limit* and no FAILED
   transition: an undeliverable message is retried on every reconnect until it
-  expires.
+  expires. **Images are the exception** — see below.
+- **Images are thumbnails**, 320 px on the long edge at JPEG quality 40, under
+  14 KB. Not a placeholder for something better: at 51 bytes of payload per
+  180-byte packet, a full-size photo is ~1600 fragments, which cannot finish
+  inside the 60 second reassembly window over Bluetooth, overflows the
+  1000-entry dedup cache and re-floods itself, and would evict the entire
+  forward queue. Full-size images need a direct-link bulk transfer that bypasses
+  flooding entirely. `ImagePolicy` documents the arithmetic.
+- **Images are not store-and-forwarded and do not retry.** They need a peer in
+  range for the whole transfer; a fragment that finds no peer fails the message
+  outright. This is the one place the app gives up on a message instead of
+  queueing it.
+- **An image in Everyone goes out in plaintext**, for the same reason text does.
+- **A half-received image is discarded after 60 seconds** and cannot resume.
+  There is no partial-transfer recovery and no per-fragment retransmission
+  request, so one dropped fragment out of ~280 loses the whole image.
+- **Sending an image is not cancellable** once it starts.
 
 ## If discovery never happens
 
@@ -222,3 +307,15 @@ or two rooms with B in the corridor.
    `MISSING_PERMISSION_*` means a toggle is off, not a permission problem
 4. Give it a full 60 s; the duty cycle may have backed off
 5. Force-stop both and relaunch to reset the backoff
+
+## If an image will not send
+
+1. *"The image could not be prepared"* means it never reached the mesh —
+   the pick failed to decode or would not compress under 14 KB.
+   `adb logcat -s ImageScaler:*` names which.
+2. *"Nobody was in range for long enough"* means it reached the mesh and ran out
+   of peers partway. Confirm the dot is filled on A's peer list and stays filled
+   for the whole transfer.
+3. A transfer that stalls mid-bar and then fails is usually the receiver's 60
+   second window closing — check the two phones are not drifting in and out of
+   range.
