@@ -8,7 +8,6 @@ import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.protocol.PacketVerifier
 import et.alpha.nchat.mesh.protocol.Verification
 import et.alpha.nchat.mesh.protocol.signing
-import et.alpha.nchat.mesh.protocol.verifying
 import et.alpha.nchat.mesh.transport.ConnectionEvent
 import et.alpha.nchat.mesh.transport.InboundPayload
 import et.alpha.nchat.mesh.transport.Transport
@@ -222,7 +221,7 @@ class MeshRouter(
         // what claims a slot in a bounded LRU, so verifying afterwards would let
         // an attacker evict genuine entries with forged ids and get real
         // messages re-relayed or dropped.
-        val verification = verifier.verifying(packet)
+        val verification = verifier.verify(packet)
         if (verification == Verification.INVALID) {
             _droppedUnverified.incrementAndGet()
             return

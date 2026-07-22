@@ -1,5 +1,7 @@
 package et.alpha.nchat.mesh.router
 
+import et.alpha.nchat.mesh.protocol.Packet
+import et.alpha.nchat.mesh.protocol.PacketCodec
 import et.alpha.nchat.mesh.protocol.PacketVerifier
 import et.alpha.nchat.mesh.protocol.Verification
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,11 +31,8 @@ class PacketVerificationTest {
             bySender[sender.hex()] = verdict
         }
 
-        override fun verify(
-            signedBytes: ByteArray,
-            signature: ByteArray,
-            senderId: ByteArray,
-        ): Verification = bySender[senderId.hex()] ?: default
+        override fun verify(packet: Packet): Verification =
+            bySender[packet.senderId.hex()] ?: default
 
         private fun ByteArray.hex(): String = joinToString("") { "%02x".format(it) }
     }
@@ -147,13 +146,10 @@ class PacketVerificationTest {
             // message would be lost — which is the attack the ordering of
             // verify-then-markSeen exists to prevent.
             scripted.say(a.id, Verification.VALID)
-            b.transport.deliver(from = "A", bytes = encoded(packet))
+            b.transport.deliver(from = "A", bytes = PacketCodec.encode(packet))
             settle()
 
             assertEquals(1, b.delivered.size, "the genuine packet must still get through")
         }
     }
-
-    private fun encoded(packet: et.alpha.nchat.mesh.protocol.Packet): ByteArray =
-        et.alpha.nchat.mesh.protocol.PacketCodec.encode(packet)
 }

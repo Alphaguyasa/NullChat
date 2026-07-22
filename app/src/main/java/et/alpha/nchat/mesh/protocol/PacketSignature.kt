@@ -54,10 +54,16 @@ fun interface PacketSigner {
     fun sign(signedBytes: ByteArray): ByteArray
 }
 
-/** Checks a packet's signature against the key its sender id commits to. */
+/**
+ * Checks a packet's signature against the key its sender id commits to.
+ *
+ * Takes the whole packet rather than just the signed bytes because an ANNOUNCE
+ * is verified differently from everything else: it carries the very key it is
+ * signed with, so the verifier needs to see the payload and the type.
+ */
 fun interface PacketVerifier {
 
-    fun verify(signedBytes: ByteArray, signature: ByteArray, senderId: ByteArray): Verification
+    fun verify(packet: Packet): Verification
 
     companion object {
 
@@ -69,7 +75,7 @@ fun interface PacketVerifier {
          * ones. Production always injects the real verifier; if this is ever
          * reached on a device, nothing is authenticated.
          */
-        val AcceptAll: PacketVerifier = PacketVerifier { _, _, _ -> Verification.VALID }
+        val AcceptAll: PacketVerifier = PacketVerifier { Verification.VALID }
     }
 }
 
@@ -82,11 +88,3 @@ fun interface PacketVerifier {
  */
 fun PacketSigner.signing(packet: Packet): Packet =
     packet.copy(signature = sign(PacketCodec.signedBytes(packet)))
-
-/** Checks [packet]'s own signature over its own signed region. */
-fun PacketVerifier.verifying(packet: Packet): Verification =
-    verify(
-        signedBytes = PacketCodec.signedBytes(packet),
-        signature = packet.signature,
-        senderId = packet.senderId,
-    )

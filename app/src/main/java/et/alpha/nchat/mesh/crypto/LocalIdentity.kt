@@ -1,5 +1,6 @@
 package et.alpha.nchat.mesh.crypto
 
+import et.alpha.nchat.mesh.protocol.Announcement
 import et.alpha.nchat.mesh.protocol.PacketSigner
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,6 +24,9 @@ interface LocalIdentity {
      * what peers verify our signatures against.
      */
     val publicKey: ByteArray
+
+    /** Both public keys, in the form an ANNOUNCE or a QR code carries them. */
+    val announcement: Announcement
 }
 
 /**
@@ -45,6 +49,12 @@ class KeyManagerIdentity @Inject constructor(
     override val peerId: ByteArray get() = keyManager.peerId.copyOf()
 
     override val publicKey: ByteArray get() = keyManager.signingPublicKey
+
+    override val announcement: Announcement
+        get() = Announcement(
+            signingKey = keyManager.signingPublicKey,
+            agreementKey = keyManager.agreementPublicKey,
+        )
 
     override fun sign(signedBytes: ByteArray): ByteArray = keyManager.sign(signedBytes)
 }

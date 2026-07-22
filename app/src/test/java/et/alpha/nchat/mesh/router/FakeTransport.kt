@@ -260,7 +260,7 @@ class MeshTestbed(
             forwardQueue = queue,
             // Read through the testbed rather than captured, so a test can set
             // the policy after the node has already been created.
-            verifier = { signed, signature, sender -> verifier.verify(signed, signature, sender) },
+            verifier = { packet -> verifier.verify(packet) },
             jitter = { jitterMillis },
         )
         val delivered = mutableListOf<Packet>()
