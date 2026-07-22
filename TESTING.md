@@ -20,8 +20,26 @@ On each:
    regardless of the app's own permission grant
 5. Launch, grant permissions when asked
 6. Note the `You: xxxxxxxx` id on the peer list header — A and B must differ
+7. **Check both clocks agree**, before airplane mode goes on
 
 Start them within ~10 m of each other, no walls between.
+
+> Step 7 is not housekeeping. A message's `timestamp` is taken from
+> `System.currentTimeMillis()` on the *sending* phone, and threads are ordered by
+> it, so a phone whose clock is hours out has its messages sort into the past and
+> interleave wrongly on the other device. It looks exactly like a message-ordering
+> bug in the app.
+>
+> This bit us on a real handset that was six hours behind with automatic time
+> switched off. Check with:
+>
+> ```bash
+> adb -s <serial> shell date +%s        # compare against `date +%s`
+> adb -s <serial> shell settings put global auto_time 1
+> ```
+>
+> Fix it *before* enabling airplane mode — with no network there is no NTP to
+> sync from.
 
 ---
 
