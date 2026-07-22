@@ -6,8 +6,11 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import et.alpha.nchat.data.db.RoomForwardQueueStore
 import et.alpha.nchat.mesh.crypto.LocalIdentity
 import et.alpha.nchat.mesh.crypto.PlaceholderLocalIdentity
+import et.alpha.nchat.mesh.router.ForwardQueue
+import et.alpha.nchat.mesh.router.ForwardQueueStore
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.transport.NearbyTransport
 import et.alpha.nchat.mesh.transport.RadioMonitor
@@ -71,14 +74,28 @@ object MeshModule {
 
     @Provides
     @Singleton
+    fun provideForwardQueueStore(store: RoomForwardQueueStore): ForwardQueueStore = store
+
+    /**
+     * Provided rather than constructor-injected because the cap, the expiry and
+     * the clock are constructor defaults Hilt cannot supply.
+     */
+    @Provides
+    @Singleton
+    fun provideForwardQueue(store: ForwardQueueStore): ForwardQueue = ForwardQueue(store)
+
+    @Provides
+    @Singleton
     fun provideMeshRouter(
         transport: Transport,
         identity: LocalIdentity,
+        forwardQueue: ForwardQueue,
         @MeshScope scope: CoroutineScope,
     ): MeshRouter = MeshRouter(
         transport = transport,
         localId = identity.peerId,
         scope = scope,
+        forwardQueue = forwardQueue,
     )
 
     @Provides

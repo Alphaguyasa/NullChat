@@ -132,3 +132,57 @@ data class MessageEntity(
     val deliveryState: DeliveryState,
     val isOutgoing: Boolean,
 )
+
+/**
+ * A packet held for a recipient that was not reachable when we tried to send it.
+ *
+ * This is the persistent half of `ForwardQueue`; the policy — 500 entry cap, 24
+ * hour expiry, oldest-first eviction — lives there, in pure Kotlin. Persisting
+ * it is what lets a message composed with nobody in range survive a restart and
+ * still go out when the recipient finally appears.
+ *
+ * There is no foreign key to [MessageEntity]. Most rows here are ours, but the
+ * mesh also relays for third parties, and those packets have no local message
+ * row to point at.
+ *
+ * [messageId] is the 16-byte wire id hex-encoded to 32 characters, and it is the
+ * primary key for the same reason it is on [MessageEntity]: flooding offers the
+ * same packet by several paths, and `OnConflictStrategy.IGNORE` turns a
+ * duplicate into a no-op rather than a second row.
+ */
+@Entity(
+    tableName = "forward_queue",
+    indices = [Index("recipientId", "queuedAt")],
+)
+data class ForwardQueueEntity(
+    @PrimaryKey val messageId: String,
+    /** Recipient peer id, hex-encoded. All zeroes means broadcast. */
+    val recipientId: String,
+    /**
+     * When the queue accepted this packet — not the packet's own timestamp,
+     * which comes from whichever device composed it and may be badly wrong.
+     * Drives both expiry and eviction order.
+     */
+    val queuedAt: Long,
+    /** The whole packet, exactly as `PacketCodec.encode` produced it. */
+    val packet: ByteArray,
+) {
+    // ByteArray compares by identity by default, which would make two rows
+    // holding the same packet look different. Same reason as PeerEntity.
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ForwardQueueEntity) return false
+        return messageId == other.messageId &&
+            recipientId == other.recipientId &&
+            queuedAt == other.queuedAt &&
+            packet.contentEquals(other.packet)
+    }
+
+    override fun hashCode(): Int {
+        var result = messageId.hashCode()
+        result = 31 * result + recipientId.hashCode()
+        result = 31 * result + queuedAt.hashCode()
+        result = 31 * result + packet.contentHashCode()
+        return result
+    }
+}

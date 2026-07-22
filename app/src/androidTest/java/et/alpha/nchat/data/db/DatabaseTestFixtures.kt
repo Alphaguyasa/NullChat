@@ -57,6 +57,21 @@ object DatabaseTestFixtures {
         isOutgoing = isOutgoing,
     )
 
+    /** Broadcast recipient id: an all-zero peer id, hex-encoded. */
+    const val BROADCAST = "0000000000000000"
+
+    fun forwardQueueEntry(
+        messageId: String,
+        recipientId: String = PEER_A,
+        queuedAt: Long = T0,
+        packet: ByteArray = byteArrayOf(1, 2, 3),
+    ) = ForwardQueueEntity(
+        messageId = messageId,
+        recipientId = recipientId,
+        queuedAt = queuedAt,
+        packet = packet,
+    )
+
     fun peer(
         id: String = PEER_A,
         displayName: String? = null,

@@ -163,55 +163,59 @@ class MeshCoordinator @Inject constructor(
     }
 
     /**
-     * Connected endpoints become peer rows, and a newly non-empty mesh flushes
-     * anything waiting.
+     * Connected endpoints become peer rows, and each newly connected peer is
+     * offered whatever the forward queue was holding for it.
+     *
+     * Per-peer rather than the old edge-triggered "mesh became non-empty" flush:
+     * the queue is keyed by recipient, so the useful moment is when *that*
+     * recipient appears, not when any peer at all does.
      */
     private fun collectPeers() = scope.launch {
-        var wasEmpty = true
+        val flushed = mutableSetOf<String>()
         transport.connectedPeers.collect { endpoints ->
             endpoints.forEach { endpointId ->
-                transport.peerIdFor(endpointId)?.let { peers.recordSeen(it.toHexId()) }
+                val peerId = transport.peerIdFor(endpointId) ?: return@forEach
+                peers.recordSeen(peerId.toHexId())
+
+                // Only on the transition into being connected. Without this a
+                // peer count going 1 -> 2 would re-offer to the peer that was
+                // already there, and every emission would re-run the flush.
+                if (flushed.add(endpointId)) offerQueued(peerId, endpointId)
             }
 
-            // Edge-triggered: only on the transition into having peers, so a
-            // peer count going 1 -> 2 does not re-send everything again.
-            if (wasEmpty && endpoints.isNotEmpty()) flushPending()
-            wasEmpty = endpoints.isEmpty()
+            // Endpoints that went away become eligible again, so a peer that
+            // reconnects later gets a fresh offer.
+            flushed.retainAll(endpoints)
         }
     }
 
     /**
-     * Re-sends messages that were composed with nobody in range.
+     * Hands a freshly connected peer its queued packets and advances the rows
+     * the user is watching.
      *
-     * Deliberately minimal: no expiry, no cap, no eviction. That is
-     * `ForwardQueue`'s job and it does not exist yet. Without even this much, a
-     * message typed before two phones link would sit PENDING forever and the
-     * mesh would look broken to anyone testing it.
+     * The queue holds packets; the `messages` table holds what the UI renders.
+     * A packet leaving the queue only moves a row to SENT when it is one of
+     * ours — relayed traffic has no local row, and `advanceDeliveryState` leaves
+     * anything it cannot find alone.
      */
-    private suspend fun flushPending() {
-        val pending = messages.pendingOutgoing()
-        if (pending.isEmpty()) return
+    private suspend fun offerQueued(peerId: ByteArray, endpointId: String) {
+        val delivered = runCatching { router.offerQueued(peerId, endpointId) }
+            .onFailure { Log.w(TAG, "flush to ${Packet.tag(peerId)} failed: ${it.message}") }
+            .getOrDefault(emptyList())
+        if (delivered.isEmpty()) return
 
-        Log.i(TAG, "flushing ${pending.size} pending message(s)")
-        for (row in pending) {
-            val recipient = recipientOf(row.conversationId)
-            if (transmit(row.id, row.body, recipient, row.timestamp)) {
-                messages.markSent(row.id)
-            }
+        Log.i(TAG, "flushed ${delivered.size} queued packet(s) to ${Packet.tag(peerId)}")
+        // Exactly the packets that went out, not every pending row: the queue
+        // also carries traffic relayed for other devices, which has no row here.
+        for (packet in delivered) {
+            messages.markSent(packet.messageId.toHexId())
         }
     }
 
     private fun conversationIdFor(recipientHexId: String?): String =
         recipientHexId?.let(::directConversationId) ?: BROADCAST_CONVERSATION_ID
 
-    /** Inverse of [conversationIdFor]: null means the broadcast thread. */
-    private fun recipientOf(conversationId: String): String? =
-        conversationId.removePrefix(DIRECT_PREFIX).takeIf { conversationId.startsWith(DIRECT_PREFIX) }
-
     private companion object {
         const val TAG = "MeshCoordinator"
-
-        /** Must match the shape `directConversationId` produces. */
-        const val DIRECT_PREFIX = "direct:"
     }
 }

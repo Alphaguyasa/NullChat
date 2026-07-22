@@ -32,4 +32,8 @@ object DatabaseModule {
     @Provides
     fun provideConversationDao(database: NChatDatabase): ConversationDao =
         database.conversationDao()
+
+    @Provides
+    fun provideForwardQueueDao(database: NChatDatabase): ForwardQueueDao =
+        database.forwardQueueDao()
 }

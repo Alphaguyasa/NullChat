@@ -3,6 +3,7 @@ package et.alpha.nchat.mesh.router
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketCodec
 import et.alpha.nchat.mesh.protocol.PacketDecodeException
+import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.transport.ConnectionEvent
 import et.alpha.nchat.mesh.transport.InboundPayload
 import et.alpha.nchat.mesh.transport.Transport
@@ -34,6 +35,7 @@ class MeshRouter(
     private val localId: ByteArray,
     private val scope: CoroutineScope,
     private val seenCache: SeenCache = SeenCache(),
+    private val forwardQueue: ForwardQueue? = null,
     private val jitter: () -> Long = {
         Random.nextLong(MIN_JITTER_MILLIS, MAX_JITTER_MILLIS + 1)
     },
@@ -78,8 +80,9 @@ class MeshRouter(
     /**
      * Relay attempts that failed because the peer had gone by the time we sent.
      *
-     * Nothing recovers these yet — that is `ForwardQueue`'s job, and it is not
-     * built. Counting them keeps the gap visible instead of silent.
+     * Still counted now that [forwardQueue] recovers them, because a rising
+     * count is a useful health signal even when nothing is lost: it means the
+     * transport's view of who is reachable is running ahead of reality.
      */
     val failedForwards: Long get() = _failedForwards.get()
 
@@ -115,7 +118,61 @@ class MeshRouter(
      */
     suspend fun originate(packet: Packet): Boolean {
         seenCache.markSeen(packet.messageId)
-        return transport.broadcast(PacketCodec.encode(packet)) > 0
+        if (transport.broadcast(PacketCodec.encode(packet)) > 0) return true
+
+        // Nobody was in range. Hold it rather than lose it — the queue is what
+        // makes composing a message with the mesh empty a delay instead of a
+        // silent failure.
+        enqueueForLater(packet)
+        return false
+    }
+
+    /**
+     * Hands a peer everything the queue was holding for it, plus anything queued
+     * for broadcast.
+     *
+     * Called when a peer connects — routing rule "on each new peer connection,
+     * offer queued messages addressed to that peer". The two ids are different
+     * namespaces and both are needed: [recipientId] is the 8-byte protocol id
+     * the queue is keyed by, [endpointId] is the link-layer address to send to.
+     * Resolving one to the other is `NearbyTransport`'s job, not the router's,
+     * which is why the caller passes both.
+     *
+     * @return the packets the peer actually took. The caller needs the identity
+     *   of each one, not just a count, to advance the matching database rows.
+     */
+    suspend fun offerQueued(recipientId: ByteArray, endpointId: String): List<Packet> {
+        val queue = forwardQueue ?: return emptyList()
+
+        val entries = queue.takeFor(recipientId)
+        if (entries.isEmpty()) return emptyList()
+
+        val delivered = ArrayList<Packet>()
+        val undelivered = ArrayList<QueuedPacket>()
+        for (entry in entries) {
+            // Sent as stored, with whatever ttl it was queued at. Re-decrementing
+            // here would charge the packet a hop it never travelled.
+            if (transport.send(endpointId, PacketCodec.encode(entry.packet))) {
+                delivered.add(entry.packet)
+            } else {
+                undelivered.add(entry)
+            }
+        }
+
+        queue.restore(undelivered)
+        return delivered
+    }
+
+    /**
+     * Queues a packet that found no route.
+     *
+     * Only MESSAGE packets are worth holding. An ANNOUNCE or a KEY_EXCHANGE is
+     * only meaningful in the moment it is sent, and replaying a stale one hours
+     * later says something untrue about the mesh's current shape.
+     */
+    private suspend fun enqueueForLater(packet: Packet) {
+        if (packet.type != PacketType.MESSAGE) return
+        forwardQueue?.enqueue(packet)
     }
 
     private fun onConnectionEvent(event: ConnectionEvent) {
@@ -178,15 +235,27 @@ class MeshRouter(
      */
     private suspend fun forward(packet: Packet, arrivedFrom: String) {
         val targets = synchronized(peers) { peers.filterTo(ArrayList()) { it != arrivedFrom } }
-        if (targets.isEmpty()) return
+        if (targets.isEmpty()) {
+            // A dead end: we are the only device this packet reached. Holding it
+            // is what turns a chain of phones that are never all in range at once
+            // into a delivery path.
+            enqueueForLater(packet)
+            return
+        }
 
         // Re-encoding with a decremented ttl leaves the signature valid: the
         // signed region excludes the ttl byte precisely so a relay can spend a hop
         // without invalidating end-to-end authentication. See PacketCodec.signedBytes.
         val bytes = PacketCodec.encode(packet)
+        var delivered = 0
         for (peer in targets) {
-            if (!transport.send(peer, bytes)) _failedForwards.incrementAndGet()
+            if (transport.send(peer, bytes)) delivered++ else _failedForwards.incrementAndGet()
         }
+
+        // Queued only when every target failed. One peer taking it is enough for
+        // flooding to carry it onward, and queuing then would duplicate a packet
+        // that is already travelling.
+        if (delivered == 0) enqueueForLater(packet)
     }
 
     companion object {

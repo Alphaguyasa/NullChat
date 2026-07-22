@@ -4,6 +4,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.execSQL
 
 /**
  * The app's Room database.
@@ -34,6 +36,7 @@ import androidx.room.migration.Migration
         MessageEntity::class,
         PeerEntity::class,
         ConversationEntity::class,
+        ForwardQueueEntity::class,
     ],
     version = NChatDatabase.VERSION,
     exportSchema = true,
@@ -47,18 +50,49 @@ abstract class NChatDatabase : RoomDatabase() {
 
     abstract fun conversationDao(): ConversationDao
 
+    abstract fun forwardQueueDao(): ForwardQueueDao
+
     companion object {
-        const val VERSION: Int = 1
+        const val VERSION: Int = 2
 
         const val NAME: String = "nchat.db"
 
         /**
-         * Ordered upgrade path. Empty at version 1 — there is nothing to upgrade
-         * from yet.
+         * Adds the `forward_queue` table backing store-and-forward.
+         *
+         * Purely additive — a new table, no change to any existing one — so
+         * there is no data to rewrite and nothing in `messages`, `peers` or
+         * `conversations` is touched.
+         *
+         * The SQL is copied verbatim from the `createSql` Room generated into
+         * `schemas/2.json` rather than hand-written. Room compares the migrated
+         * schema against that file by identity hash, and a difference as small
+         * as a missing backtick fails the migration test.
+         */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `forward_queue` (" +
+                        "`messageId` TEXT NOT NULL, " +
+                        "`recipientId` TEXT NOT NULL, " +
+                        "`queuedAt` INTEGER NOT NULL, " +
+                        "`packet` BLOB NOT NULL, " +
+                        "PRIMARY KEY(`messageId`))",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "`index_forward_queue_recipientId_queuedAt` " +
+                        "ON `forward_queue` (`recipientId`, `queuedAt`)",
+                )
+            }
+        }
+
+        /**
+         * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
          * Room chains them to upgrade a database that skipped several releases.
          */
-        val MIGRATIONS: Array<Migration> = emptyArray()
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
     }
 }

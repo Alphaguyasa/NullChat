@@ -77,9 +77,19 @@ Start them within ~10 m of each other, no walls between.
 | 5.3 | Turn B's Bluetooth back on, wait for reconnect (~30 s) | A's pending message flips to **✓** on its own |
 | 5.4 | B | The message arrives |
 
-> 5.3 is the pending flush, which fires on the empty → non-empty transition.
-> It is deliberately minimal — no expiry and no cap, since `ForwardQueue` does
-> not exist. A message that has already ticked will not be re-sent.
+> 5.3 is the forward queue flushing. It fires when B reconnects, and offers B
+> the packets held for it plus anything queued for broadcast. A message that has
+> already ticked will not be re-sent.
+
+| # | Step | Expected |
+|---|---|---|
+| 5.5 | Repeat 5.1, then force-stop **both** apps before reconnecting | — |
+| 5.6 | Relaunch both, wait for reconnect | The pending message still flips to **✓** and arrives on B |
+
+> 5.5–5.6 are the point of persisting the queue: before it, a restart between
+> composing and reconnecting lost the retry. This is the one queue behaviour no
+> automated test on this machine covers — the JVM tests use an in-memory store,
+> and the Room tests need a device.
 
 ## 6. Persistence — the milestone requirement
 
@@ -150,9 +160,11 @@ or two rooms with B in the corridor.
 - **Peer ids are random**, not derived from a public key.
 - **No ACK**, so a sent message never advances past one tick to ✓✓.
 - **No display names** — peers show as 8 hex characters. QR pairing is not built.
-- A message that fails to send is retried only on the next empty → non-empty peer
-  transition. There is no expiry, no retry limit, and nothing survives a reboot
-  with a pending message beyond that.
+- A message that fails to send is queued for its recipient and retried when that
+  recipient connects. The queue holds 500 packets for 24 hours, evicting oldest
+  first, and survives a restart. There is still no retry *limit* and no FAILED
+  transition: an undeliverable message is retried on every reconnect until it
+  expires.
 
 ## If discovery never happens
 

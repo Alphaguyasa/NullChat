@@ -184,6 +184,8 @@ class TestNode(
     val transport: FakeTransport,
     val router: MeshRouter,
     val delivered: List<Packet>,
+    val queue: ForwardQueue,
+    val store: InMemoryForwardQueueStore,
 )
 
 /**
@@ -226,20 +228,45 @@ class MeshTestbed(
 
     val transmissions: List<Transmission> get() = network.transmissions
 
+    /**
+     * Drives forward-queue expiry for every node.
+     *
+     * Separate from the coroutine scheduler's virtual time on purpose: `settle()`
+     * advances delays, this advances the queue's 24-hour window, and a test that
+     * wants to age the queue without also running a day of jitter needs the two
+     * to move independently.
+     */
+    val clock = FakeClock()
+
     fun node(name: String): TestNode = nodes.getOrPut(name) {
         val transport = network.register(name)
         val id = peerId(name)
+        val store = InMemoryForwardQueueStore()
+        val queue = ForwardQueue(store = store, timeSource = clock)
         val router = MeshRouter(
             transport = transport,
             localId = id,
             scope = scope,
+            forwardQueue = queue,
             jitter = { jitterMillis },
         )
         val delivered = mutableListOf<Packet>()
         router.start()
         scope.launch { router.delivered.collect { delivered.add(it) } }
-        TestNode(name, id, transport, router, delivered)
+        TestNode(name, id, transport, router, delivered, queue, store)
     }
+
+    /**
+     * Offers [from]'s queued packets to [to], as a peer connection would.
+     *
+     * In production `MeshCoordinator` does this when an endpoint appears, after
+     * resolving its protocol id. That resolution needs `NearbyTransport` and so
+     * cannot run on the JVM; this drives the router seam directly, which is the
+     * part the routing rules live in. The trigger itself is only exercised on
+     * hardware.
+     */
+    suspend fun flush(from: String, to: String): List<Packet> =
+        node(from).router.offerQueued(recipientId = peerId(to), endpointId = to)
 
     fun link(a: String, b: String) {
         node(a)
