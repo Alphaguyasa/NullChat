@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import et.alpha.nchat.R
 import et.alpha.nchat.ui.components.EmptyState
+import et.alpha.nchat.ui.components.MeshRadar
+import et.alpha.nchat.ui.components.RadarPeer
 import et.alpha.nchat.ui.components.SignalBars
 import et.alpha.nchat.ui.theme.MonoBody
 import et.alpha.nchat.ui.theme.MonoSmall
@@ -59,8 +61,11 @@ import et.alpha.nchat.ui.theme.rememberAnimationsEnabled
  * history is still there and still worth opening. The signal bars, not the
  * presence of the row, are what say "in range".
  *
- * The radar visualisation belongs at the top of this screen and is not built yet;
- * until it is, the list is the whole screen and the empty state is text only.
+ * The radar sits above the list, inside the same scroll rather than pinned over
+ * it: at 200% font scale a fixed 180dp of graphic plus the header would leave
+ * almost nothing for the rows, and the radar is the screen's headline rather
+ * than its permanent furniture. Scrolling it away also disposes it, which stops
+ * its animation clock.
  */
 @Composable
 fun PeerListScreen(
@@ -72,6 +77,7 @@ fun PeerListScreen(
     val state by viewModel.state.collectAsState()
     val animate = rememberAnimationsEnabled()
     val rows = visibleRows(state.rows)
+    val radarPeers = radarPeers(state.rows)
 
     // Which rows have already played their entrance. Held here rather than inside
     // each row, because a LazyColumn throws a row's composition away when it
@@ -92,6 +98,15 @@ fun PeerListScreen(
         HorizontalDivider()
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item(key = RADAR_KEY) {
+                MeshRadar(
+                    peers = radarPeers,
+                    animate = animate,
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+                HorizontalDivider()
+            }
+
             items(rows, key = { it.row.key }) { visible ->
                 PeerPresence(
                     rowKey = visible.row.key,
@@ -378,6 +393,32 @@ private fun visibleRows(roster: List<PeerRow>): List<VisibleRow> {
     return visible
 }
 
+/**
+ * The rows the radar can honestly place, which is not all of them.
+ *
+ * A peer with no hop count is one this device has only ever read out of the
+ * database — known, but not reachable by any route we have seen. The list keeps
+ * it, because the conversation still exists; the radar drops it, because putting
+ * a node on a ring is a claim that the peer is out there right now.
+ *
+ * The broadcast row has no node either: it is everyone at once, and everyone at
+ * once has no distance.
+ */
+@Composable
+private fun radarPeers(rows: List<PeerRow>): List<RadarPeer> = remember(rows) {
+    rows.mapNotNull { row ->
+        val peerId = row.peerId ?: return@mapNotNull null
+        if (row.hops == null) return@mapNotNull null
+        RadarPeer(
+            id = peerId,
+            hops = row.hops,
+            signalLevel = row.signalLevel,
+            isOnline = row.isOnline,
+            lastRelayAt = row.lastRelayAt,
+        )
+    }
+}
+
 /** One row as the list should draw it right now. */
 private data class VisibleRow(
     val row: PeerRow,
@@ -389,6 +430,7 @@ private data class VisibleRow(
 private val PeerRow.key: String get() = peerId ?: BROADCAST_KEY
 
 private const val BROADCAST_KEY = "__broadcast__"
+private const val RADAR_KEY = "__radar__"
 private const val SHORT_ID_CHARS = 8
 private const val ENTER_SCALE = 0.9f
 private const val EXIT_SCALE = 0.95f
@@ -399,6 +441,15 @@ private fun PeerListPreview() {
     NChatTheme {
         Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
             Header(onlineCount = 2, selfId = "1ac3f00d9e8b7a65", onOpenPairing = {})
+            HorizontalDivider()
+            MeshRadar(
+                peers = listOf(
+                    RadarPeer("9e8b7a65", hops = 1, signalLevel = 4, isOnline = true),
+                    RadarPeer("44ff0011", hops = 1, signalLevel = 4, isOnline = true),
+                    RadarPeer("c0ffee12", hops = 2, signalLevel = 0, isOnline = false),
+                ),
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
             HorizontalDivider()
             PeerRowItem(
                 row = PeerRow(null, "Everyone", true, "meet me at the north gate", 2),
@@ -428,6 +479,8 @@ private fun PeerListEmptyPreview() {
     NChatTheme {
         Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
             Header(onlineCount = 0, selfId = "1ac3f00d9e8b7a65", onOpenPairing = {})
+            HorizontalDivider()
+            MeshRadar(peers = emptyList(), modifier = Modifier.padding(vertical = 12.dp))
             HorizontalDivider()
             PeerRowItem(row = PeerRow(null, "Everyone", false, null, 0), onClick = {})
             HorizontalDivider()

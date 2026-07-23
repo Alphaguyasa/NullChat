@@ -83,6 +83,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    // Declared rather than leaned on transitively: MeshRadar pauses its animation
+    // clock on the lifecycle, so LocalLifecycleOwner is a direct dependency of the
+    // UI now and not just something compose-ui happens to drag in.
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     // DI
     implementation(libs.hilt.android)
