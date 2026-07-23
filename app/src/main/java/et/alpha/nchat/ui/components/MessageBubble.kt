@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,6 +50,11 @@ private val TailCorner = 4.dp
  *
  * @param senderId shown above the body, for broadcast threads where any peer
  *   could be talking. Null in a direct thread, which has only one possible sender.
+ * @param content optional slot above the body, for a message that carries more
+ *   than words — an image, a transfer bar. A slot rather than an `attachment`
+ *   parameter, so this component never learns what a bitmap is: decoding,
+ *   caching and progress belong to the screen, the bubble chrome belongs here.
+ *   [text] may be empty when this is supplied, for a picture with no caption.
  */
 @Composable
 fun MessageBubble(
@@ -59,6 +65,7 @@ fun MessageBubble(
     timestamp: String? = null,
     deliveryState: DeliveryState? = null,
     hopCount: Int? = null,
+    content: @Composable (ColumnScope.() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(
         topStart = BubbleCorner,
@@ -99,11 +106,20 @@ fun MessageBubble(
                 Spacer(Modifier.height(4.dp))
             }
 
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            if (content != null) {
+                content()
+                if (text.isNotEmpty()) Spacer(Modifier.height(6.dp))
+            }
+
+            // Skipped rather than rendered empty: a blank Text still occupies a
+            // line, which would leave a gap under an uncaptioned picture.
+            if (text.isNotEmpty()) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
 
             if (timestamp != null || deliveryState != null) {
                 Spacer(Modifier.height(6.dp))
