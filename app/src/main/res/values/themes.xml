@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.NChat" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- The platform theme only ever shows during the cold-start window, before
+         Compose draws its first frame. It has to be dark: a Light parent flashes
+         white on launch, which on a dark-first app reads as a bug. -->
+    <style name="Theme.NChat" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg_base</item>
+    </style>
 </resources>
