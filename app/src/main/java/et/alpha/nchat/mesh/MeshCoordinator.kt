@@ -26,13 +26,21 @@ import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.router.MeshRouter
+import et.alpha.nchat.mesh.router.RelayEvent
 import et.alpha.nchat.mesh.transport.NearbyTransport
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** What happened to a message the user tried to send. */
@@ -51,6 +59,15 @@ sealed interface SendResult {
     /** Rejected before storage — currently only ever an over-length body. */
     data class Rejected(val reason: String) : SendResult
 }
+
+/**
+ * One reading of a peer's distance, and when it was taken.
+ *
+ * The timestamp is the whole point: a hop count with no age attached cannot be
+ * told apart from a stale one, and the minimum-wins rule needs to know which of
+ * two disagreeing paths is still describing the mesh as it is now.
+ */
+private data class HopObservation(val hops: Int, val observedAt: Long)
 
 /**
  * The single seam between the mesh and the database.
@@ -87,6 +104,48 @@ class MeshCoordinator @Inject constructor(
 
     /** This device's own id, hex-encoded — the `senderId` on everything it sends. */
     val selfId: String by lazy { identity.peerId.toHexId() }
+
+    private val hopObservations = MutableStateFlow<Map<String, HopObservation>>(emptyMap())
+
+    /**
+     * How far away each peer was the last time we heard it, keyed by hex peer id.
+     *
+     * ## Why this is not a column on `PeerEntity`
+     *
+     * `PeerRepository` already argues that presence is derived rather than
+     * stored, because a mesh peer never announces that it left — it just stops
+     * being heard from. Hop distance is the same kind of fact one step further
+     * on. A distance reloaded from disk describes a topology that has since
+     * walked out of the building, and the radar would draw it as though it were
+     * current. So this lives for as long as the process does and no longer, and
+     * there is no migration to write.
+     *
+     * ## Why the number is a hint and not a measurement
+     *
+     * It is derived from `ttl`, which `PacketCodec.signedBytes` deliberately
+     * excludes from the signature so a relay can spend a hop without breaking
+     * end-to-end verification. The cost of that trade is paid here: anything in
+     * the path can rewrite the byte, and a forged one moves a node between rings
+     * for free. Nothing downstream may present this to the user as a fact about
+     * where somebody is standing.
+     *
+     * Only covers peers whose packets actually reach us — a device whose traffic
+     * we merely relay is never delivered here and stays unknown.
+     */
+    val observedHops: StateFlow<Map<String, Int>> = hopObservations
+        .map { observations -> observations.mapValues { (_, observation) -> observation.hops } }
+        .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+
+    /**
+     * Packets crossing this device's links, straight off the router.
+     *
+     * A passthrough rather than a second implementation, and routed through here
+     * rather than injected into a ViewModel directly, because this class is the
+     * seam: the UI reaching into `MeshRouter` for one flow is how a boundary
+     * stops being one. What the events mean, and what they carefully do not mean,
+     * is documented on [RelayEvent].
+     */
+    val relayActivity: SharedFlow<RelayEvent> get() = router.relayActivity
 
     /**
      * Starts routing and the collectors, at most once per process.
@@ -365,6 +424,12 @@ class MeshCoordinator @Inject constructor(
     /** Delivered packets become rows. */
     private fun collectIncoming() = scope.launch {
         router.delivered.collect { packet ->
+            // Before the type switch, so ANNOUNCE, FRAGMENT and MESSAGE all
+            // contribute: this is the one point every live packet with an intact
+            // ttl passes through, and an announcement is often the only thing we
+            // ever hear from a distant peer.
+            recordHops(packet)
+
             if (packet.type == PacketType.ANNOUNCE) {
                 recordAnnouncement(packet)
                 return@collect
@@ -398,6 +463,52 @@ class MeshCoordinator @Inject constructor(
             Log.d(TAG, "message from ${Packet.tag(packet.senderId)} new=$isNew")
         }
     }
+
+    /**
+     * Files how far away a packet's sender was, from the ttl it arrived with.
+     *
+     * Flooding delivers the same sender's traffic by every route there is, so two
+     * paths routinely disagree about the distance. The shortest wins, because
+     * that is what a ring on a radar is supposed to mean.
+     *
+     * But only against an observation of comparable age. One lucky short path —
+     * a phone that walked past once — would otherwise pin a peer to an inner ring
+     * for the rest of the session, and the peer would keep looking closer than it
+     * is however long it spends far away. So an observation older than
+     * [HOP_FRESHNESS_MILLIS] is replaced outright instead of compared against,
+     * and a surviving minimum is never re-stamped: it has to re-earn its place by
+     * being observed again, or it ages out.
+     */
+    private fun recordHops(packet: Packet, now: Long = System.currentTimeMillis()) {
+        val senderHex = packet.senderId.toHexId()
+        if (senderHex == selfId) return
+        val hops = hopsFrom(packet.ttl) ?: return
+
+        hopObservations.update { observations ->
+            val previous = observations[senderHex]
+            val keepPrevious = previous != null &&
+                previous.hops <= hops &&
+                now - previous.observedAt <= HOP_FRESHNESS_MILLIS
+            if (keepPrevious) observations else observations + (senderHex to HopObservation(hops, now))
+        }
+    }
+
+    /**
+     * Links between here and a packet's originator, from the ttl it carries.
+     *
+     * Not `DEFAULT_TTL - ttl`, which counts *decrements* and lands one short: a
+     * packet is originated at the full budget and only pays a hop when a relay
+     * forwards it, so a direct neighbour's packet arrives untouched at
+     * [Packet.DEFAULT_TTL]. Counting decrements would file every neighbour at
+     * zero and contradict the peer list, which calls a connected peer one hop
+     * away.
+     *
+     * Null when the arithmetic cannot be trusted at all: a ttl above the default
+     * is either a build speaking a different budget or an outright forgery, and
+     * either way it would place the sender closer than anything real can be.
+     */
+    private fun hopsFrom(ttl: Int): Int? =
+        if (ttl in 1..Packet.DEFAULT_TTL) Packet.DEFAULT_TTL - ttl + 1 else null
 
     /**
      * Feeds one fragment to the reassembler and reports the transfer's progress.
@@ -612,6 +723,15 @@ class MeshCoordinator @Inject constructor(
 
     private companion object {
         const val TAG = "MeshCoordinator"
+
+        /**
+         * How long a hop observation stays worth comparing a new one against.
+         *
+         * Shorter than `PeerRepository.DEFAULT_PRESENCE_WINDOW_MS`: how far away
+         * someone is changes as they walk, while whether they are here at all
+         * changes only when they leave.
+         */
+        const val HOP_FRESHNESS_MILLIS: Long = 60 * 1000L
 
         /**
          * Gap between consecutive fragments of one image.

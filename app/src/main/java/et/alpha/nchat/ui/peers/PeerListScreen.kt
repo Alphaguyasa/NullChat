@@ -388,23 +388,8 @@ private data class VisibleRow(
 
 private val PeerRow.key: String get() = peerId ?: BROADCAST_KEY
 
-/**
- * Bars to light for a peer.
- *
- * Full or none, because full or none is all this device actually knows. Nearby
- * Connections reports no RSSI — a peer is either connected or it is not — and
- * inventing three intermediate levels from nothing would be exactly the kind of
- * confident lie the state-honesty rule exists to prevent. When a transport starts
- * reporting link quality, this property is the only place that has to change.
- *
- * On the broadcast row the same rule reads as "is the mesh reachable at all",
- * since that row is online exactly when at least one peer is.
- */
-private val PeerRow.signalLevel: Int get() = if (isOnline) SIGNAL_BARS else 0
-
 private const val BROADCAST_KEY = "__broadcast__"
 private const val SHORT_ID_CHARS = 8
-private const val SIGNAL_BARS = 4
 private const val ENTER_SCALE = 0.9f
 private const val EXIT_SCALE = 0.95f
 

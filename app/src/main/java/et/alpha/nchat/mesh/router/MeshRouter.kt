@@ -16,9 +16,13 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -73,6 +77,24 @@ class MeshRouter(
      * the routing boundary rather than growing a crypto stub.
      */
     val delivered: Flow<Packet> = deliveries.receiveAsFlow()
+
+    /**
+     * Deliberately the opposite contract to [deliveries], field for field.
+     *
+     * Delivery is a buffered channel because losing one costs the user a chat
+     * message. Losing one of these costs a frame of a pulse animation, so it
+     * replays nothing, buffers almost nothing, and drops the oldest event rather
+     * than slowing a relay down to keep it. Making this lossless would put an
+     * unbounded queue behind a UI that is usually not even on screen.
+     */
+    private val _relayActivity = MutableSharedFlow<RelayEvent>(
+        replay = 0,
+        extraBufferCapacity = RELAY_ACTIVITY_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /** Traffic crossing this device's own links. Lossy on purpose — see the backing field. */
+    val relayActivity: SharedFlow<RelayEvent> = _relayActivity.asSharedFlow()
 
     /** Directly reachable peers, as reported by the transport. */
     private val peers = linkedSetOf<String>()
@@ -217,6 +239,13 @@ class MeshRouter(
             return
         }
 
+        // Ahead of both dedup and verification, because the claim being made is
+        // only that bytes crossed this link — which a duplicate or a forgery does
+        // as much as a message the user ends up reading. Waiting until a packet
+        // has earned delivery would leave the busiest links, the ones carrying
+        // other people's traffic, looking idle.
+        _relayActivity.tryEmit(RelayEvent(inbound.fromPeer, RelayEvent.Direction.IN))
+
         // Verified before the dedup cache is touched, deliberately. markSeen is
         // what claims a slot in a bounded LRU, so verifying afterwards would let
         // an attacker evict genuine entries with forged ids and get real
@@ -287,7 +316,14 @@ class MeshRouter(
         val bytes = PacketCodec.encode(packet)
         var delivered = 0
         for (peer in targets) {
-            if (transport.send(peer, bytes)) delivered++ else _failedForwards.incrementAndGet()
+            if (transport.send(peer, bytes)) {
+                delivered++
+                // Only on a send the transport accepted. A failed forward means
+                // the peer was already gone, and nothing crossed that link.
+                _relayActivity.tryEmit(RelayEvent(peer, RelayEvent.Direction.OUT))
+            } else {
+                _failedForwards.incrementAndGet()
+            }
         }
 
         // Queued only when every target failed. One peer taking it is enough for
@@ -300,5 +336,35 @@ class MeshRouter(
         /** Rule 5's jitter window, in milliseconds. */
         const val MIN_JITTER_MILLIS: Long = 50
         const val MAX_JITTER_MILLIS: Long = 500
+
+        /**
+         * Room for a short burst — one packet arriving and being fanned out to a
+         * handful of neighbours — and no more. A consumer that cannot keep up
+         * with a pulse animation is one that should be dropping frames.
+         */
+        private const val RELAY_ACTIVITY_BUFFER: Int = 16
+    }
+}
+
+/**
+ * A packet crossing one of this device's links, in one direction.
+ *
+ * [endpointId] is a *link-layer* id, the same namespace as
+ * [InboundPayload.fromPeer] and emphatically not the packet's 8-byte protocol
+ * `senderId` — resolving one to the other belongs to the transport. Nothing here
+ * says anything about traffic elsewhere in the mesh: a relay two hops away
+ * carrying a conversation neither party can hear is invisible from this device,
+ * and this flow must never be dressed up as a view of the whole network.
+ */
+data class RelayEvent(val endpointId: String, val direction: Direction) {
+
+    /** Which way the bytes went across the link. */
+    enum class Direction {
+
+        /** A peer handed us a packet. */
+        IN,
+
+        /** We handed a peer a packet to carry onward. */
+        OUT,
     }
 }
