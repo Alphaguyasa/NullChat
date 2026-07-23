@@ -68,7 +68,10 @@ import et.alpha.nchat.ui.components.MessageBubble
 import et.alpha.nchat.ui.theme.Danger
 import et.alpha.nchat.ui.theme.MonoBody
 import et.alpha.nchat.ui.theme.MonoSmall
+import et.alpha.nchat.ui.theme.MotionPlacementSpec
+import et.alpha.nchat.ui.theme.MotionSpec
 import et.alpha.nchat.ui.theme.NChatTheme
+import et.alpha.nchat.ui.theme.rememberAnimationsEnabled
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -102,10 +105,15 @@ fun ChatScreen(
     val isPreparingImage by viewModel.isPreparingImage.collectAsState()
     val error by viewModel.errors.collectAsState()
 
+    val animate = rememberAnimationsEnabled()
+    val sends = rememberSendAnimations()
+
     val listState = rememberLazyListState()
     // Follow the tail as messages arrive, which is what a chat log should do.
     LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
+        if (state.messages.isEmpty()) return@LaunchedEffect
+        val tail = state.messages.lastIndex
+        if (animate) listState.animateScrollToItem(tail) else listState.scrollToItem(tail)
     }
 
     // PickVisualMedia rather than GetContent: it runs in the system photo picker,
@@ -192,7 +200,21 @@ fun ChatScreen(
                                 transfer = transfers[message.id],
                                 attachmentPath = message.attachmentFile
                                     ?.let(viewModel::attachmentPath),
-                                modifier = Modifier.animateItem(),
+                                // Settled on the row's first composition and kept:
+                                // a bubble scrolled out of view and back is the
+                                // same message, not a second send.
+                                animateSend = remember(message.id) {
+                                    sends.isFreshSend(message) && animate
+                                },
+                                modifier = Modifier.animateItem(
+                                    // No fade in: the bubble runs its own
+                                    // entrance, and two overlapping entrances
+                                    // read as a stutter. The list only animates
+                                    // the rows the new message displaces.
+                                    fadeInSpec = null,
+                                    placementSpec = if (animate) MotionPlacementSpec else null,
+                                    fadeOutSpec = if (animate) MotionSpec else null,
+                                ),
                             )
                         }
                     }
@@ -331,6 +353,7 @@ private fun ChatMessage(
     modifier: Modifier = Modifier,
     transfer: Transfer? = null,
     attachmentPath: String? = null,
+    animateSend: Boolean = false,
 ) {
     val outgoing = message.isOutgoing
     val inFlight = transfer != null && transfer.state != TransferState.COMPLETE
@@ -360,8 +383,40 @@ private fun ChatMessage(
         // say how far an outgoing message travelled. `DeliveryStateLabel` renders
         // "· N hops" as soon as a real count is threaded through here.
         hopCount = null,
+        animateSend = animateSend,
         content = extras,
     )
+}
+
+/**
+ * Which bubbles should play the send animation.
+ *
+ * The question is "did the user just send this", and the answer is the clock: a
+ * message stamped after this screen opened cannot be history. Timestamps rather
+ * than a diff of successive message lists, because the ViewModel is shared
+ * across conversations and holds the previous thread's rows until the new query
+ * returns — a diff would see a whole conversation appear at once and flash every
+ * bubble in it.
+ *
+ * Only outgoing messages qualify. An incoming one was not sent from here, and
+ * its timestamp came off another phone's clock, which this device has no reason
+ * to trust to the millisecond.
+ */
+@Composable
+private fun rememberSendAnimations(): SendAnimations =
+    remember { SendAnimations(openedAt = System.currentTimeMillis()) }
+
+/**
+ * Deliberately not Compose state: it is read during composition and written in
+ * the same pass, and making it observable would invalidate the thread every time
+ * a bubble was marked.
+ */
+private class SendAnimations(private val openedAt: Long) {
+    private val played = mutableSetOf<String>()
+
+    /** True exactly once per message, for one the user sent while this screen was up. */
+    fun isFreshSend(message: MessageEntity): Boolean =
+        message.isOutgoing && message.timestamp >= openedAt && played.add(message.id)
 }
 
 /**

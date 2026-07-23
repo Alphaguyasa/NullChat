@@ -1,5 +1,6 @@
 package et.alpha.nchat.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,19 +18,29 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import et.alpha.nchat.data.db.DeliveryState
+import et.alpha.nchat.ui.theme.AccentBright
 import et.alpha.nchat.ui.theme.MonoSmall
+import et.alpha.nchat.ui.theme.MotionSpec
 import et.alpha.nchat.ui.theme.NChatTheme
 
 private val BubbleCorner = 18.dp
 
 /** The corner nearest the speaker, tightened so the bubble points at them. */
 private val TailCorner = 4.dp
+
+/** Where a sent bubble starts before it settles at full size. */
+private const val SEND_SCALE = 0.96f
 
 /**
  * One message in a thread.
@@ -55,6 +66,12 @@ private val TailCorner = 4.dp
  *   parameter, so this component never learns what a bitmap is: decoding,
  *   caching and progress belong to the screen, the bubble chrome belongs here.
  *   [text] may be empty when this is supplied, for a picture with no caption.
+ * @param animateSend plays the send animation described below. Set only on a
+ *   message the user has just sent — a thread of history opens at rest — and only
+ *   when the device wants motion at all, which is
+ *   [rememberAnimationsEnabled][et.alpha.nchat.ui.theme.rememberAnimationsEnabled]'s
+ *   answer. False leaves both animations parked at their resting values, so an
+ *   ordinary bubble costs nothing to draw.
  */
 @Composable
 fun MessageBubble(
@@ -65,6 +82,7 @@ fun MessageBubble(
     timestamp: String? = null,
     deliveryState: DeliveryState? = null,
     hopCount: Int? = null,
+    animateSend: Boolean = false,
     content: @Composable (ColumnScope.() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(
@@ -75,12 +93,45 @@ fun MessageBubble(
     )
     val accent = MaterialTheme.colorScheme.primary
 
+    val scale = remember { Animatable(if (animateSend) SEND_SCALE else 1f) }
+    LaunchedEffect(animateSend) {
+        if (animateSend) scale.animateTo(1f, MotionSpec)
+    }
+
+    // Re-fired on every delivery-state change, with a peak that falls each step,
+    // so the bubble flashes hardest at the moment of sending and asks for less
+    // attention as its state settles. See [flashPeak].
+    val flash = remember { Animatable(0f) }
+    LaunchedEffect(animateSend, deliveryState) {
+        if (!animateSend) return@LaunchedEffect
+        val peak = flashPeak(deliveryState)
+        if (peak > 0f) {
+            flash.snapTo(peak)
+            flash.animateTo(0f, MotionSpec)
+        }
+    }
+
+    val sendScale = if (animateSend) {
+        Modifier.graphicsLayer {
+            scaleX = scale.value
+            scaleY = scale.value
+            // Anchored at the tail, so the bubble grows out of the corner that
+            // points at its sender rather than swelling in place.
+            transformOrigin = TransformOrigin(if (isOutgoing) 1f else 0f, 1f)
+        }
+    } else {
+        // No graphics layer at all on a bubble that is not animating. A thread is
+        // a long list, and every row paying for a layer to hold a scale of 1 is
+        // not a trade worth making.
+        Modifier
+    }
+
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isOutgoing) Arrangement.End else Arrangement.Start,
     ) {
         Column(
-            modifier = Modifier
+            modifier = sendScale
                 .widthIn(max = 280.dp)
                 .clip(shape)
                 .background(
@@ -92,7 +143,15 @@ fun MessageBubble(
                 )
                 .border(
                     width = 1.dp,
-                    color = if (isOutgoing) accent else MaterialTheme.colorScheme.outlineVariant,
+                    // The flash lifts the border towards AccentBright and hands
+                    // it straight back. Zero is spelled out rather than left to
+                    // lerp, so a bubble at rest is the accent itself and not a
+                    // round trip through Oklab that lands near it.
+                    color = when {
+                        !isOutgoing -> MaterialTheme.colorScheme.outlineVariant
+                        flash.value == 0f -> accent
+                        else -> lerp(accent, AccentBright, flash.value)
+                    },
                     shape = shape,
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -139,6 +198,24 @@ fun MessageBubble(
             }
         }
     }
+}
+
+/**
+ * How hard the border flashes when a message arrives at [state].
+ *
+ * The design system asks for a flash that "decays as delivery state advances",
+ * and this is the decay: full strength on the send itself, half on `sent`, a
+ * hint on `delivered`. Each advance is real news about where the message got to,
+ * so each earns a flash — just a quieter one than the last.
+ *
+ * `failed` gets nothing. `DeliveryStateLabel` already says so in `Danger`, and a
+ * mesh-green flash over that word would be the palette contradicting itself.
+ */
+private fun flashPeak(state: DeliveryState?): Float = when (state) {
+    DeliveryState.PENDING -> 1f
+    DeliveryState.SENT -> 0.5f
+    DeliveryState.DELIVERED -> 0.25f
+    DeliveryState.FAILED, null -> 0f
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF0E1A26)

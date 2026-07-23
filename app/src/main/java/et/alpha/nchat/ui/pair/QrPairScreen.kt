@@ -9,6 +9,7 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -63,6 +64,8 @@ import et.alpha.nchat.ui.theme.BgBase
 import et.alpha.nchat.ui.theme.Hairline
 import et.alpha.nchat.ui.theme.MonoSmall
 import et.alpha.nchat.ui.theme.NChatTheme
+import et.alpha.nchat.ui.theme.motionSpec
+import et.alpha.nchat.ui.theme.rememberAnimationsEnabled
 import java.util.concurrent.Executors
 
 /**
@@ -217,45 +220,66 @@ private fun Scanner(
         color = MaterialTheme.colorScheme.onSurface,
     )
 
-    when (outcome) {
-        is ScanOutcome.Paired -> PairedResult(outcome, onReset)
+    // Held so the result is still renderable while it fades out, by which point
+    // `reset` has already cleared the outcome that produced it.
+    var lastPaired by remember { mutableStateOf<ScanOutcome.Paired?>(null) }
+    LaunchedEffect(outcome) { (outcome as? ScanOutcome.Paired)?.let { lastPaired = it } }
 
-        else -> {
-            if (granted) {
-                CameraPreview(onScanned = onScanned)
-            } else {
-                Text(
-                    text = stringResource(R.string.pair_camera_rationale),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(vertical = 16.dp),
-                )
-                Button(
-                    onClick = { launcher.launch(Manifest.permission.CAMERA) },
-                    shape = RoundedCornerShape(18.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+    // Keyed on "is there a result" rather than on the outcome itself, so the
+    // scanner does not fade out and back in every time a wrong code is read —
+    // the camera stays put and only the message under it changes.
+    Crossfade(
+        targetState = outcome is ScanOutcome.Paired,
+        animationSpec = motionSpec(rememberAnimationsEnabled()),
+        label = "scan outcome",
+    ) { isPaired ->
+        if (isPaired) {
+            val paired = outcome as? ScanOutcome.Paired ?: lastPaired
+            if (paired != null) PairedResult(paired, onReset)
+        } else {
+            // A Crossfade lays its content out in a Box, which would stack the
+            // viewfinder and the message it explains on top of each other. The
+            // Column restores the flow the enclosing screen had.
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (granted) {
+                    CameraPreview(onScanned = onScanned)
+                } else {
                     Text(
-                        text = stringResource(R.string.pair_camera_grant),
-                        style = MaterialTheme.typography.labelLarge,
+                        text = stringResource(R.string.pair_camera_rationale),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 16.dp),
+                    )
+                    Button(
+                        onClick = { launcher.launch(Manifest.permission.CAMERA) },
+                        shape = RoundedCornerShape(18.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.pair_camera_grant),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                }
+
+                val message = when (outcome) {
+                    ScanOutcome.Ourselves -> stringResource(R.string.pair_scanned_self)
+                    ScanOutcome.NotAPairingCode -> stringResource(R.string.pair_scanned_unknown)
+                    else -> null
+                }
+                if (message != null) {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 16.dp),
                     )
                 }
-            }
-
-            val message = when (outcome) {
-                ScanOutcome.Ourselves -> stringResource(R.string.pair_scanned_self)
-                ScanOutcome.NotAPairingCode -> stringResource(R.string.pair_scanned_unknown)
-                else -> null
-            }
-            if (message != null) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 16.dp),
-                )
             }
         }
     }
