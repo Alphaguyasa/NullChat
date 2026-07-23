@@ -7,6 +7,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
 import com.google.zxing.EncodeHintType
+import com.google.zxing.LuminanceSource
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeReader
@@ -21,8 +22,17 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
  * scan on a cracked or dim screen — which is the realistic condition for two
  * people pairing phones. The code is on screen for seconds, not printed on a
  * box, so redundancy buys little.
+ *
+ * [moduleColor] and [backgroundColor] default to the conventional dark-on-light.
+ * The pairing screen inverts them to the mesh palette; see [readQrText], which is
+ * what makes that safe.
  */
-fun qrBitmap(text: String, sizePx: Int): Bitmap {
+fun qrBitmap(
+    text: String,
+    sizePx: Int,
+    moduleColor: Int = Color.BLACK,
+    backgroundColor: Int = Color.WHITE,
+): Bitmap {
     val hints = mapOf(
         EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L,
         EncodeHintType.MARGIN to QR_MARGIN_MODULES,
@@ -33,7 +43,7 @@ fun qrBitmap(text: String, sizePx: Int): Bitmap {
     for (y in 0 until matrix.height) {
         val row = y * matrix.width
         for (x in 0 until matrix.width) {
-            pixels[row + x] = if (matrix.get(x, y)) Color.BLACK else Color.WHITE
+            pixels[row + x] = if (matrix.get(x, y)) moduleColor else backgroundColor
         }
     }
     return Bitmap.createBitmap(pixels, matrix.width, matrix.height, Bitmap.Config.ARGB_8888)
@@ -46,6 +56,13 @@ fun qrBitmap(text: String, sizePx: Int): Bitmap {
  * already the greyscale image ZXing wants, so the chroma planes are ignored
  * rather than converted — a full colour conversion per frame would cost far more
  * than the decode itself.
+ *
+ * Each frame is tried twice, right way up and inverted. The design system draws
+ * our own code as light modules on a dark background, and ZXing's binarizer only
+ * ever looks for dark modules — without the second pass this app could not scan
+ * the code this app draws, which is the only code it is ever pointed at. The
+ * inverted pass costs a second failed decode on frames containing nothing, and
+ * `KEEP_ONLY_LATEST` means that spends dropped frames rather than latency.
  */
 fun ImageProxy.readQrText(): String? {
     val plane = planes.firstOrNull() ?: return null
@@ -65,11 +82,19 @@ fun ImageProxy.readQrText(): String? {
         false,
     )
 
+    return source.decodeQr() ?: source.invert().decodeQr()
+}
+
+/**
+ * One decode attempt.
+ *
+ * A frame with no code in it throws rather than returning null, and most frames
+ * have no code in them. This is the normal path, not an error path.
+ */
+private fun LuminanceSource.decodeQr(): String? {
     val hints = mapOf(DecodeHintType.TRY_HARDER to true)
-    // A frame with no code in it throws rather than returning null, and most
-    // frames have no code in them. This is the normal path, not an error path.
     return runCatching {
-        QRCodeReader().decode(BinaryBitmap(HybridBinarizer(source)), hints).text
+        QRCodeReader().decode(BinaryBitmap(HybridBinarizer(this)), hints).text
     }.getOrNull()
 }
 
