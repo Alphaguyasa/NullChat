@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -70,6 +73,12 @@ fun RadioGate(
     }
 }
 
+/**
+ * Scrollable for the same reason [PermissionGate]'s scaffold is: at 200% font
+ * scale the two-blocker body plus both buttons is taller than a small phone, and
+ * a centred column with no scroll would push the buttons off the bottom edge —
+ * on the one screen whose entire job is offering those buttons.
+ */
 @Composable
 private fun RadioBlockedScreen(
     blockers: List<RadioBlocker>,
@@ -80,6 +89,7 @@ private fun RadioBlockedScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -145,15 +155,20 @@ private fun Context.openLocationSettings() {
     }
 }
 
+// Surface-wrapped so the preview inherits the theme's background and onBackground
+// content color the way MainActivity's Scaffold does at runtime; a bare preview
+// renders the text in the default black instead.
 @Preview(showBackground = true)
 @Composable
 private fun BluetoothOffPreview() {
     NChatTheme {
-        RadioBlockedScreen(
-            blockers = listOf(RadioBlocker.BLUETOOTH_OFF),
-            onEnableBluetooth = {},
-            onOpenLocationSettings = {},
-        )
+        Surface(color = MaterialTheme.colorScheme.background) {
+            RadioBlockedScreen(
+                blockers = listOf(RadioBlocker.BLUETOOTH_OFF),
+                onEnableBluetooth = {},
+                onOpenLocationSettings = {},
+            )
+        }
     }
 }
 
@@ -161,10 +176,12 @@ private fun BluetoothOffPreview() {
 @Composable
 private fun BothOffPreview() {
     NChatTheme {
-        RadioBlockedScreen(
-            blockers = RadioState.UNKNOWN.blockersOn(29),
-            onEnableBluetooth = {},
-            onOpenLocationSettings = {},
-        )
+        Surface(color = MaterialTheme.colorScheme.background) {
+            RadioBlockedScreen(
+                blockers = RadioState.UNKNOWN.blockersOn(29),
+                onEnableBluetooth = {},
+                onOpenLocationSettings = {},
+            )
+        }
     }
 }

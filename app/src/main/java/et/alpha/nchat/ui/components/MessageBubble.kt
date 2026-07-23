@@ -192,7 +192,16 @@ fun MessageBubble(
                     }
                     if (deliveryState != null) {
                         if (timestamp != null) Spacer(Modifier.width(8.dp))
-                        DeliveryStateLabel(state = deliveryState, hopCount = hopCount)
+                        // Weighted so it wraps onto a second line rather than
+                        // running out of the bubble. At 200% font scale
+                        // "21:04  delivered · 2 hops" is wider than the 280dp a
+                        // bubble is allowed, and the hop count — the one thing
+                        // this app exists to tell the user — fell off the end.
+                        DeliveryStateLabel(
+                            state = deliveryState,
+                            hopCount = hopCount,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
                     }
                 }
             }

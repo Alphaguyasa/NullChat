@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -158,6 +159,12 @@ private fun Header(onlineCount: Int, selfId: String, onOpenPairing: () -> Unit) 
                 text = "Mesh",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
+                // Weighted so that at 200% font scale the title gives way to the
+                // pairing button instead of pushing it off the end of the row.
+                // Nothing else on this screen reaches pairing.
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
             // The entry point to pairing hangs off the identity line, which is
             // already where this screen talks about who you are.
@@ -270,7 +277,16 @@ internal fun PeerRowItem(row: PeerRow, onClick: () -> Unit, modifier: Modifier =
     }
 }
 
-/** A small "unverified" chip, in the error colour so it reads as a caution. */
+/**
+ * A small "unverified" chip, in the error colour so it reads as a caution.
+ *
+ * Outlined rather than filled. The fill was `errorContainer`, which is BgSurface,
+ * and Danger on BgSurface measures 3.9:1 — the chip was the one place in the app
+ * where a caution was written on a lighter surface than the page it sits on, and
+ * it was the hardest text on the screen to read. On BgBase the same colour is
+ * 5.02:1, so dropping the fill and keeping a border keeps the chip shape and
+ * makes the word legible.
+ */
 @Composable
 internal fun UnverifiedBadge() {
     Text(
@@ -278,8 +294,9 @@ internal fun UnverifiedBadge() {
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.error,
         modifier = Modifier
-            .background(
-                color = MaterialTheme.colorScheme.errorContainer,
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(4.dp),
             )
             .padding(horizontal = 5.dp, vertical = 1.dp),

@@ -10,6 +10,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -25,10 +26,12 @@ import et.alpha.nchat.ui.theme.NChatTheme
  * happen — people skim, agree, and skip the check that the whole verification
  * model rests on. Words survive being spoken.
  *
- * Laid out two per line by default rather than in one long row. At 200% font
- * scale three columns of monospace at this size run past the edge of a phone,
- * and a fingerprint that wraps mid-word is a fingerprint nobody will finish
- * reading.
+ * Laid out two per line rather than in one long row, and one per line once the
+ * user's font scale passes 150%. A fingerprint that wraps mid-word is a
+ * fingerprint nobody will finish reading, and at 200% scale a word like
+ * "juniper" needs about 200dp of 48sp monospace — wider than half a phone, so
+ * two columns broke words across lines exactly where it matters most. The column
+ * count gives way instead; the block just gets taller.
  *
  * The whole block is announced as one comma-separated string, so a screen
  * reader pauses between words instead of running them together.
@@ -37,7 +40,7 @@ import et.alpha.nchat.ui.theme.NChatTheme
 fun FingerprintWords(
     words: List<String>,
     modifier: Modifier = Modifier,
-    wordsPerRow: Int = 2,
+    wordsPerRow: Int = if (LocalDensity.current.fontScale >= SingleColumnFontScale) 1 else 2,
 ) {
     Column(
         modifier = modifier
@@ -68,6 +71,9 @@ fun FingerprintWords(
         }
     }
 }
+
+/** Where two columns of 24sp monospace stop fitting side by side on a phone. */
+private const val SingleColumnFontScale = 1.5f
 
 @Preview(showBackground = true, backgroundColor = 0xFF0E1A26)
 @Composable

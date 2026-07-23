@@ -39,8 +39,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,6 +52,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -238,7 +238,15 @@ fun ChatScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The thread's header: who you are talking to, and whether they can be reached.
+ *
+ * A plain Row rather than a Material `TopAppBar`. The bar carries two lines —
+ * the peer and their reachability — and a `TopAppBar` is a fixed 64dp container
+ * that clips whatever does not fit. At 200% font scale those two lines measure
+ * around 100dp and the second one disappeared, taking the only statement this
+ * screen makes about the radio with it. This grows instead.
+ */
 @Composable
 private fun ChatTopBar(
     title: String,
@@ -248,43 +256,48 @@ private fun ChatTopBar(
     onBack: () -> Unit,
 ) {
     Column {
-        TopAppBar(
-            title = {
-                Column {
-                    Text(
-                        text = title,
-                        style = if (isMonoTitle) MonoBody else MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MonoSmall,
-                        // Reachability is the one fact this screen can state about
-                        // the link, so it is coloured rather than left as chrome.
-                        color = if (isOnline) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
-            },
-            navigationIcon = {
-                // Glyphs rather than vector assets throughout this screen:
-                // material-icons is not in the Compose BOM here, and pulling
-                // the artifact in for four symbols is not worth the size.
-                IconButton(onClick = onBack) {
-                    Text(
-                        text = "←",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background,
-            ),
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(end = 16.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Glyphs rather than vector assets throughout this screen:
+            // material-icons is not in the Compose BOM here, and pulling
+            // the artifact in for four symbols is not worth the size.
+            IconButton(onClick = onBack) {
+                Text(
+                    text = "←",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    // The glyph is a picture of an arrow, not a word. Cleared and
+                    // relabelled so a screen reader announces the button rather
+                    // than reading out a punctuation character.
+                    modifier = Modifier.clearAndSetSemantics {
+                        contentDescription = "Back to peers"
+                    },
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = if (isMonoTitle) MonoBody else MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = subtitle,
+                    style = MonoSmall,
+                    // Reachability is the one fact this screen can state about
+                    // the link, so it is coloured rather than left as chrome.
+                    color = if (isOnline) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        }
         // The design system forbids elevation shadows, so the bar is separated
         // from the thread by the hairline instead.
         HorizontalDivider()
@@ -556,6 +569,12 @@ private fun SendBox(
                     MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
                     MaterialTheme.colorScheme.primary
+                },
+                // Says what the button does, and what it is busy doing — a
+                // screen reader gets nothing usable out of "+" or an ellipsis.
+                modifier = Modifier.clearAndSetSemantics {
+                    contentDescription =
+                        if (isPreparingImage) "Preparing image" else "Attach an image"
                 },
             )
         }

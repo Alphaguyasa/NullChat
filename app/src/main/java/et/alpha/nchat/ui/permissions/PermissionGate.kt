@@ -15,9 +15,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -150,6 +153,15 @@ private fun SettingsScreen(
     }
 }
 
+/**
+ * Centred title, explanation, and whatever action can fix it.
+ *
+ * Scrollable even though it is meant to fit on one screen. At 200% font scale
+ * the longer rationale runs past the bottom of a small phone, and a centred
+ * column with nowhere to scroll loses text off *both* ends — including the
+ * button, which would leave the user unable to grant anything. `Center` still
+ * centres it whenever it does fit.
+ */
 @Composable
 private fun GateScaffold(
     title: String,
@@ -160,6 +172,7 @@ private fun GateScaffold(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -220,11 +233,17 @@ private fun Context.findActivity(): Activity? {
 
 // endregion
 
+// Wrapped in a Surface so the preview inherits the theme's background and its
+// onBackground content color, exactly as MainActivity's Scaffold supplies them
+// at runtime. Without it a bare preview renders text in the default black, which
+// is not what ships and hid nothing worth seeing.
 @Preview(showBackground = true)
 @Composable
 private fun RationalePreview() {
     NChatTheme {
-        RationaleScreen(previouslyDenied = false, onGrant = {})
+        Surface(color = MaterialTheme.colorScheme.background) {
+            RationaleScreen(previouslyDenied = false, onGrant = {})
+        }
     }
 }
 
@@ -232,6 +251,8 @@ private fun RationalePreview() {
 @Composable
 private fun BlockedPreview() {
     NChatTheme {
-        SettingsScreen(onOpenSettings = {}, onRecheck = {})
+        Surface(color = MaterialTheme.colorScheme.background) {
+            SettingsScreen(onOpenSettings = {}, onRecheck = {})
+        }
     }
 }

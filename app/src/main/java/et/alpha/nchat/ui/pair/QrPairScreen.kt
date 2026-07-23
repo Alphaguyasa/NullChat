@@ -50,6 +50,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview as PreviewAnnotation
 import androidx.compose.ui.unit.dp
@@ -108,6 +110,12 @@ fun QrPairScreen(
                             text = "←",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface,
+                            // A glyph is not a label. Cleared and relabelled so a
+                            // screen reader announces the button rather than
+                            // reading out a punctuation character.
+                            modifier = Modifier.clearAndSetSemantics {
+                                contentDescription = "Back to peers"
+                            },
                         )
                     }
                 },
