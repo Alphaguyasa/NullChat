@@ -2,6 +2,7 @@ package et.alpha.nchat.mesh
 
 import android.util.Log
 import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
+import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.hexIdToBytes
 import et.alpha.nchat.data.db.newMessageId
@@ -14,6 +15,7 @@ import et.alpha.nchat.di.MeshScope
 import et.alpha.nchat.mesh.crypto.LocalIdentity
 import et.alpha.nchat.mesh.crypto.PublicKeyDirectory
 import et.alpha.nchat.mesh.crypto.SessionCipher
+import et.alpha.nchat.mesh.protocol.Acknowledgement
 import et.alpha.nchat.mesh.protocol.Announcement
 import et.alpha.nchat.mesh.protocol.Attachment
 import et.alpha.nchat.mesh.protocol.ContentType
@@ -22,6 +24,7 @@ import et.alpha.nchat.mesh.protocol.FragmentReassembler
 import et.alpha.nchat.mesh.protocol.Fragmenter
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.protocol.ReassembledMessage
+import et.alpha.nchat.mesh.protocol.acknowledgementPacket
 import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
@@ -59,6 +62,16 @@ sealed interface SendResult {
     /** Rejected before storage — currently only ever an over-length body. */
     data class Rejected(val reason: String) : SendResult
 }
+
+/**
+ * Whether a verified ACK from [ackSenderHex] may mark [message] delivered.
+ *
+ * Only our own direct message, and only by the peer it was addressed to. A relay
+ * that carried the message holds its id and could otherwise "acknowledge" it, and
+ * broadcasts have no single recipient whose receipt would mean anything.
+ */
+internal fun isReceiptFor(message: MessageEntity, ackSenderHex: String): Boolean =
+    message.isOutgoing && message.conversationId == directConversationId(ackSenderHex)
 
 /**
  * One reading of a peer's distance, and when it was taken.
@@ -438,6 +451,10 @@ class MeshCoordinator @Inject constructor(
                 recordFragment(packet)
                 return@collect
             }
+            if (packet.type == PacketType.ACK) {
+                recordAcknowledgement(packet)
+                return@collect
+            }
             if (packet.type != PacketType.MESSAGE) return@collect
 
             val senderHex = packet.senderId.toHexId()
@@ -461,7 +478,58 @@ class MeshCoordinator @Inject constructor(
             // Flooding delivers the same message by several routes; a duplicate
             // here is routine, not a fault.
             Log.d(TAG, "message from ${Packet.tag(packet.senderId)} new=$isNew")
+
+            if (isNew && !packet.isBroadcast) {
+                acknowledge(packet.messageId, packet.senderId, hopsFrom(packet.ttl))
+            }
         }
+    }
+
+    /**
+     * Tells [senderId] that its direct message [messageId] arrived.
+     *
+     * Only for the first copy: flooding delivers duplicates by every route there
+     * is, and answering each one would multiply receipts across the mesh for no
+     * new information. A receipt that is lost on the way back is covered by the
+     * forward queue, which holds ACKs as well as messages.
+     *
+     * Broadcasts are never acknowledged — a receipt from everyone in range would
+     * be a storm, and "delivered" has no single meaning for a message to all.
+     */
+    private suspend fun acknowledge(messageId: ByteArray, senderId: ByteArray, hops: Int?) {
+        val packet = acknowledgementPacket(
+            messageId = newMessageId().hexIdToBytes(),
+            senderId = identity.peerId,
+            recipientId = senderId,
+            acknowledgement = Acknowledgement(messageId, hops ?: 0),
+            timestamp = System.currentTimeMillis(),
+        )
+        runCatching { router.originate(packet) }
+            .onFailure { Log.w(TAG, "failed to acknowledge: ${it.message}") }
+    }
+
+    /**
+     * Marks one of our messages delivered on a verified receipt.
+     *
+     * The receipt must come from the peer the message was addressed to. The
+     * router has already checked the signature, so [Packet.senderId] is genuine;
+     * this check is what stops a third device from acknowledging a message it was
+     * merely relaying, or one meant for somebody else.
+     */
+    private suspend fun recordAcknowledgement(packet: Packet) {
+        val ack = Acknowledgement.parse(packet.payload) ?: return
+        val messageId = ack.ackedMessageId.toHexId()
+        val senderHex = packet.senderId.toHexId()
+
+        val message = messages.findMessage(messageId) ?: return
+        if (!isReceiptFor(message, senderHex)) {
+            Log.w(TAG, "ignoring receipt from ${Packet.tag(packet.senderId)} for a message not sent to it")
+            return
+        }
+
+        peers.recordSeen(senderHex)
+        messages.markDelivered(messageId)
+        Log.d(TAG, "message delivered to ${Packet.tag(packet.senderId)} in ${ack.hops} hop(s)")
     }
 
     /**
@@ -537,7 +605,9 @@ class MeshCoordinator @Inject constructor(
         val completed = reassembler.offer(packet)
         if (completed != null) {
             transfers.complete(messageId)
-            deliverReassembled(completed)
+            // The completing fragment's ttl stands in for the whole message's
+            // distance: every piece took the same flood from the same sender.
+            deliverReassembled(completed, hopsFrom(packet.ttl))
             return
         }
 
@@ -564,7 +634,7 @@ class MeshCoordinator @Inject constructor(
      * agreement key sends in the clear, and refusing to render that would make
      * the app look broken to two users who have only just met.
      */
-    private suspend fun deliverReassembled(message: ReassembledMessage) {
+    private suspend fun deliverReassembled(message: ReassembledMessage, hops: Int?) {
         val senderHex = message.senderId.toHexId()
 
         val plaintext = if (message.isBroadcast) {
@@ -621,6 +691,8 @@ class MeshCoordinator @Inject constructor(
             TAG,
             "reassembled ${attachment.contentType} from ${Packet.tag(message.senderId)} new=$isNew",
         )
+
+        if (isNew && !message.isBroadcast) acknowledge(message.messageId, message.senderId, hops)
     }
 
     /**
