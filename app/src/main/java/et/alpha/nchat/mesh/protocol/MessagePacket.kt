@@ -1,5 +1,8 @@
 package et.alpha.nchat.mesh.protocol
 
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+
 /**
  * Builds MESSAGE packets from chat text.
  *
@@ -109,6 +112,41 @@ object MessagePacket {
 
     /** Reads the chat text back out of a delivered packet. */
     fun bodyOf(packet: Packet): String = packet.payload.toString(Charsets.UTF_8)
+
+    /**
+     * What the thread shows in place of a direct message that would not decrypt.
+     *
+     * Stored as the row's body rather than flagged in a column, so it needs no
+     * migration and reads correctly in every place a body is shown.
+     */
+    const val UNDECRYPTABLE_BODY: String = "This message could not be decrypted."
+
+    /**
+     * Reads [bytes] as UTF-8 only if they genuinely are UTF-8, or null.
+     *
+     * The lenient `toString(Charsets.UTF_8)` turns any byte soup into text with
+     * replacement characters, which is how an AES-GCM ciphertext that failed to
+     * open used to end up on screen as garbage. A strict decoder refuses
+     * malformed input instead. Real ciphertext is at least 17 random bytes, and
+     * the chance of that happening to be well-formed UTF-8 is negligible.
+     */
+    fun strictUtf8(bytes: ByteArray): String? = runCatching {
+        Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(bytes))
+            .toString()
+    }.getOrNull()
+
+    /**
+     * The text of a direct message whose decryption failed, or the placeholder.
+     *
+     * Decryption fails for two different reasons. The sender may not have held
+     * our agreement key yet and sent in the clear, which reads as valid UTF-8 and
+     * is shown. Or it really is ciphertext we cannot open (a key mismatch,
+     * corruption), which is never shown as text.
+     */
+    fun undecryptedBody(payload: ByteArray): String = strictUtf8(payload) ?: UNDECRYPTABLE_BODY
 }
 
 /**
