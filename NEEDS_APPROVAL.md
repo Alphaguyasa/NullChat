@@ -5,11 +5,6 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
-### 1. Turn on "Automatically approve" for the daily routine (setup, 2026-10-14)
-Scheduled runs have nobody to approve tool calls. In the Claude app → the
-"Null Chat daily dev" routine → settings, switch permissions to **Automatically approve**.
-Until then, runs may stall waiting for approval.
-
 ### 2. Two-phone checks for radio changes (ongoing)
 Emulators cannot run Bluetooth/Nearby. PRs labelled **needs two-phone check** are
 merged once CI is green, but nobody has seen them work on real phones. When you
@@ -40,4 +35,9 @@ item #23 waits for your call.
 
 ## Resolved
 
-_(none yet)_
+### "Automatically approve" for the daily routine (2026-10-14)
+The routine settings have no permission option (only name, instructions, trigger,
+connectors, behaviour = auto-fix PRs, notifications), so there is nothing to switch.
+If a run ever stalls on an approval prompt, put it back at the top of Open with the
+run log details. Auto-fix PRs stays **off**: the daily loop handles CI fixes within
+the 2-attempt cap in the MERGE POLICY.
