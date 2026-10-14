@@ -221,5 +221,17 @@ CI keeps failing. Quality over quantity. Small, safe, tested changes.
 - Commit trailer: `Co-Authored-By: alpha <alphaguyasa@gmail.com>`.
 - When an item is done: tick it in ROADMAP.md (move to "Done" with PR link) in the
   same PR, and append to DAILY_LOG.md in the same PR or a follow-up `claude/log-<date>` PR.
-- The report is the last message of the run; it is what alpha sees as the
-  notification.
+- The report is the last message of the run. Also send a one-line summary
+  (under 200 characters, e.g. "Null Chat: 3 PRs merged, 0 blocked, 1 needs approval")
+  with the **PushNotification** tool so it reaches alpha's phone.
+
+## Cloud run environment notes
+
+- The routine runs in Anthropic's cloud with a fresh checkout, not on alpha's PC.
+  There may be no Android SDK or JDK there. Try `./gradlew :app:testDebugUnitTest`
+  (JVM tests need only a JDK); if the toolchain is missing, rely on GitHub Actions.
+- GitHub: use `gh` if it is installed and authenticated. If you cannot open, check,
+  or merge PRs from the cloud session, do NOT push to main as a workaround. Push the
+  branch, write the blocker at the top of NEEDS_APPROVAL.md, and say so in the report.
+- The routine is `trig_01BaGqhUnAt9AjNSJBaDwYvu`. Model switches go through
+  RemoteTrigger `update` on it (job_config.ccr.session_context.model).
