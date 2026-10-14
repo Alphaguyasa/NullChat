@@ -25,9 +25,8 @@ object MessagePacket {
      * The most chat text one packet can carry, in **bytes, not characters**.
      *
      * 55 bytes: the 180-byte packet budget less a 45-byte header, a 64-byte
-     * signature, and the 16-byte AES-GCM tag. Until `Fragmenter` exists this is
-     * a hard ceiling on a message, and the send box enforces it before the user
-     * can hit send.
+     * signature, and the 16-byte AES-GCM tag. Text longer than this is still
+     * sendable, up to [MAX_TEXT_BYTES], but travels as FRAGMENT packets instead.
      *
      * The limit is the encrypted one even for broadcasts, which are sent in the
      * clear and would technically fit 71 bytes. Two different limits would mean
@@ -45,8 +44,23 @@ object MessagePacket {
      */
     fun bodyByteCount(body: String): Int = body.toByteArray(Charsets.UTF_8).size
 
+    /**
+     * The longest chat text the app will send at all, in bytes.
+     *
+     * Anything over [MAX_BODY_BYTES] is split by `Fragmenter` into 51-byte
+     * chunks, so 1000 bytes is about 20 FRAGMENT packets: under half a second
+     * on the air and a small fraction of the receiver's 60 second reassembly
+     * window. Fragments are not store-and-forwarded, so every extra packet is
+     * another chance for a partial delivery; this ceiling keeps that risk close
+     * to a single message's while still fitting a long paragraph.
+     */
+    const val MAX_TEXT_BYTES: Int = 1000
+
     /** Whether [body] fits in a single packet. */
     fun fits(body: String): Boolean = bodyByteCount(body) <= MAX_BODY_BYTES
+
+    /** Whether [body] can be sent at all, in one packet or as fragments. */
+    fun isSendable(body: String): Boolean = bodyByteCount(body) <= MAX_TEXT_BYTES
 
     /**
      * Assembles a MESSAGE packet.

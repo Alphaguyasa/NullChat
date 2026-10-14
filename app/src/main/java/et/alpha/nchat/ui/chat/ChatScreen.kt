@@ -545,7 +545,7 @@ private fun SendBox(
     onSend: () -> Unit,
     onPickImage: () -> Unit,
 ) {
-    val overLimit = draftBytes > MessagePacket.MAX_BODY_BYTES
+    val overLimit = draftBytes > MessagePacket.MAX_TEXT_BYTES
     val canSend = draft.isNotBlank() && !overLimit
 
     Row(
@@ -592,10 +592,10 @@ private fun SendBox(
             },
             isError = overLimit,
             supportingText = {
-                // Counted in bytes, not characters: one emoji costs four of the
-                // seventy-one, and a character counter would quietly mislead.
+                // Counted in bytes, not characters: one emoji costs four, and a
+                // character counter would quietly mislead.
                 Text(
-                    text = "$draftBytes/${MessagePacket.MAX_BODY_BYTES} bytes",
+                    text = "$draftBytes/${MessagePacket.MAX_TEXT_BYTES} bytes",
                     style = MonoSmall,
                     color = if (overLimit) Danger else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -607,7 +607,7 @@ private fun SendBox(
                 errorBorderColor = Danger,
                 cursorColor = MaterialTheme.colorScheme.primary,
             ),
-            maxLines = 4,
+            maxLines = 6,
         )
         Spacer(Modifier.width(4.dp))
         TextButton(

@@ -138,11 +138,19 @@ class ChatViewModel @Inject constructor(
      */
     fun onSend() {
         val body = _draft.value.trim()
-        if (body.isEmpty() || !MessagePacket.fits(body)) return
+        if (body.isEmpty() || !MessagePacket.isSendable(body)) return
 
         val target = peerId.value
         _draft.value = ""
-        viewModelScope.launch { coordinator.send(body = body, recipientHexId = target) }
+        viewModelScope.launch {
+            when (val result = coordinator.send(body = body, recipientHexId = target)) {
+                is SendResult.Rejected -> _errors.value = result.reason
+                // Only long, fragmented text can fail outright; a short message
+                // with nobody in range is Pending and goes out later.
+                is SendResult.Failed -> _errors.value = result.reason
+                SendResult.Pending, SendResult.Sent -> Unit
+            }
+        }
     }
 
     /**
@@ -174,10 +182,8 @@ class ChatViewModel @Inject constructor(
                 // Images are not store-and-forwarded: a fragment that finds no
                 // peer ends the transfer, so this is a real failure the user has
                 // to know about, not the quiet "will go out later" that text gets.
-                SendResult.Pending ->
-                    _errors.value = "Nobody was in range for long enough to receive the image."
-
-                SendResult.Sent -> Unit
+                is SendResult.Failed -> _errors.value = result.reason
+                SendResult.Pending, SendResult.Sent -> Unit
             }
         }
     }
