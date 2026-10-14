@@ -61,6 +61,15 @@ sealed interface SendResult {
 
     /** Rejected before storage — currently only ever an over-length body. */
     data class Rejected(val reason: String) : SendResult
+
+    /**
+     * Stored, but the transfer could not finish; the row is FAILED.
+     *
+     * Only fragmented messages end up here. They are not store-and-forwarded, so
+     * an empty mesh is a real failure the user needs to hear about rather than
+     * the quiet "will go out later" of [Pending].
+     */
+    data class Failed(val reason: String) : SendResult
 }
 
 /**
@@ -210,12 +219,13 @@ class MeshCoordinator @Inject constructor(
      */
     suspend fun send(body: String, recipientHexId: String?): SendResult {
         if (body.isBlank()) return SendResult.Rejected("empty message")
-        if (!MessagePacket.fits(body)) {
+        if (!MessagePacket.isSendable(body)) {
             return SendResult.Rejected(
                 "message is ${MessagePacket.bodyByteCount(body)} bytes, " +
-                    "over the ${MessagePacket.MAX_BODY_BYTES} byte limit",
+                    "over the ${MessagePacket.MAX_TEXT_BYTES} byte limit",
             )
         }
+        if (!MessagePacket.fits(body)) return sendLongText(body, recipientHexId)
 
         val conversationId = conversationIdFor(recipientHexId)
         val row = messages.recordOutgoing(
@@ -273,7 +283,9 @@ class MeshCoordinator @Inject constructor(
             attachmentFile = fileName,
         )
 
-        val fragments = runCatching { imageFragments(row.id, jpeg, recipientHexId, row.timestamp) }
+        val fragments = runCatching {
+            fragmentsFor(row.id, Attachment.jpeg(jpeg), recipientHexId, row.timestamp)
+        }
             .onFailure { Log.w(TAG, "could not fragment image: ${it.message}") }
             .getOrNull()
             ?: run {
@@ -285,7 +297,36 @@ class MeshCoordinator @Inject constructor(
     }
 
     /**
-     * Wraps, encrypts and splits an image into FRAGMENT packets.
+     * Sends text too long for one packet as a fragmented TEXT_UTF8 attachment.
+     *
+     * The row stores the plain body like any other text message, so the thread
+     * cannot tell the two apart. On the wire it travels the image path: one
+     * encryption, then FRAGMENT packets the receiver reassembles. Like an image
+     * it needs a peer in range for the whole transfer; see [sendImage].
+     */
+    private suspend fun sendLongText(body: String, recipientHexId: String?): SendResult {
+        val row = messages.recordOutgoing(
+            conversationId = conversationIdFor(recipientHexId),
+            selfId = selfId,
+            body = body,
+            peerId = recipientHexId,
+        )
+
+        val fragments = runCatching {
+            fragmentsFor(row.id, Attachment.text(body), recipientHexId, row.timestamp)
+        }
+            .onFailure { Log.w(TAG, "could not fragment long text: ${it.message}") }
+            .getOrNull()
+            ?: run {
+                messages.markFailed(row.id)
+                return SendResult.Failed("Could not prepare the message for sending.")
+            }
+
+        return transmitFragments(row.id, fragments)
+    }
+
+    /**
+     * Wraps, encrypts and splits an attachment into FRAGMENT packets.
      *
      * The whole payload is encrypted **once, before** splitting, rather than each
      * chunk separately. `SessionCipher` derives its nonce from the message id,
@@ -295,15 +336,15 @@ class MeshCoordinator @Inject constructor(
      * the content-type envelope is inside the sealed region rather than readable
      * by anyone in range.
      */
-    private fun imageFragments(
+    private fun fragmentsFor(
         messageId: String,
-        jpeg: ByteArray,
+        attachment: Attachment,
         recipientHexId: String?,
         timestamp: Long,
     ): List<Packet> {
         val messageIdBytes = messageId.hexIdToBytes()
         val recipientId = recipientHexId?.hexIdToBytes() ?: Packet.BROADCAST_ID
-        val envelope = Attachment.jpeg(jpeg).encode()
+        val envelope = attachment.encode()
 
         // A broadcast has no single recipient to agree a key with, so it goes out
         // in the clear — the same trade `sealed` documents for text.
@@ -315,7 +356,7 @@ class MeshCoordinator @Inject constructor(
                 messageId = messageIdBytes,
                 plaintext = envelope,
             ) ?: run {
-                Log.w(TAG, "no key for ${Packet.tag(recipientId)}, sending image in the clear")
+                Log.w(TAG, "no key for ${Packet.tag(recipientId)}, sending attachment in the clear")
                 envelope
             }
         }
@@ -340,16 +381,16 @@ class MeshCoordinator @Inject constructor(
      */
     private suspend fun transmitFragments(messageId: String, fragments: List<Packet>): SendResult {
         transfers.start(messageId, fragments.size, isOutgoing = true)
-        Log.i(TAG, "sending image as ${fragments.size} fragments")
+        Log.i(TAG, "sending ${fragments.size} fragments")
 
         fragments.forEachIndexed { index, fragment ->
             if (!router.originate(fragment)) {
                 // Nobody in range. Fragments are not queued, so the rest of this
-                // image would be shouting into an empty room.
-                Log.w(TAG, "image stalled at fragment $index/${fragments.size}, no peers")
+                // message would be shouting into an empty room.
+                Log.w(TAG, "transfer stalled at fragment $index/${fragments.size}, no peers")
                 transfers.fail(messageId)
                 messages.markFailed(messageId)
-                return SendResult.Pending
+                return SendResult.Failed("Nobody was in range for long enough to receive it.")
             }
             transfers.advance(messageId, index + 1)
             if (index < fragments.lastIndex) delay(FRAGMENT_SPACING_MILLIS)
@@ -629,7 +670,7 @@ class MeshCoordinator @Inject constructor(
      * Turns a fully reassembled message into a row.
      *
      * Decryption happens here rather than per fragment because the payload was
-     * sealed once before splitting — see [imageFragments]. The plaintext fallback
+     * sealed once before splitting — see [fragmentsFor]. The plaintext fallback
      * is the same one [openedBody] documents: a peer that does not hold our
      * agreement key sends in the clear, and refusing to render that would make
      * the app look broken to two users who have only just met.
