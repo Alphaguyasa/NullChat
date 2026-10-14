@@ -11,7 +11,6 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 2 | **Long text messages.** A single packet holds only 55 bytes of text, so ordinary sentences are rejected. Send longer text through `Fragmenter` as a `TEXT_UTF8` attachment (the reassembler already handles it). Raise the composer limit to e.g. 2 KB. | P0 | M | Biggest everyday UX bug. Needs two-phone check. |
 | 3 | **Undecryptable message placeholder.** When decryption fails the payload is read as UTF-8 and garbage is shown. Show "could not decrypt this message" instead, and never render ciphertext. | P0 | S | Security / UX. |
 | 4 | **Instrumented tests in CI.** Run the Room DAO/migration and crypto androidTests on an emulator in GitHub Actions (free for public repos). Required before any schema migration. | P0 | M | Infra. |
 | 5 | **Persist peers' X25519 agreement key.** Room migration 3→4 adds `agreementKey` to `peers`; warm `PublicKeyDirectory` with it at start. Today, after a restart, nothing can be encrypted to a peer until they re-announce. | P0 | M | DB migration: needs migration test (#4 first). |
@@ -19,7 +18,7 @@ exist but only run on a physical phone.
 | 7 | **Hop count on delivered messages.** The ACK already carries the hops the recipient observed (since #1); store it (Room migration, needs #4) and show `delivered · 2 hops`. | P1 | S | Depends on #4. |
 | 8 | **Incoming message notifications.** Own channel, tap opens the thread, content hidden on lock screen, silent while the thread is open. | P1 | M | |
 | 9 | **Unread counts** on peer list rows (`lastReadAt` already exists). | P1 | S | |
-| 10 | **Failed state + retry.** Surface FAILED in bubbles, long-press to resend; expire PENDING rows whose queue entry expired. | P1 | M | |
+| 10 | **Failed state + retry.** Surface FAILED in bubbles, long-press to resend; expire PENDING rows whose queue entry expired. Long text and images (fragmented, not store-and-forwarded) fail when nobody is in range, so retry matters more now. | P1 | M | |
 | 11 | **Settings screen + display name.** Fourth destination; name carried in ANNOUNCE (new field, versioned), shown on radar and peer list. | P1 | L | Wire format change → split PRs. |
 | 12 | **Release build hardening.** Enable R8 with keep rules for Tink/Nearby/Room/Hilt, measure APK size, add `assembleRelease` (unsigned) to CI. | P1 | M | No keystore in repo. |
 | 13 | **Dependabot** for Gradle and GitHub Actions (weekly, grouped). | P2 | S | Free. |
@@ -46,3 +45,4 @@ exist but only run on a physical phone.
 | Date | Item | PR | Tag |
 |---|---|---|---|
 | 2026-10-14 | #1 Delivery receipts (ACK) | #2 | v2026-10-14-2 |
+| 2026-10-14 | #2 Long text messages (up to 1000 bytes) | #3 | v2026-10-14-3 |
