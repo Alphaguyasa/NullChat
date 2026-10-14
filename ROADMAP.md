@@ -11,7 +11,6 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 3 | **Undecryptable message placeholder.** When decryption fails the payload is read as UTF-8 and garbage is shown. Show "could not decrypt this message" instead, and never render ciphertext. | P0 | S | Security / UX. |
 | 4 | **Instrumented tests in CI.** Run the Room DAO/migration and crypto androidTests on an emulator in GitHub Actions (free for public repos). Required before any schema migration. | P0 | M | Infra. |
 | 5 | **Persist peers' X25519 agreement key.** Room migration 3→4 adds `agreementKey` to `peers`; warm `PublicKeyDirectory` with it at start. Today, after a restart, nothing can be encrypted to a peer until they re-announce. | P0 | M | DB migration: needs migration test (#4 first). |
 | 6 | **No plaintext direct messages.** When no agreement key is known, keep the message PENDING instead of sending it in the clear; flush pending rows for a peer when their ANNOUNCE arrives. | P0 | M | Security. Depends on #5. |
@@ -46,3 +45,4 @@ exist but only run on a physical phone.
 |---|---|---|---|
 | 2026-10-14 | #1 Delivery receipts (ACK) | #2 | v2026-10-14-2 |
 | 2026-10-14 | #2 Long text messages (up to 1000 bytes) | #3 | v2026-10-14-3 |
+| 2026-10-14 | #3 Undecryptable message placeholder | #4 | v2026-10-14-4 |

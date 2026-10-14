@@ -460,9 +460,9 @@ class MeshCoordinator @Inject constructor(
      *
      * A direct message is tried through the cipher first and falls back to
      * reading the payload as text, because a peer that does not yet hold our
-     * agreement key sends in the clear. The fallback is why a garbled body is
-     * possible rather than an error: an undecryptable payload read as UTF-8
-     * produces replacement characters instead of throwing.
+     * agreement key sends in the clear. The fallback only accepts well-formed
+     * UTF-8; real ciphertext that would not open becomes a placeholder instead of
+     * being rendered as garbage. See [MessagePacket.undecryptedBody].
      */
     private fun openedBody(packet: Packet): String {
         if (packet.isBroadcast) return MessagePacket.bodyOf(packet)
@@ -472,7 +472,7 @@ class MeshCoordinator @Inject constructor(
             messageId = packet.messageId,
             ciphertext = packet.payload,
         )
-        return plaintext?.toString(Charsets.UTF_8) ?: MessagePacket.bodyOf(packet)
+        return plaintext?.toString(Charsets.UTF_8) ?: MessagePacket.undecryptedBody(packet.payload)
     }
 
     /** Delivered packets become rows. */
@@ -678,17 +678,21 @@ class MeshCoordinator @Inject constructor(
     private suspend fun deliverReassembled(message: ReassembledMessage, hops: Int?) {
         val senderHex = message.senderId.toHexId()
 
-        val plaintext = if (message.isBroadcast) {
+        val decrypted = if (message.isBroadcast) {
             message.payload
         } else {
             cipher.decrypt(
                 peerId = message.senderId,
                 messageId = message.messageId,
                 ciphertext = message.payload,
-            ) ?: message.payload
+            )
         }
+        val plaintext = decrypted ?: message.payload
 
         val attachment = Attachment.parse(plaintext)
+            // A sealed message we could not open: say so in the thread rather
+            // than drop it without a trace.
+            ?: Attachment.text(MessagePacket.UNDECRYPTABLE_BODY).takeIf { decrypted == null }
         if (attachment == null) {
             Log.w(TAG, "reassembled message from ${Packet.tag(message.senderId)} was not readable")
             return
@@ -722,7 +726,13 @@ class MeshCoordinator @Inject constructor(
                 messageId = messageId,
                 conversationId = conversationId,
                 senderId = senderHex,
-                body = attachment.asText(),
+                // An undecrypted payload that happens to parse as an envelope is
+                // still only shown if its text is genuinely text.
+                body = if (decrypted != null) {
+                    attachment.asText()
+                } else {
+                    MessagePacket.undecryptedBody(attachment.data)
+                },
                 timestamp = message.timestamp,
                 peerId = senderHex,
             )
