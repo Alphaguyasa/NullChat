@@ -334,12 +334,13 @@ fun peerId(name: String): ByteArray =
 
 private val nextMessage = AtomicInteger()
 
-/** A MESSAGE packet with a unique id and a placeholder signature. */
+/** A packet (MESSAGE unless told otherwise) with a unique id and a placeholder signature. */
 fun testPacket(
     from: ByteArray,
     to: ByteArray = Packet.BROADCAST_ID,
     ttl: Int = Packet.DEFAULT_TTL,
     payload: ByteArray = "ping".toByteArray(),
+    type: PacketType = PacketType.MESSAGE,
 ): Packet {
     val seq = nextMessage.getAndIncrement()
     // Counter in the leading bytes, not smeared across all sixteen: a byte-wrapping
@@ -351,7 +352,7 @@ fun testPacket(
         it[3] = seq.toByte()
     }
     return Packet(
-        type = PacketType.MESSAGE,
+        type = type,
         messageId = messageId,
         senderId = from,
         recipientId = to,

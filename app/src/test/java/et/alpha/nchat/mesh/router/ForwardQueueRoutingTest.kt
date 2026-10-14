@@ -1,5 +1,6 @@
 package et.alpha.nchat.mesh.router
 
+import et.alpha.nchat.mesh.protocol.PacketType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -155,6 +156,41 @@ class ForwardQueueRoutingTest {
 
             assertEquals(1, b.delivered.size, "B should receive it directly")
             assertEquals(0, a.queue.size(), "a packet that went out is not also queued")
+        }
+    }
+
+    @Test
+    fun `an acknowledgement for an absent sender is held and delivered later`() = runTest {
+        meshTest {
+            val a = node("A")
+            val c = node("C")
+            settle()
+
+            // C's receipt for a message A sent, with A already out of range.
+            val ack = testPacket(from = c.id, to = a.id, type = PacketType.ACK)
+            assertFalse(c.router.originate(ack))
+            settle()
+            assertEquals(1, c.queue.size(), "a receipt must survive the sender walking away")
+
+            link("A", "C")
+            settle()
+            flush(from = "C", to = "A")
+            settle()
+
+            assertEquals(PacketType.ACK, a.delivered.single().type)
+        }
+    }
+
+    @Test
+    fun `an announcement with nobody in range is not held`() = runTest {
+        meshTest {
+            val a = node("A")
+            settle()
+
+            a.router.originate(testPacket(from = a.id, type = PacketType.ANNOUNCE))
+            settle()
+
+            assertEquals(0, a.queue.size(), "a stale introduction says something untrue about the mesh")
         }
     }
 }

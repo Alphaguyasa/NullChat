@@ -210,12 +210,16 @@ class MeshRouter(
     /**
      * Queues a packet that found no route.
      *
-     * Only MESSAGE packets are worth holding. An ANNOUNCE or a KEY_EXCHANGE is
-     * only meaningful in the moment it is sent, and replaying a stale one hours
-     * later says something untrue about the mesh's current shape.
+     * Only MESSAGE and ACK packets are worth holding. An ANNOUNCE or a
+     * KEY_EXCHANGE is only meaningful in the moment it is sent, and replaying a
+     * stale one hours later says something untrue about the mesh's current shape.
+     *
+     * An ACK is held for the same reason its message was: the sender it answers
+     * may have walked out of range, and a receipt that arrives hours late still
+     * turns "sent" into the truth, "delivered".
      */
     private suspend fun enqueueForLater(packet: Packet) {
-        if (packet.type != PacketType.MESSAGE) return
+        if (packet.type !in STORE_AND_FORWARD_TYPES) return
         forwardQueue?.enqueue(packet)
     }
 
@@ -333,6 +337,9 @@ class MeshRouter(
     }
 
     companion object {
+        /** Packet types the forward queue holds when nobody is in range. */
+        private val STORE_AND_FORWARD_TYPES = setOf(PacketType.MESSAGE, PacketType.ACK)
+
         /** Rule 5's jitter window, in milliseconds. */
         const val MIN_JITTER_MILLIS: Long = 50
         const val MAX_JITTER_MILLIS: Long = 500
