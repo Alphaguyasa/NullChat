@@ -29,8 +29,11 @@ tier; the run cannot switch models itself → ACTION FOR ALPHA (NEEDS_APPROVAL #
 
 ### Follow-up (same day, after alpha's replies)
 - alpha said yes to roadmap #24. PR #10 recorded it; then, at alpha's request, PR #11
-  added `release-tag.yml` straight away. Its first run on main backfills today's tags
-  (`v2026-10-15-1` … `-5`), so no manual tagging is needed.
+  added `release-tag.yml` straight away. Its first run created `v2026-10-15-2` … `-5`
+  but failed on `-1`: GitHub refuses GITHUB_TOKEN a tag on a commit whose workflow
+  files differ from main's (#7's `android.yml` was changed again by #8). PR #12 makes
+  the workflow never backfill behind an existing tag, so that commit is not retried
+  out of order. `-1` is optional for alpha to create by hand.
 
 ### REPORT
 | Field | Content |
