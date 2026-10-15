@@ -194,18 +194,15 @@ class MeshCoordinator @Inject constructor(
      * so a broadcast of ours flooding back verifies rather than looking like it
      * came from a stranger.
      *
-     * Until ANNOUNCE distribution lands, `PeerEntity.publicKey` is null for
-     * every peer, so in practice this loads exactly one key — ours. Everything
-     * arriving from another device verifies as UNKNOWN_SENDER and is relayed
-     * but not delivered.
+     * Agreement keys are restored too, so a direct message written right after
+     * a restart can be sealed without waiting for the peer to announce again.
+     * Peers stored before version 4 of the database have no agreement key yet
+     * and stay verify-only until their next ANNOUNCE.
      */
     private fun warmKeyDirectory() = scope.launch {
         keyDirectory.record(identity.announcement)
-        // Stored peers carry only a signing key — the agreement key is not
-        // persisted, so a peer loaded from the database can be verified but not
-        // encrypted to until it announces again on the next connection.
         peers.observePeers().first().forEach { peer ->
-            peer.publicKey?.let { keyDirectory.recordSigningKey(it) }
+            peer.publicKey?.let { keyDirectory.restore(it, peer.agreementKey) }
         }
         Log.i(TAG, "key directory warmed with ${keyDirectory.size} key(s)")
     }
@@ -762,7 +759,11 @@ class MeshCoordinator @Inject constructor(
 
         val known = keyDirectory.knows(packet.senderId)
         keyDirectory.record(announced)
-        peers.recordSeen(senderHex, publicKey = announced.signingKey)
+        peers.recordSeen(
+            senderHex,
+            publicKey = announced.signingKey,
+            agreementKey = announced.agreementKey,
+        )
 
         if (!known) Log.i(TAG, "learned keys for ${Packet.tag(packet.senderId)}")
     }

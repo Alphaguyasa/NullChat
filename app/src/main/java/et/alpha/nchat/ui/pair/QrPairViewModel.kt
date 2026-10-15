@@ -96,7 +96,11 @@ class QrPairViewModel @Inject constructor(
         val peerHex = announcement.peerId.toHexId()
 
         keyDirectory.record(announcement)
-        peers.recordSeen(peerHex, publicKey = announcement.signingKey)
+        peers.recordSeen(
+            peerHex,
+            publicKey = announcement.signingKey,
+            agreementKey = announcement.agreementKey,
+        )
         peers.markVerified(peerHex)
 
         _state.update {

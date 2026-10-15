@@ -6,7 +6,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -193,6 +195,70 @@ class NChatDatabaseMigrationTest {
                     ),
                 )
                 assertEquals("m2.jpg", db.messageDao().findById("m2")?.attachmentFile)
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * The v3 → v4 upgrade that adds `peers.agreementKey`.
+     *
+     * Beyond history surviving, the peer row has to keep its signing key and
+     * verified flag: losing either would silently downgrade a channel the user
+     * confirmed by QR. The new column reads back null for an existing peer —
+     * its agreement key was never stored — and round-trips once written.
+     */
+    @Test
+    fun migratingToVersion4AddsAgreementKeysAndKeepsPeers() {
+        helper.createDatabase(TEST_DB, 3).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO conversations
+                    (id, peerId, title, createdAt, lastActivityAt, lastReadAt)
+                VALUES ('direct:peer', 'peer', NULL, 1000, 1000, 0)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO messages
+                    (id, conversationId, senderId, body, timestamp, deliveryState,
+                     isOutgoing, attachmentFile)
+                VALUES ('m1', 'direct:peer', 'peer', 'survived', 1000, 'DELIVERED', 0, NULL)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO peers
+                    (id, displayName, publicKey, isVerified, firstSeenAt, lastSeenAt)
+                VALUES ('peer', 'sam', X'0707070707070707070707070707070707070707070707070707070707070707',
+                        1, 500, 1000)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_3_4 and validates the result against schemas/4.json.
+        helper.runMigrationsAndValidate(TEST_DB, 4, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                assertEquals("survived", db.messageDao().findById("m1")?.body)
+
+                val peer = db.peerDao().findById("peer")
+                assertEquals("sam", peer?.displayName)
+                assertEquals(true, peer?.isVerified)
+                assertArrayEquals(ByteArray(32) { 7 }, peer?.publicKey)
+                assertNull(peer?.agreementKey)
+
+                val key = ByteArray(32) { 8 }
+                db.peerDao().recordSeen(id = "peer", agreementKey = key, now = 2000)
+                assertArrayEquals(key, db.peerDao().findById("peer")?.agreementKey)
             }
         } finally {
             db.close()

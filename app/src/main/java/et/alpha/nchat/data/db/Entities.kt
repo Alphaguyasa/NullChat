@@ -44,6 +44,12 @@ data class PeerEntity(
     val isVerified: Boolean = false,
     val firstSeenAt: Long,
     val lastSeenAt: Long,
+    /**
+     * X25519 public key, 32 bytes, from the peer's ANNOUNCE or QR code. Null
+     * until one arrives. Persisted so a restart does not leave us unable to
+     * encrypt to a peer until it happens to announce again.
+     */
+    val agreementKey: ByteArray? = null,
 ) {
     // ByteArray compares by identity by default, which would make two peers with
     // the same key look different.
@@ -55,7 +61,8 @@ data class PeerEntity(
             isVerified == other.isVerified &&
             firstSeenAt == other.firstSeenAt &&
             lastSeenAt == other.lastSeenAt &&
-            publicKey.contentEquals(other.publicKey)
+            publicKey.contentEquals(other.publicKey) &&
+            agreementKey.contentEquals(other.agreementKey)
     }
 
     override fun hashCode(): Int {
@@ -65,6 +72,7 @@ data class PeerEntity(
         result = 31 * result + isVerified.hashCode()
         result = 31 * result + firstSeenAt.hashCode()
         result = 31 * result + lastSeenAt.hashCode()
+        result = 31 * result + agreementKey.contentHashCode()
         return result
     }
 }

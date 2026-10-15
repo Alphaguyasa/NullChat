@@ -42,11 +42,13 @@ class PeerRepository @Inject constructor(
         peerId: String,
         displayName: String? = null,
         publicKey: ByteArray? = null,
+        agreementKey: ByteArray? = null,
         now: Long = System.currentTimeMillis(),
     ) = peerDao.recordSeen(
         id = peerId,
         displayName = displayName,
         publicKey = publicKey,
+        agreementKey = agreementKey,
         now = now,
     )
 
