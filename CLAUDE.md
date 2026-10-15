@@ -80,10 +80,11 @@ Local (Windows dev box, Git Bash) needs `export JAVA_HOME="/c/Program Files/Andr
 ./gradlew :app:testDebugUnitTest     # JVM unit tests (results in app/build/test-results/testDebugUnitTest/*.xml)
 ./gradlew :app:lintDebug             # Android lint (report: app/build/reports/lint-results-debug.html)
 ./gradlew :app:assembleDebug         # debug APK at app/build/outputs/apk/debug/
-./gradlew :app:connectedDebugAndroidTest   # instrumented tests — needs a physical phone, NOT run in CI
+./gradlew :app:connectedDebugAndroidTest   # instrumented tests — phone or emulator; CI runs them on an API 34 emulator
 ```
 
-CI: `.github/workflows/android.yml` runs lint, unit tests and assembleDebug on every
+CI: `.github/workflows/android.yml` runs lint, unit tests, assembleDebug and (in a
+second job) the instrumented tests on an emulator on every
 push and PR and uploads the debug APK as an artifact. **CI is the source of truth**;
 the cloud routine may not have an Android SDK, so if a local Gradle build is not
 possible there, push the branch and let CI judge it.
