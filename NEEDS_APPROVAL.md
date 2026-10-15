@@ -5,6 +5,33 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 7. ACTION FOR ALPHA: model (2026-10-15)
+Anthropic's model docs now list **Claude Fable 5.1** (`claude-fable-5-1`) above
+Opus 5.5 ("for demanding reasoning and long-horizon agentic work"). The MODEL
+POLICY says to use the newest Opus-class model *or any higher tier*. The cloud run
+cannot change the routine's model (no RemoteTrigger tool in the session).
+*If Fable 5.1 is available on your current plan without upgrading*, switch the
+routine "Null Chat daily dev" to it; otherwise keep `opus` (Opus 5.5 today).
+Never upgrade the plan for this.
+
+### 6. Release tags could not be pushed from the cloud run (2026-10-15)
+PRs #7 and #8 were squash-merged after green CI, but tag pushes are refused from
+the cloud session (`git push` of a tag disconnects; the REST API answers "write
+access to this path is not permitted through this proxy"). Missing tags, to create
+on your PC (`git fetch && git tag <tag> <sha> && git push origin <tag>`):
+- `v2026-10-15-1` → `597f2686fc0235a1337da6075b96359be83bf386` (PR #7)
+- `v2026-10-15-2` → `037e7b686207a8197ce47f94459c7077b98b2cdb` (PR #8)
+- `v2026-10-15-3` → PR #9's merge commit, if it merges today (see DAILY_LOG).
+*Proposal:* roadmap #24, a workflow that tags merges to main with GITHUB_TOKEN.
+Say yes and the next run builds it.
+
+### 5b. Two-phone check for PR #9 (no plaintext direct messages)
+On two phones that have **never met** (or after clearing data on one): send a
+direct message before they connect. It must show `queued`, not `sent`. After the
+phones connect and announce, it must go out and reach `delivered`. Send a long
+message (>55 bytes) or image to a peer you have no key for: it must fail with
+"No encryption key for this person yet…" rather than going out.
+
 ### 2. Two-phone checks for radio changes (ongoing)
 Emulators cannot run Bluetooth/Nearby. PRs labelled **needs two-phone check** are
 merged once CI is green, but nobody has seen them work on real phones. When you
