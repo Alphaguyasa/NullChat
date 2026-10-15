@@ -44,10 +44,11 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
-      # KSP rewrites app/schemas on every build. A diff here means an entity
-      # changed without its exported schema being committed, and the migration
-      # tests would be checking against the wrong file. The diff is printed so
-      # the generated schema can be copied from the log.
+      # KSP rewrites app/schemas when the schema it generates differs from the
+      # committed one. A diff here means an entity changed without its exported
+      # schema being committed; the diff is printed so the generated file can be
+      # copied from the log. Room ignores identityHash when comparing, so a
+      # wrong hash alone is caught by NChatDatabaseMigrationTest instead.
       - name: Check Room schemas are committed
         run: |
           git add --intent-to-add app/schemas
