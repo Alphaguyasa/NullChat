@@ -216,9 +216,11 @@ CI keeps failing. Quality over quantity. Small, safe, tested changes.
 - Branch names: `claude/<short-topic>`. One roadmap item per PR; split large ones.
 - PR body sections: **What changed**, **Why**, **How to test** (include
   "needs two-phone check" when radio behaviour changed), **Roadmap item**.
-- Merge: `gh pr merge <n> --squash --delete-branch` once all checks are green, then
-  `git tag v<YYYY-MM-DD>-<n>` on the merge commit (n = 1, 2, 3 within the day) and
-  `git push origin <tag>`. Dates are Africa/Nairobi.
+- Merge: `gh pr merge <n> --squash --delete-branch` once all checks are green.
+  Tagging is automatic: `.github/workflows/release-tag.yml` tags every merge to main
+  `v<YYYY-MM-DD>-<n>` (Africa/Nairobi date, n = 1, 2, 3 within the day) and catches
+  up any merge of that day it missed. Do not tag by hand; the cloud proxy refuses
+  tag pushes anyway. Check the tag exists after merging and report it.
 - Commit trailer: `Co-Authored-By: alpha <alphaguyasa@gmail.com>`.
 - When an item is done: tick it in ROADMAP.md (move to "Done" with PR link) in the
   same PR, and append to DAILY_LOG.md in the same PR or a follow-up `claude/log-<date>` PR.

@@ -14,18 +14,6 @@ cannot change the routine's model (no RemoteTrigger tool in the session).
 routine "Null Chat daily dev" to it; otherwise keep `opus` (Opus 5.5 today).
 Never upgrade the plan for this.
 
-### 6. Release tags could not be pushed from the cloud run (2026-10-15)
-PRs #7 and #8 were squash-merged after green CI, but tag pushes are refused from
-the cloud session (`git push` of a tag disconnects; the REST API answers "write
-access to this path is not permitted through this proxy"). Missing tags, to create
-on your PC (`git fetch && git tag <tag> <sha> && git push origin <tag>`):
-- `v2026-10-15-1` → `597f2686fc0235a1337da6075b96359be83bf386` (PR #7)
-- `v2026-10-15-2` → `037e7b686207a8197ce47f94459c7077b98b2cdb` (PR #8)
-- `v2026-10-15-3` → PR #9's merge commit, if it merges today (see DAILY_LOG).
-**Decision (alpha, 2026-10-15): yes** — roadmap #24 (a workflow that tags merges
-to main with GITHUB_TOKEN) is first on the next run. Today's three tags above still
-need creating by hand.
-
 ### 5b. Two-phone check for PR #9 (no plaintext direct messages)
 On two phones that have **never met** (or after clearing data on one): send a
 direct message before they connect. It must show `queued`, not `sent`. After the
@@ -62,6 +50,11 @@ packet, which tells everyone downstream who relayed. *Default:* not built; roadm
 item #23 waits for your call.
 
 ## Resolved
+
+### Release tags from the cloud run (2026-10-15)
+Tag pushes are refused from the cloud session. alpha approved roadmap #24, and
+`release-tag.yml` (PR #11) now tags every merge to main with GITHUB_TOKEN. Its
+first run backfills today's tags (#7 → `v2026-10-15-1` … #10 → `-4`, #11 → `-5`).
 
 ### "Automatically approve" for the daily routine (2026-10-14)
 The routine settings have no permission option (only name, instructions, trigger,
