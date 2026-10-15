@@ -1,7 +1,9 @@
 package et.alpha.nchat.mesh.crypto
 
+import app.cash.turbine.test
 import et.alpha.nchat.mesh.protocol.Announcement
 import et.alpha.nchat.mesh.protocol.peerIdFor
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -67,4 +69,21 @@ class PublicKeyDirectoryTest {
         assertArrayEquals(agreement, directory.agreementKeyFor(peerId))
         assertEquals(1, directory.size)
     }
+
+    @Test
+    fun `learning an agreement key is announced once`() = runTest {
+        val directory = PublicKeyDirectory()
+        directory.restore(signing, null)
+
+        directory.agreementKeyLearned.test {
+            directory.record(Announcement(signing, agreement))
+            assertEquals(peerIdHex(), awaitItem())
+
+            // First key wins, so a repeat ANNOUNCE is not news.
+            directory.record(Announcement(signing, agreement))
+            expectNoEvents()
+        }
+    }
+
+    private fun peerIdHex() = peerId.joinToString("") { "%02x".format(it) }
 }

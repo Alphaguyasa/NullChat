@@ -4,6 +4,42 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-15 — run 1 (scheduled cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Docs list Claude Fable 5.1 as a higher
+tier; the run cannot switch models itself → ACTION FOR ALPHA (NEEDS_APPROVAL #7).
+
+- Main CI green at start (`ccac2c6`). No Android SDK in the cloud box (dl.google.com
+  blocked), so CI was the only build; `gh` REST works, GraphQL does not.
+- Single designated branch `alpha/beautiful-davinci-d89i0m` per the routine's
+  environment; each next PR restarts it from main (merge `-s ours` of the old
+  branch head instead of a force-push).
+- **PR #7** roadmap #4: emulator job (API 34, KVM) runs all instrumented tests.
+  100 tests green. Merged.
+- **PR #8** roadmap #5: `peers.agreementKey`, migration 3→4 with test, restore at
+  start, schema-drift CI step. Attempt 1 failed the new migration test (hand-written
+  `4.json` carried the old identity hash; no SDK to generate it locally). Fixed with
+  the hash Room reported; 103 instrumented tests green. Merged.
+- **PR #9** roadmap #6: direct messages are held (PENDING) until the recipient's
+  agreement key is known, released when it arrives; long text/images to an
+  unkeyed peer fail with a reason. Needs two-phone check.
+- Tags: refused by the cloud proxy; listed in NEEDS_APPROVAL #6 with SHAs.
+- Unit tests 251 → 261 (+6 PublicKeyDirectory, +4 hold/release); instrumented
+  100 → 103 (+1 migration, +2 PeerDao).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #4 emulator tests in CI (PR #7); #5 persist agreement keys (PR #8); #6 no plaintext DMs (PR #9) |
+| Merged | #7 yes, #8 yes; #9 see notification. Tags not pushed (proxy refuses) — SHAs in NEEDS_APPROVAL |
+| Failed or blocked | PR #8 CI failed once (schema hash), fixed. Tag pushes blocked from cloud |
+| Roadmap | 17 open + 1 new (#24 release tags from CI); no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan has it without upgrading |
+| Needs approval | Model; missing tags / tag workflow; two-phone check of #9 (plus #2/#3 from yesterday); backup; signing; route strip |
+| Next | #7 hop count on delivered, #8 notifications, #9 unread counts |
+
+---
+
 ## 2026-10-14 — run 0 (setup, interactive session)
 
 **Model:** Claude Opus 5.5 (`claude-opus-5-5`), running from alpha's PC.

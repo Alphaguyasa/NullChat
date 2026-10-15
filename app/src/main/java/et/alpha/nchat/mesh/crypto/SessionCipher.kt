@@ -52,8 +52,8 @@ class SessionCipher @Inject constructor(
      * Seals [plaintext] for [peerId].
      *
      * @return null if no agreement key is known for that peer, which means we
-     *   have not yet had an ANNOUNCE from them. The caller decides whether to
-     *   send in the clear or wait.
+     *   have not yet had an ANNOUNCE from them. Direct messages are then
+     *   held, never sent in the clear; see `sealOrHold` in MeshCoordinator.
      */
     fun encrypt(peerId: ByteArray, messageId: ByteArray, plaintext: ByteArray): ByteArray? {
         val key = sessionKey(peerId) ?: return null

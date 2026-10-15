@@ -11,7 +11,6 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 6 | **No plaintext direct messages.** When no agreement key is known, keep the message PENDING instead of sending it in the clear; flush pending rows for a peer when their ANNOUNCE arrives. | P0 | M | Security. |
 | 7 | **Hop count on delivered messages.** The ACK already carries the hops the recipient observed (since #1); store it (Room migration, needs #4) and show `delivered · 2 hops`. | P1 | S | Room migration. |
 | 8 | **Incoming message notifications.** Own channel, tap opens the thread, content hidden on lock screen, silent while the thread is open. | P1 | M | |
 | 9 | **Unread counts** on peer list rows (`lastReadAt` already exists). | P1 | S | |
@@ -29,10 +28,12 @@ exist but only run on a physical phone.
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
 | 23 | **Route strip**: show relay chain on tap. Privacy trade-off — see NEEDS_APPROVAL. | P3 | M | |
+| 24 | **Release tags from CI.** Cloud runs cannot push tags (the git proxy and API refuse tag writes). A workflow on push to `main` that tags `v<date>-<n>` with `GITHUB_TOKEN` (`contents: write`) would make tagging automatic. | P1 | S | Unblocks the MERGE POLICY tag step; see NEEDS_APPROVAL. |
 
 ### Tech debt (slot into light days)
 
-- Stale KDoc: `MeshCoordinator` references a `flushPending` that no longer exists and a deleted `TESTING.md`; `KeyManager` says the X25519 key is "unused until SessionCipher lands".
+- Stale KDoc: `KeyManager` says the X25519 key is "unused until SessionCipher lands". (`MeshCoordinator`'s `flushPending`/`TESTING.md` references were fixed in #9.)
+- Receiving side still accepts plaintext direct messages from older builds (`openedBody` fallback). Once every phone runs a build with #9, consider rejecting them.
 - Delete `ExampleUnitTest` and `ExampleInstrumentedTest`.
 - `MeshCoordinator` is 745 lines; extract inbound handling (`InboundHandler`) once #1 and #2 land.
 - `MainActivityPreview` composes `MeshChatScreen`, which needs Hilt ViewModels; replace with a stateless preview.
@@ -46,3 +47,4 @@ exist but only run on a physical phone.
 | 2026-10-14 | #3 Undecryptable message placeholder | #4 | v2026-10-14-4 |
 | 2026-10-15 | #4 Instrumented tests in CI (API 34 emulator, 100 tests) | #7 | v2026-10-15-1 (pending, see NEEDS_APPROVAL) |
 | 2026-10-15 | #5 Persist peers' agreement keys (Room 3→4) | #8 | v2026-10-15-2 (pending) |
+| 2026-10-15 | #6 No plaintext direct messages (held until keyed) | #9 | v2026-10-15-3 (pending) |
