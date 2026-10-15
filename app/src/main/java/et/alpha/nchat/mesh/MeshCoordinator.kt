@@ -2,6 +2,7 @@ package et.alpha.nchat.mesh
 
 import android.util.Log
 import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
+import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.hexIdToBytes
@@ -35,6 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -81,6 +83,37 @@ sealed interface SendResult {
  */
 internal fun isReceiptFor(message: MessageEntity, ackSenderHex: String): Boolean =
     message.isOutgoing && message.conversationId == directConversationId(ackSenderHex)
+
+/**
+ * The packet to put on the air for [packet], or null to hold it.
+ *
+ * Broadcasts go out as they are. A direct message goes out only sealed: when
+ * [seal] has no agreement key for the recipient it returns null, and so does
+ * this. The old fallback sent such a message in the clear, readable by every
+ * relay in the path, after a restart or before the peer had announced. Holding
+ * it costs a delay until the key arrives; sending it costs the content.
+ */
+internal fun sealOrHold(packet: Packet, seal: (Packet) -> ByteArray?): Packet? {
+    if (packet.isBroadcast) return packet
+    val ciphertext = seal(packet) ?: return null
+    return packet.copy(payload = ciphertext)
+}
+
+/**
+ * Our outgoing rows to [peerHex] that were held for want of its agreement key.
+ *
+ * Only single-packet text: fragmented messages (long text, images) are never
+ * held — they fail at send time, because fragments are not store-and-forwarded
+ * and the receiver's reassembly window would long have closed.
+ */
+internal fun heldFor(peerHex: String, pending: List<MessageEntity>): List<MessageEntity> =
+    pending.filter { row ->
+        row.isOutgoing &&
+            row.deliveryState == DeliveryState.PENDING &&
+            row.conversationId == directConversationId(peerHex) &&
+            row.attachmentFile == null &&
+            MessagePacket.fits(row.body)
+    }
 
 /**
  * One reading of a peer's distance, and when it was taken.
@@ -180,6 +213,7 @@ class MeshCoordinator @Inject constructor(
         if (!started.compareAndSet(false, true)) return
         Log.i(TAG, "starting mesh coordinator as ${Packet.tag(identity.peerId)}")
 
+        collectLearnedKeys()
         warmKeyDirectory()
         router.start()
         collectIncoming()
@@ -208,11 +242,39 @@ class MeshCoordinator @Inject constructor(
     }
 
     /**
+     * Sends direct messages that were held until their recipient's agreement key
+     * turned up.
+     *
+     * Subscribed undispatched, before [warmKeyDirectory] runs, so a key restored
+     * from the database at start also releases what was held for that peer when
+     * the app last closed.
+     */
+    private fun collectLearnedKeys() = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+        keyDirectory.agreementKeyLearned.collect { peerHex -> releaseHeld(peerHex) }
+    }
+
+    private suspend fun releaseHeld(peerHex: String) {
+        val held = heldFor(peerHex, messages.pendingOutgoing())
+        if (held.isEmpty()) return
+        Log.i(TAG, "key for ${Packet.tag(peerHex.hexIdToBytes())} arrived, sending ${held.size} held message(s)")
+        for (row in held) {
+            // Same id and timestamp as the first attempt, so a row that had in
+            // fact been queued already is deduplicated by the queue and the
+            // receiver rather than shown twice.
+            if (transmit(row.id, row.body, peerHex, row.timestamp)) messages.markSent(row.id)
+        }
+    }
+
+    /**
      * Sends [body] to [recipientHexId], or to everyone when it is null.
      *
      * The row is written **before** the packet goes anywhere. A crash between
-     * the two leaves a PENDING message that the flush will retry; the reverse
-     * order would lose the message with no trace it ever existed.
+     * the two leaves a PENDING message rather than one that vanished; the
+     * reverse order would lose the message with no trace it ever existed.
+     *
+     * A direct message to a peer whose agreement key we do not hold yet stays
+     * PENDING and is not transmitted at all; [releaseHeld] sends it once the key
+     * arrives. See [sealOrHold].
      */
     suspend fun send(body: String, recipientHexId: String?): SendResult {
         if (body.isBlank()) return SendResult.Rejected("empty message")
@@ -284,10 +346,13 @@ class MeshCoordinator @Inject constructor(
             fragmentsFor(row.id, Attachment.jpeg(jpeg), recipientHexId, row.timestamp)
         }
             .onFailure { Log.w(TAG, "could not fragment image: ${it.message}") }
-            .getOrNull()
-            ?: run {
+            .getOrElse {
                 messages.markFailed(row.id)
                 return SendResult.Rejected("could not prepare the image for sending")
+            }
+            ?: run {
+                messages.markFailed(row.id)
+                return SendResult.Failed(NO_KEY_FOR_FRAGMENTS)
             }
 
         return transmitFragments(row.id, fragments)
@@ -313,10 +378,13 @@ class MeshCoordinator @Inject constructor(
             fragmentsFor(row.id, Attachment.text(body), recipientHexId, row.timestamp)
         }
             .onFailure { Log.w(TAG, "could not fragment long text: ${it.message}") }
-            .getOrNull()
-            ?: run {
+            .getOrElse {
                 messages.markFailed(row.id)
                 return SendResult.Failed("Could not prepare the message for sending.")
+            }
+            ?: run {
+                messages.markFailed(row.id)
+                return SendResult.Failed(NO_KEY_FOR_FRAGMENTS)
             }
 
         return transmitFragments(row.id, fragments)
@@ -332,19 +400,23 @@ class MeshCoordinator @Inject constructor(
      * third of the 51-byte chunk spent on overhead. Encrypting first also means
      * the content-type envelope is inside the sealed region rather than readable
      * by anyone in range.
+     *
+     * @return null for a direct message whose recipient's agreement key is not
+     *   known yet.
      */
     private fun fragmentsFor(
         messageId: String,
         attachment: Attachment,
         recipientHexId: String?,
         timestamp: Long,
-    ): List<Packet> {
+    ): List<Packet>? {
         val messageIdBytes = messageId.hexIdToBytes()
         val recipientId = recipientHexId?.hexIdToBytes() ?: Packet.BROADCAST_ID
         val envelope = attachment.encode()
 
         // A broadcast has no single recipient to agree a key with, so it goes out
-        // in the clear — the same trade `sealed` documents for text.
+        // in the clear — the same trade `sealOrHold` documents for text. A direct
+        // one is never sent in the clear: no key means no fragments.
         val payload = if (recipientHexId == null) {
             envelope
         } else {
@@ -352,10 +424,7 @@ class MeshCoordinator @Inject constructor(
                 peerId = recipientId,
                 messageId = messageIdBytes,
                 plaintext = envelope,
-            ) ?: run {
-                Log.w(TAG, "no key for ${Packet.tag(recipientId)}, sending attachment in the clear")
-                envelope
-            }
+            ) ?: return null
         }
 
         return Fragmenter.fragment(
@@ -401,9 +470,12 @@ class MeshCoordinator @Inject constructor(
     /**
      * Encodes and originates one message. Returns whether a peer took it.
      *
-     * Shared by [send] and [flushPending] so a retried message is built exactly
+     * Shared by [send] and [releaseHeld] so a retried message is built exactly
      * the same way as a first attempt — same id, same timestamp, so the receiver
      * dedups it rather than showing it twice.
+     *
+     * Returns false without touching the radio when a direct message cannot be
+     * sealed yet; the row stays PENDING.
      */
     private suspend fun transmit(
         messageId: String,
@@ -418,48 +490,24 @@ class MeshCoordinator @Inject constructor(
             body = body,
             timestamp = timestamp,
         )
-        router.originate(sealed(packet))
+        val outgoing = sealOrHold(packet) { cipher.encrypt(it.recipientId, it.messageId, it.payload) }
+        if (outgoing == null) {
+            Log.i(TAG, "no key for ${Packet.tag(packet.recipientId)} yet, holding the message")
+            return@runCatching false
+        }
+        router.originate(outgoing)
     }.onFailure {
         Log.w(TAG, "failed to originate message: ${it.message}")
     }.getOrDefault(false)
 
     /**
-     * Encrypts a direct message's payload, if we can.
-     *
-     * Three outcomes, and the second is the uncomfortable one:
-     * - **Broadcast** goes out in the clear. There is no single recipient to
-     *   agree a key with, so the mesh-wide thread is readable by anyone in
-     *   range.
-     * - **No agreement key yet** — the recipient has not announced itself — also
-     *   goes out in the clear rather than not at all. Refusing to send would
-     *   make the app look broken to two users who have only just met, and the
-     *   plaintext fallback is what `TESTING.md` warns about. This is the weakest
-     *   point in the design and the first thing a real release should tighten.
-     * - Otherwise the payload is sealed with AES-GCM.
-     */
-    private fun sealed(packet: Packet): Packet {
-        if (packet.isBroadcast) return packet
-
-        val ciphertext = cipher.encrypt(
-            peerId = packet.recipientId,
-            messageId = packet.messageId,
-            plaintext = packet.payload,
-        )
-        if (ciphertext == null) {
-            Log.w(TAG, "no key for ${Packet.tag(packet.recipientId)}, sending in the clear")
-            return packet
-        }
-        return packet.copy(payload = ciphertext)
-    }
-
-    /**
      * Recovers a delivered message's text.
      *
      * A direct message is tried through the cipher first and falls back to
-     * reading the payload as text, because a peer that does not yet hold our
-     * agreement key sends in the clear. The fallback only accepts well-formed
-     * UTF-8; real ciphertext that would not open becomes a placeholder instead of
-     * being rendered as garbage. See [MessagePacket.undecryptedBody].
+     * reading the payload as text, because builds before held direct messages
+     * (see [sealOrHold]) sent in the clear when they lacked our agreement key.
+     * The fallback only accepts well-formed UTF-8; real ciphertext that would
+     * not open becomes a placeholder instead of being rendered as garbage. See [MessagePacket.undecryptedBody].
      */
     private fun openedBody(packet: Packet): String {
         if (packet.isBroadcast) return MessagePacket.bodyOf(packet)
@@ -847,6 +895,14 @@ class MeshCoordinator @Inject constructor(
 
     private companion object {
         const val TAG = "MeshCoordinator"
+
+        /**
+         * Why a long message or image to a not-yet-introduced peer failed.
+         * Fragments cannot be held for later the way single packets are.
+         */
+        const val NO_KEY_FOR_FRAGMENTS =
+            "No encryption key for this person yet. Try again once they have been " +
+                "in range, or pair by QR code."
 
         /**
          * How long a hop observation stays worth comparing a new one against.

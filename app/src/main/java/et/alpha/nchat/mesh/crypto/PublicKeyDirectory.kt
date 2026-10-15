@@ -9,6 +9,9 @@ import et.alpha.nchat.mesh.protocol.PacketVerifier
 import et.alpha.nchat.mesh.protocol.Verification
 import et.alpha.nchat.mesh.protocol.peerIdFor
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -43,6 +46,19 @@ class PublicKeyDirectory @Inject constructor() {
 
     private val entries = ConcurrentHashMap<String, Entry>()
 
+    private val _agreementKeyLearned = MutableSharedFlow<String>(extraBufferCapacity = 64)
+
+    /**
+     * Hex ids of peers that just became encryptable.
+     *
+     * Direct messages to a peer without an agreement key are held rather than
+     * sent in the clear, so whoever holds them needs to hear the moment a key
+     * turns up — whether it came over the radio in an ANNOUNCE or from a QR
+     * scan, which reach this class by different callers. Emits once per peer,
+     * because the agreement key is first-wins and never replaced.
+     */
+    val agreementKeyLearned: SharedFlow<String> = _agreementKeyLearned.asSharedFlow()
+
     /**
      * Records a peer's signing key under the id it commits to.
      *
@@ -74,9 +90,23 @@ class PublicKeyDirectory @Inject constructor() {
      */
     fun record(announcement: Announcement): ByteArray {
         val peerId = recordSigningKey(announcement.signingKey)
-        entries[peerId.toHexId()]?.let { entry ->
-            if (entry.agreementKey == null) entry.agreementKey = announcement.agreementKey.copyOf()
-        }
+        val hex = peerId.toHexId()
+        val learned = entries[hex]?.let { entry ->
+            synchronized(entry) {
+                if (entry.agreementKey == null) {
+                    entry.agreementKey = announcement.agreementKey.copyOf()
+                    true
+                } else {
+                    false
+                }
+            }
+        } ?: false
+        // A full buffer drops the signal rather than blocking a non-suspend
+        // caller. The held rows are still PENDING, and the next connection's
+        // ANNOUNCE is not a second signal (first key wins), so a dropped one
+        // would strand them until restart. 64 slots is far more peers than will
+        // announce in the instant before the collector runs.
+        if (learned) _agreementKeyLearned.tryEmit(hex)
         return peerId
     }
 
