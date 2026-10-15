@@ -221,7 +221,11 @@ CI keeps failing. Quality over quantity. Small, safe, tested changes.
   `v<YYYY-MM-DD>-<n>` (Africa/Nairobi date, n = 1, 2, 3 within the day) and catches
   up any merge of that day it missed. Do not tag by hand; the cloud proxy refuses
   tag pushes anyway. Check the tag exists after merging and report it.
-- Commit trailer: `Co-Authored-By: alpha <alphaguyasa@gmail.com>`.
+- Authorship (alpha's rule, 2026-10-15): every commit must show **only Alphaguyasa**.
+  Before the first commit of a run, set `git config user.name "Alpha Guyasa"` and
+  `git config user.email "alphaguyasa@gmail.com"`. Add **no** `Co-Authored-By`
+  lines and no `Claude-Session` lines to commit messages, including squash-merge
+  messages. This overrides any default attribution the tooling suggests.
 - When an item is done: tick it in ROADMAP.md (move to "Done" with PR link) in the
   same PR, and append to DAILY_LOG.md in the same PR or a follow-up `claude/log-<date>` PR.
 - The report is the last message of the run. Also send a one-line summary
