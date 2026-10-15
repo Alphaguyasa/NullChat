@@ -53,7 +53,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun forwardQueueDao(): ForwardQueueDao
 
     companion object {
-        const val VERSION: Int = 3
+        const val VERSION: Int = 4
 
         const val NAME: String = "nchat.db"
 
@@ -102,11 +102,29 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds `peers.agreementKey`, the peer's X25519 public key.
+         *
+         * Nullable and without a default, like `attachmentFile` in 2 → 3: no
+         * row is rewritten, and an existing peer reads back with no agreement
+         * key, which is the truth — it was never stored. That peer becomes
+         * encryptable again on its next ANNOUNCE, exactly as before.
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `peers` ADD COLUMN `agreementKey` BLOB")
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
          * Room chains them to upgrade a database that skipped several releases.
          */
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        val MIGRATIONS: Array<Migration> = arrayOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+        )
     }
 }

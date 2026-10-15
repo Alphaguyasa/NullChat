@@ -31,9 +31,10 @@ class PublicKeyDirectory @Inject constructor() {
      * The signing key is fixed once known; the agreement key can arrive later.
      *
      * They are separable because they reach us by different routes. A peer
-     * loaded from the database has only a signing key — that is all
-     * `PeerEntity` persists — which is enough to verify its packets but not to
-     * encrypt to it. The agreement key turns up with the peer's next ANNOUNCE.
+     * stored before agreement keys were persisted (database version 3 and
+     * earlier) has only a signing key, which is enough to verify its packets
+     * but not to encrypt to it. The agreement key turns up with the peer's next
+     * ANNOUNCE.
      */
     private class Entry(
         val signingKey: ByteArray,
@@ -77,6 +78,24 @@ class PublicKeyDirectory @Inject constructor() {
             if (entry.agreementKey == null) entry.agreementKey = announcement.agreementKey.copyOf()
         }
         return peerId
+    }
+
+    /**
+     * Refills the directory from a stored peer at start.
+     *
+     * The keys come from our own database rather than off the air, but are
+     * still filed with the same first-wins rules: anything learned since start
+     * is at least as trustworthy. An [agreementKey] of the wrong size (a
+     * corrupt row) is dropped rather than thrown, so one bad row cannot stop
+     * the rest of the directory from warming; the peer simply stays
+     * unencryptable until it announces.
+     */
+    fun restore(signingKey: ByteArray, agreementKey: ByteArray?) {
+        if (agreementKey != null && agreementKey.size == Announcement.KEY_SIZE) {
+            record(Announcement(signingKey, agreementKey))
+        } else {
+            recordSigningKey(signingKey)
+        }
     }
 
     fun signingKeyFor(peerId: ByteArray): ByteArray? = entries[peerId.toHexId()]?.signingKey

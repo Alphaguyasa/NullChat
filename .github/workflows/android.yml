@@ -44,6 +44,18 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      # KSP rewrites app/schemas on every build. A diff here means an entity
+      # changed without its exported schema being committed, and the migration
+      # tests would be checking against the wrong file. The diff is printed so
+      # the generated schema can be copied from the log.
+      - name: Check Room schemas are committed
+        run: |
+          git add --intent-to-add app/schemas
+          if ! git diff --exit-code -- app/schemas; then
+            echo "::error::app/schemas differs from the schema Room generated; commit the generated file."
+            exit 1
+          fi
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

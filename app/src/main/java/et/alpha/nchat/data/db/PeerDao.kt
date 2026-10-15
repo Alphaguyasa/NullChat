@@ -41,12 +41,18 @@ interface PeerDao {
      * who can spoof an ANNOUNCE for a peer id must not be able to clear the
      * verified flag a user established by scanning a QR code, because the UI
      * uses that flag to tell the user the channel is authenticated.
+     *
+     * [PeerEntity.agreementKey] is first-wins, like `PublicKeyDirectory`: the
+     * directory is warmed from this column at start, and if the two disagreed
+     * about which key is current, a restart would silently change which key
+     * messages are sealed to.
      */
     @Transaction
     suspend fun recordSeen(
         id: String,
         displayName: String? = null,
         publicKey: ByteArray? = null,
+        agreementKey: ByteArray? = null,
         now: Long,
     ) {
         val existing = findById(id)
@@ -59,6 +65,7 @@ interface PeerDao {
                     isVerified = false,
                     firstSeenAt = now,
                     lastSeenAt = now,
+                    agreementKey = agreementKey,
                 ),
             )
         } else {
@@ -67,6 +74,7 @@ interface PeerDao {
                     lastSeenAt = now,
                     displayName = displayName ?: existing.displayName,
                     publicKey = publicKey ?: existing.publicKey,
+                    agreementKey = existing.agreementKey ?: agreementKey,
                 ),
             )
         }
