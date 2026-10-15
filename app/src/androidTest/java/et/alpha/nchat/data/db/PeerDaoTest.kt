@@ -99,6 +99,29 @@ class PeerDaoTest {
     }
 
     @Test
+    fun agreementKeyIsStoredAndNotReplaced() = runTest {
+        val first = ByteArray(32) { 4 }
+        peers.recordSeen(id = PEER_A, agreementKey = first, now = T0)
+
+        // A bare ANNOUNCE leaves it alone, and a different key does not displace
+        // it: PublicKeyDirectory is first-wins and is warmed from this column.
+        peers.recordSeen(id = PEER_A, now = T0 + 5)
+        peers.recordSeen(id = PEER_A, agreementKey = ByteArray(32) { 5 }, now = T0 + 10)
+
+        assertArrayEquals(first, peers.findById(PEER_A)?.agreementKey)
+    }
+
+    @Test
+    fun agreementKeyLearnedLaterIsFilledIn() = runTest {
+        peers.recordSeen(id = PEER_A, now = T0)
+
+        val key = ByteArray(32) { 6 }
+        peers.recordSeen(id = PEER_A, agreementKey = key, now = T0 + 5)
+
+        assertArrayEquals(key, peers.findById(PEER_A)?.agreementKey)
+    }
+
+    @Test
     fun recordSeenFillsInFieldsLearnedLater() = runTest {
         peers.recordSeen(id = PEER_A, now = T0)
 

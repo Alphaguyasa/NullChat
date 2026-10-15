@@ -11,8 +11,7 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 5 | **Persist peers' X25519 agreement key.** Room migration 3→4 adds `agreementKey` to `peers`; warm `PublicKeyDirectory` with it at start. Today, after a restart, nothing can be encrypted to a peer until they re-announce. | P0 | M | DB migration: needs migration test. |
-| 6 | **No plaintext direct messages.** When no agreement key is known, keep the message PENDING instead of sending it in the clear; flush pending rows for a peer when their ANNOUNCE arrives. | P0 | M | Security. Depends on #5. |
+| 6 | **No plaintext direct messages.** When no agreement key is known, keep the message PENDING instead of sending it in the clear; flush pending rows for a peer when their ANNOUNCE arrives. | P0 | M | Security. |
 | 7 | **Hop count on delivered messages.** The ACK already carries the hops the recipient observed (since #1); store it (Room migration, needs #4) and show `delivered · 2 hops`. | P1 | S | Room migration. |
 | 8 | **Incoming message notifications.** Own channel, tap opens the thread, content hidden on lock screen, silent while the thread is open. | P1 | M | |
 | 9 | **Unread counts** on peer list rows (`lastReadAt` already exists). | P1 | S | |
@@ -45,4 +44,5 @@ exist but only run on a physical phone.
 | 2026-10-14 | #1 Delivery receipts (ACK) | #2 | v2026-10-14-2 |
 | 2026-10-14 | #2 Long text messages (up to 1000 bytes) | #3 | v2026-10-14-3 |
 | 2026-10-14 | #3 Undecryptable message placeholder | #4 | v2026-10-14-4 |
-| 2026-10-15 | #4 Instrumented tests in CI (API 34 emulator, 100 tests) | #7 | v2026-10-15-1 |
+| 2026-10-15 | #4 Instrumented tests in CI (API 34 emulator, 100 tests) | #7 | v2026-10-15-1 (pending, see NEEDS_APPROVAL) |
+| 2026-10-15 | #5 Persist peers' agreement keys (Room 3→4) | #8 | v2026-10-15-2 (pending) |
