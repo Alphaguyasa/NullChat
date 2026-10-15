@@ -27,6 +27,11 @@ tier; the run cannot switch models itself → ACTION FOR ALPHA (NEEDS_APPROVAL #
 - Unit tests 251 → 261 (+6 PublicKeyDirectory, +4 hold/release); instrumented
   100 → 103 (+1 migration, +2 PeerDao).
 
+### Follow-up (same day, after alpha's replies)
+- alpha said yes to roadmap #24. PR #10 recorded it; then, at alpha's request, PR #11
+  added `release-tag.yml` straight away. Its first run on main backfills today's tags
+  (`v2026-10-15-1` … `-5`), so no manual tagging is needed.
+
 ### REPORT
 | Field | Content |
 |---|---|
