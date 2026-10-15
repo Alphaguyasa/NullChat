@@ -11,6 +11,7 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
+| 24 | **Release tags from CI.** Cloud runs cannot push tags (the git proxy and API refuse tag writes). A workflow on push to `main` that tags `v<date>-<n>` with `GITHUB_TOKEN` (`contents: write`) would make tagging automatic. | P0 | S | Approved by alpha 2026-10-15; do first next run. |
 | 7 | **Hop count on delivered messages.** The ACK already carries the hops the recipient observed (since #1); store it (Room migration, needs #4) and show `delivered · 2 hops`. | P1 | S | Room migration. |
 | 8 | **Incoming message notifications.** Own channel, tap opens the thread, content hidden on lock screen, silent while the thread is open. | P1 | M | |
 | 9 | **Unread counts** on peer list rows (`lastReadAt` already exists). | P1 | S | |
@@ -28,7 +29,6 @@ exist but only run on a physical phone.
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
 | 23 | **Route strip**: show relay chain on tap. Privacy trade-off — see NEEDS_APPROVAL. | P3 | M | |
-| 24 | **Release tags from CI.** Cloud runs cannot push tags (the git proxy and API refuse tag writes). A workflow on push to `main` that tags `v<date>-<n>` with `GITHUB_TOKEN` (`contents: write`) would make tagging automatic. | P1 | S | Unblocks the MERGE POLICY tag step; see NEEDS_APPROVAL. |
 
 ### Tech debt (slot into light days)
 

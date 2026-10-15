@@ -22,8 +22,9 @@ on your PC (`git fetch && git tag <tag> <sha> && git push origin <tag>`):
 - `v2026-10-15-1` → `597f2686fc0235a1337da6075b96359be83bf386` (PR #7)
 - `v2026-10-15-2` → `037e7b686207a8197ce47f94459c7077b98b2cdb` (PR #8)
 - `v2026-10-15-3` → PR #9's merge commit, if it merges today (see DAILY_LOG).
-*Proposal:* roadmap #24, a workflow that tags merges to main with GITHUB_TOKEN.
-Say yes and the next run builds it.
+**Decision (alpha, 2026-10-15): yes** — roadmap #24 (a workflow that tags merges
+to main with GITHUB_TOKEN) is first on the next run. Today's three tags above still
+need creating by hand.
 
 ### 5b. Two-phone check for PR #9 (no plaintext direct messages)
 On two phones that have **never met** (or after clearing data on one): send a
