@@ -54,7 +54,12 @@ item #23 waits for your call.
 ### Release tags from the cloud run (2026-10-15)
 Tag pushes are refused from the cloud session. alpha approved roadmap #24, and
 `release-tag.yml` (PR #11) now tags every merge to main with GITHUB_TOKEN. Its
-first run backfills today's tags (#7 → `v2026-10-15-1` … #10 → `-4`, #11 → `-5`).
+first run created `v2026-10-15-2` … `-5` (#8–#11). `v2026-10-15-1` (#7,
+`597f268`) could not be created: GitHub refuses the workflow token a tag on a
+commit whose workflow files differ from main's, and #8 changed `android.yml`
+after #7. Optional for alpha: `git tag v2026-10-15-1 597f268 && git push origin
+v2026-10-15-1` from your PC. Not needed for rollback in practice, since `-2`
+already contains #7. New merges are tagged as they land, so this cannot recur.
 
 ### "Automatically approve" for the daily routine (2026-10-14)
 The routine settings have no permission option (only name, instructions, trigger,

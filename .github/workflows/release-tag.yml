@@ -31,10 +31,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Tags every untagged first-parent commit of the pushed commit's day, not
-      # just the pushed commit. A run that failed or never happened (or merges
-      # from before this workflow existed) is caught up by the next one, and the
+      # Tags every untagged first-parent commit of the pushed commit's day that
+      # comes after the day's last tagged one, not just the pushed commit. A run
+      # that failed or never happened is caught up by the next one, and the
       # numbering stays in merge order.
+      #
+      # Never behind an existing tag: GitHub refuses GITHUB_TOKEN a tag on a
+      # commit whose workflow files differ from main's, so an old commit can be
+      # permanently untaggable. Retrying it would fail every later run and hand
+      # it a number out of merge order.
       - name: Tag untagged merges of the day
         run: |
           set -euo pipefail
@@ -42,11 +47,18 @@ jobs:
           day=$(TZ=Africa/Nairobi git log -1 --format=%cd --date=format-local:%Y-%m-%d "$GITHUB_SHA")
           last=$(git tag -l "v$day-*" | sed "s/^v$day-//" | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
           n=${last:-0}
-          new=()
+          todo=()
           for c in $(git rev-list --first-parent --reverse --since="$day 00:00:00 +0300" "$GITHUB_SHA"); do
             c_day=$(TZ=Africa/Nairobi git log -1 --format=%cd --date=format-local:%Y-%m-%d "$c")
             [ "$c_day" = "$day" ] || continue
-            if git tag --points-at "$c" | grep -q '^v'; then continue; fi
+            if git tag --points-at "$c" | grep -q '^v'; then
+              todo=()
+            else
+              todo+=("$c")
+            fi
+          done
+          new=()
+          for c in ${todo[@]+"${todo[@]}"}; do
             n=$((n + 1))
             git tag "v$day-$n" "$c"
             echo "v$day-$n -> $(git log -1 --format='%h %s' "$c")"
