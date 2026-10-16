@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import et.alpha.nchat.R
 import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
@@ -97,6 +98,12 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(peerId) { viewModel.bind(peerId) }
+    // Keyed on peerId so switching threads leaves the old one before entering
+    // the new; resumed-only so a backgrounded app still gets notified.
+    LifecycleResumeEffect(peerId) {
+        viewModel.onVisible(peerId, visible = true)
+        onPauseOrDispose { viewModel.onVisible(peerId, visible = false) }
+    }
 
     val state by viewModel.state.collectAsState()
     val draft by viewModel.draft.collectAsState()

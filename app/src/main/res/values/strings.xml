@@ -8,6 +8,9 @@
     <string name="mesh_notification_title_paused">Mesh paused</string>
     <string name="mesh_notification_blocked_bluetooth">Bluetooth is off. Tap to fix.</string>
     <string name="mesh_notification_blocked_location">Location is off. Tap to fix.</string>
+    <string name="messages_channel_name">Messages</string>
+    <string name="messages_channel_description">Direct messages that arrive while you are not looking at the conversation.</string>
+    <string name="messages_notification_public">New message</string>
     <string name="mesh_notification_blocked_both">Bluetooth and location are off. Tap to fix.</string>
     <plurals name="mesh_peer_count">
         <item quantity="zero">No devices in range</item>
