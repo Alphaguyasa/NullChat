@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
@@ -55,6 +56,10 @@ class MeshForegroundService : Service() {
 
     @Inject lateinit var radioMonitor: RadioMonitor
 
+    @Inject lateinit var messageNotifier: MessageNotifier
+
+    @Inject lateinit var foregroundConversation: ForegroundConversation
+
     private val scope = CoroutineScope(SupervisorJob())
 
     private lateinit var radio: StateFlow<RadioState>
@@ -70,6 +75,7 @@ class MeshForegroundService : Service() {
         Log.i(TAG, "starting")
 
         createNotificationChannel()
+        messageNotifier.createChannel()
 
         // Sampled before the first post so the notification is accurate on its
         // very first frame, rather than flashing "paused" on a healthy device.
@@ -85,6 +91,7 @@ class MeshForegroundService : Service() {
         // that are already running, and MeshRouter.start() throws on a second call.
         coordinator.ensureStarted()
         observeNotificationState()
+        notifyArrivals()
         runDutyCycle()
     }
 
@@ -119,6 +126,25 @@ class MeshForegroundService : Service() {
         }.collect { (peerCount, radioState) ->
             Log.d(TAG, "peers=$peerCount blockers=${radioState.blockers}")
             notifications.notify(NOTIFICATION_ID, buildNotification(peerCount, radioState))
+        }
+    }
+
+    /**
+     * Notifies about new messages, and clears a thread's notification as soon
+     * as the user opens it.
+     *
+     * Lives here because this service is what keeps the process alive while
+     * the app is in the background, which is the only time a notification is
+     * worth anything.
+     */
+    private fun notifyArrivals() {
+        scope.launch {
+            coordinator.arrivals.collect { arrival ->
+                messageNotifier.onArrival(arrival, foregroundConversation.current.value)
+            }
+        }
+        scope.launch {
+            foregroundConversation.current.filterNotNull().collect { messageNotifier.cancel(it) }
         }
     }
 

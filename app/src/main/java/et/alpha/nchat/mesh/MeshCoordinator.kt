@@ -37,11 +37,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -73,6 +76,21 @@ sealed interface SendResult {
      */
     data class Failed(val reason: String) : SendResult
 }
+
+/**
+ * A message that has just been stored for the first time.
+ *
+ * Emitted once per message, never for the duplicates flooding delivers by
+ * other routes, so a listener can treat each one as news. [preview] is message
+ * text: it may be shown to the user but must never be logged.
+ */
+data class Arrival(
+    val conversationId: String,
+    val senderId: String,
+    val isBroadcast: Boolean,
+    val preview: String,
+    val isImage: Boolean,
+)
 
 /**
  * Whether a verified ACK from [ackSenderHex] may mark [message] delivered.
@@ -168,6 +186,21 @@ class MeshCoordinator @Inject constructor(
      * this class's side of the boundary.
      */
     private val reassembler = FragmentReassembler()
+
+    private val _arrivals = MutableSharedFlow<Arrival>(
+        extraBufferCapacity = ARRIVAL_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /**
+     * New messages as they are stored, for notifications.
+     *
+     * Hot and unbuffered for late subscribers: a notification for something
+     * that arrived before anyone was listening would be stale news. Dropping
+     * the oldest on overflow rather than suspending, because the inbound path
+     * must never wait on a slow listener — that would stall relaying too.
+     */
+    val arrivals: SharedFlow<Arrival> = _arrivals.asSharedFlow()
 
     /** This device's own id, hex-encoded — the `senderId` on everything it sends. */
     val selfId: String by lazy { identity.peerId.toHexId() }
@@ -565,11 +598,12 @@ class MeshCoordinator @Inject constructor(
                 if (packet.isBroadcast) BROADCAST_CONVERSATION_ID else directConversationId(senderHex)
 
             peers.recordSeen(senderHex)
+            val body = openedBody(packet)
             val isNew = messages.recordIncoming(
                 messageId = packet.messageId.toHexId(),
                 conversationId = conversationId,
                 senderId = senderHex,
-                body = openedBody(packet),
+                body = body,
                 timestamp = packet.timestamp,
                 peerId = senderHex,
             )
@@ -579,6 +613,17 @@ class MeshCoordinator @Inject constructor(
 
             if (isNew && !packet.isBroadcast) {
                 acknowledge(packet.messageId, packet.senderId, hopsFrom(packet.ttl))
+            }
+            if (isNew) {
+                _arrivals.tryEmit(
+                    Arrival(
+                        conversationId = conversationId,
+                        senderId = senderHex,
+                        isBroadcast = packet.isBroadcast,
+                        preview = body,
+                        isImage = false,
+                    ),
+                )
             }
         }
     }
@@ -761,6 +806,15 @@ class MeshCoordinator @Inject constructor(
 
         peers.recordSeen(senderHex)
 
+        val isImage = attachment.contentType == ContentType.IMAGE_JPEG
+        // An undecrypted payload that happens to parse as an envelope is still
+        // only shown if its text is genuinely text.
+        val textBody = when {
+            isImage -> ""
+            decrypted != null -> attachment.asText()
+            else -> MessagePacket.undecryptedBody(attachment.data)
+        }
+
         val isNew = when (attachment.contentType) {
             ContentType.IMAGE_JPEG -> {
                 val fileName = attachments.write(messageId, attachment.data)
@@ -783,13 +837,7 @@ class MeshCoordinator @Inject constructor(
                 messageId = messageId,
                 conversationId = conversationId,
                 senderId = senderHex,
-                // An undecrypted payload that happens to parse as an envelope is
-                // still only shown if its text is genuinely text.
-                body = if (decrypted != null) {
-                    attachment.asText()
-                } else {
-                    MessagePacket.undecryptedBody(attachment.data)
-                },
+                body = textBody,
                 timestamp = message.timestamp,
                 peerId = senderHex,
             )
@@ -801,6 +849,17 @@ class MeshCoordinator @Inject constructor(
         )
 
         if (isNew && !message.isBroadcast) acknowledge(message.messageId, message.senderId, hops)
+        if (isNew) {
+            _arrivals.tryEmit(
+                Arrival(
+                    conversationId = conversationId,
+                    senderId = senderHex,
+                    isBroadcast = message.isBroadcast,
+                    preview = textBody,
+                    isImage = isImage,
+                ),
+            )
+        }
     }
 
     /**
@@ -907,6 +966,9 @@ class MeshCoordinator @Inject constructor(
 
     private companion object {
         const val TAG = "MeshCoordinator"
+
+        /** Arrivals held for a slow listener before the oldest are dropped. */
+        const val ARRIVAL_BUFFER = 32
 
         /**
          * Why a long message or image to a not-yet-introduced peer failed.

@@ -18,6 +18,7 @@ import et.alpha.nchat.mesh.Transfer
 import et.alpha.nchat.mesh.TransferTracker
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.transport.NearbyTransport
+import et.alpha.nchat.service.ForegroundConversation
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,6 +63,7 @@ class ChatViewModel @Inject constructor(
     private val transport: NearbyTransport,
     private val imageScaler: ImageScaler,
     private val attachments: AttachmentStore,
+    private val foregroundConversation: ForegroundConversation,
     transferTracker: TransferTracker,
 ) : ViewModel() {
 
@@ -123,6 +125,27 @@ class ChatViewModel @Inject constructor(
         peerId.value = target
         _draft.value = ""
         viewModelScope.launch { messages.markRead(conversationIdFor(target)) }
+    }
+
+    /**
+     * Tells the app this thread is on screen, or no longer is.
+     *
+     * Silences its notifications while the user is reading it. Also marks it
+     * read on the way in: a message that arrived while the app was in the
+     * background is read the moment the user comes back to this screen.
+     *
+     * Takes the thread explicitly rather than reading the bound one: the
+     * resume effect can run before [bind]'s coroutine has re-pointed this
+     * ViewModel, and would then silence the previous thread instead.
+     */
+    fun onVisible(target: String?, visible: Boolean) {
+        val conversationId = conversationIdFor(target)
+        if (visible) {
+            foregroundConversation.enter(conversationId)
+            viewModelScope.launch { messages.markRead(conversationId) }
+        } else {
+            foregroundConversation.leave(conversationId)
+        }
     }
 
     fun onDraftChange(value: String) {
