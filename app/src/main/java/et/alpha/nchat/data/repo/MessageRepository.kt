@@ -119,8 +119,13 @@ class MessageRepository @Inject constructor(
     suspend fun markSent(messageId: String): Boolean =
         messageDao.advanceDeliveryState(messageId, DeliveryState.PENDING, DeliveryState.SENT) > 0
 
-    suspend fun markDelivered(messageId: String): Boolean =
-        messageDao.updateDeliveryState(messageId, DeliveryState.DELIVERED) > 0
+    /**
+     * Marks a message delivered, with the hops its receipt reported if known.
+     *
+     * @param hops links the message crossed, or null when the receipt did not say.
+     */
+    suspend fun markDelivered(messageId: String, hops: Int? = null): Boolean =
+        messageDao.markDelivered(messageId, DeliveryState.DELIVERED, hops) > 0
 
     suspend fun markFailed(messageId: String): Boolean =
         messageDao.updateDeliveryState(messageId, DeliveryState.FAILED) > 0

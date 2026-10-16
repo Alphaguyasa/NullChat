@@ -72,6 +72,30 @@ interface MessageDao {
     suspend fun updateDeliveryState(id: String, state: DeliveryState): Int
 
     /**
+     * Sets [state] (always DELIVERED from the repository) and files [hops].
+     *
+     * A known count is never overwritten by an unknown one, and two known
+     * counts keep the smaller. The recipient only acknowledges a message the
+     * first time it stores it, so a second receipt should not happen; but if a
+     * future build ever re-acknowledges, the shortest route is still what
+     * `delivered · N hops` means, and a later receipt must not erase it.
+     *
+     * @return rows affected: 0 when no such message is stored.
+     */
+    @Query(
+        """
+        UPDATE messages SET deliveryState = :state,
+            hops = CASE
+                WHEN :hops IS NULL THEN hops
+                WHEN hops IS NULL THEN :hops
+                ELSE MIN(hops, :hops)
+            END
+        WHERE id = :id
+        """,
+    )
+    suspend fun markDelivered(id: String, state: DeliveryState, hops: Int?): Int
+
+    /**
      * Advances a message's state only when it is currently [from].
      *
      * Guards against a late SENT overwriting a DELIVERED that already arrived —

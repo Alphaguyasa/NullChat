@@ -53,7 +53,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun forwardQueueDao(): ForwardQueueDao
 
     companion object {
-        const val VERSION: Int = 4
+        const val VERSION: Int = 5
 
         const val NAME: String = "nchat.db"
 
@@ -116,6 +116,20 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds `messages.hops`, the hop count a delivery receipt reported.
+         *
+         * Nullable and without a default, like the two columns before it. No
+         * row is rewritten; messages delivered before this version read back
+         * with no count and show plain `delivered`, which is honest — the
+         * receipt's count was never kept.
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `messages` ADD COLUMN `hops` INTEGER")
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
@@ -125,6 +139,7 @@ abstract class NChatDatabase : RoomDatabase() {
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
+            MIGRATION_4_5,
         )
     }
 }
