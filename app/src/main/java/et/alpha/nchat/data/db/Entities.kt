@@ -152,6 +152,13 @@ data class MessageEntity(
      * rather than sniffing the extension.
      */
     val attachmentFile: String? = null,
+    /**
+     * Links an outgoing message crossed to reach its recipient, as the
+     * recipient's ACK reported it. Null until delivered, for incoming messages,
+     * and whenever the receipt did not say. A hint derived from the unsigned ttl
+     * byte, not a measurement; it only ever feeds the `· N hops` suffix.
+     */
+    val hops: Int? = null,
 ) {
     /** Whether this message carries an image rather than text. */
     val hasAttachment: Boolean get() = attachmentFile != null

@@ -142,6 +142,49 @@ class MessageDaoTest {
     }
 
     @Test
+    fun markDeliveredStoresTheReportedHops() = runTest {
+        messages.insert(message(id = "m1", isOutgoing = true, deliveryState = DeliveryState.SENT))
+
+        assertEquals(1, messages.markDelivered("m1", DeliveryState.DELIVERED, hops = 2))
+
+        val stored = messages.findById("m1")
+        assertEquals(DeliveryState.DELIVERED, stored?.deliveryState)
+        assertEquals(2, stored?.hops)
+    }
+
+    @Test
+    fun markDeliveredKeepsAKnownCountOverAnUnknownOne() = runTest {
+        messages.insert(message(id = "m1", isOutgoing = true, deliveryState = DeliveryState.SENT))
+        messages.markDelivered("m1", DeliveryState.DELIVERED, hops = 2)
+
+        messages.markDelivered("m1", DeliveryState.DELIVERED, hops = null)
+
+        assertEquals(2, messages.findById("m1")?.hops)
+    }
+
+    @Test
+    fun markDeliveredKeepsTheShortestRoute() = runTest {
+        messages.insert(message(id = "m1", isOutgoing = true, deliveryState = DeliveryState.SENT))
+        messages.markDelivered("m1", DeliveryState.DELIVERED, hops = 2)
+
+        messages.markDelivered("m1", DeliveryState.DELIVERED, hops = 4)
+        assertEquals(2, messages.findById("m1")?.hops)
+
+        messages.markDelivered("m1", DeliveryState.DELIVERED, hops = 1)
+        assertEquals(1, messages.findById("m1")?.hops)
+    }
+
+    @Test
+    fun markDeliveredWithoutACountLeavesHopsUnknown() = runTest {
+        messages.insert(message(id = "m1", isOutgoing = true, deliveryState = DeliveryState.SENT))
+
+        messages.markDelivered("m1", DeliveryState.DELIVERED, hops = null)
+
+        assertEquals(DeliveryState.DELIVERED, messages.findById("m1")?.deliveryState)
+        assertNull(messages.findById("m1")?.hops)
+    }
+
+    @Test
     fun findsOutgoingMessagesAwaitingATransport() = runTest {
         messages.insert(
             message(id = "out1", isOutgoing = true, deliveryState = DeliveryState.PENDING, timestamp = T0 + 2),

@@ -265,6 +265,60 @@ class NChatDatabaseMigrationTest {
         }
     }
 
+    /**
+     * The v4 → v5 upgrade that adds `messages.hops`.
+     *
+     * An outgoing message delivered before this version must keep its state
+     * and read back with no hop count — its receipt's count was never kept, so
+     * the bubble shows plain `delivered` rather than an invented distance.
+     */
+    @Test
+    fun migratingToVersion5AddsHopCountsAndKeepsHistory() {
+        helper.createDatabase(TEST_DB, 4).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO conversations
+                    (id, peerId, title, createdAt, lastActivityAt, lastReadAt)
+                VALUES ('direct:peer', 'peer', NULL, 1000, 1000, 0)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO messages
+                    (id, conversationId, senderId, body, timestamp, deliveryState,
+                     isOutgoing, attachmentFile)
+                VALUES ('m1', 'direct:peer', 'self', 'survived', 1000, 'DELIVERED', 1, NULL),
+                       ('m2', 'direct:peer', 'self', 'still going', 2000, 'SENT', 1, NULL)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_4_5 and validates the result against schemas/5.json.
+        helper.runMigrationsAndValidate(TEST_DB, 5, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val old = db.messageDao().findById("m1")
+                assertEquals("survived", old?.body)
+                assertEquals(DeliveryState.DELIVERED, old?.deliveryState)
+                assertNull(old?.hops)
+
+                db.messageDao().markDelivered("m2", DeliveryState.DELIVERED, hops = 3)
+                val delivered = db.messageDao().findById("m2")
+                assertEquals(DeliveryState.DELIVERED, delivered?.deliveryState)
+                assertEquals(3, delivered?.hops)
+            }
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }
