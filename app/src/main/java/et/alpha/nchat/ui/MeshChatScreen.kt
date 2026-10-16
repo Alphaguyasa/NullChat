@@ -3,6 +3,7 @@ package et.alpha.nchat.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,9 +32,17 @@ private enum class Destination { PEERS, CHAT, PAIR }
  * Screens cross-fade rather than slide. A slide claims the destinations sit in
  * some spatial order — that chat is "to the right of" the peer list — and with a
  * flat enum and no back stack there is no such order to be honest about.
+ *
+ * @param openPeerRequest a direct thread to jump to, from a notification tap.
+ *   Reported back through [onOpenRequestHandled] once taken, so that a second
+ *   tap for the same peer is a new request rather than an unchanged value.
  */
 @Composable
-fun MeshChatScreen(modifier: Modifier = Modifier) {
+fun MeshChatScreen(
+    modifier: Modifier = Modifier,
+    openPeerRequest: String? = null,
+    onOpenRequestHandled: () -> Unit = {},
+) {
     var destination by rememberSaveable { mutableStateOf(Destination.PEERS) }
 
     // Kept separate from [destination] because null is already meaningful here:
@@ -44,6 +53,13 @@ fun MeshChatScreen(modifier: Modifier = Modifier) {
     // incoming screen are composed, and two enabled handlers would race over
     // which one a back press reached.
     BackHandler(enabled = destination != Destination.PEERS) { destination = Destination.PEERS }
+
+    LaunchedEffect(openPeerRequest) {
+        val peerId = openPeerRequest ?: return@LaunchedEffect
+        openPeerId = peerId
+        destination = Destination.CHAT
+        onOpenRequestHandled()
+    }
 
     Crossfade(
         targetState = destination,
