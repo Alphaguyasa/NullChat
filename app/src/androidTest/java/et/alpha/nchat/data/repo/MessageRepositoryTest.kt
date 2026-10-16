@@ -140,8 +140,29 @@ class MessageRepositoryTest {
 
     @Test
     fun markReadClearsTheUnreadCount() = runTest {
-        repo.recordIncoming("m1", convoId, PEER_A, "hello", timestamp = T0)
+        repo.recordIncoming("m1", convoId, PEER_A, "hello", timestamp = T0, now = T0)
         assertEquals(1, repo.observeConversations().first().single().unreadCount)
+
+        repo.markRead(convoId, at = T0 + 1)
+
+        assertEquals(0, repo.observeConversations().first().single().unreadCount)
+    }
+
+    @Test
+    fun aMessageFromASenderWhoseClockIsBehindStillCountsAsUnread() = runTest {
+        // Read at T0 by our clock; the sender's clock says the new message was
+        // written an hour earlier. It arrived after the read, so it is unread.
+        repo.recordIncoming("m0", convoId, PEER_A, "earlier", timestamp = T0 - 10, now = T0 - 10)
+        repo.markRead(convoId, at = T0)
+
+        repo.recordIncoming("m1", convoId, PEER_A, "new", timestamp = T0 - HOUR, now = T0 + 1)
+
+        assertEquals(1, repo.observeConversations().first().single().unreadCount)
+    }
+
+    @Test
+    fun aMessageFromASenderWhoseClockIsAheadIsClearedByReading() = runTest {
+        repo.recordIncoming("m1", convoId, PEER_A, "from the future", timestamp = T0 + HOUR, now = T0)
 
         repo.markRead(convoId, at = T0 + 1)
 
@@ -176,5 +197,9 @@ class MessageRepositoryTest {
 
         assertEquals(listOf("in", "out"), thread.map { it.id })
         assertEquals(listOf(false, true), thread.map { it.isOutgoing })
+    }
+
+    private companion object {
+        const val HOUR = 60 * 60 * 1000L
     }
 }

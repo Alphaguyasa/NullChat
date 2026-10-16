@@ -107,7 +107,7 @@ interface MessageDao {
     @Query(
         """
         SELECT COUNT(*) FROM messages
-        WHERE conversationId = :conversationId AND isOutgoing = 0 AND timestamp > :since
+        WHERE conversationId = :conversationId AND isOutgoing = 0 AND receivedAt > :since
         """,
     )
     fun observeUnreadCount(conversationId: String, since: Long): Flow<Int>
