@@ -391,11 +391,9 @@ private fun ChatMessage(
         senderId = if (!outgoing && isBroadcast) message.senderId.take(SHORT_ID_CHARS) else null,
         timestamp = TIME_FORMAT.format(Date(message.timestamp)),
         deliveryState = message.deliveryState.takeIf { outgoing },
-        // Null until the wire carries it: a packet's remaining ttl is known to
-        // the receiver, not the sender, so nothing on this device can currently
-        // say how far an outgoing message travelled. `DeliveryStateLabel` renders
-        // "· N hops" as soon as a real count is threaded through here.
-        hopCount = null,
+        // Only the recipient sees a packet's remaining ttl, so the count comes
+        // back in its ACK. `DeliveryStateLabel` drops it on states with no route.
+        hopCount = message.hops.takeIf { outgoing },
         animateSend = animateSend,
         content = extras,
     )

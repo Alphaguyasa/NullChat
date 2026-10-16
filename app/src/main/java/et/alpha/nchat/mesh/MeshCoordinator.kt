@@ -85,6 +85,18 @@ internal fun isReceiptFor(message: MessageEntity, ackSenderHex: String): Boolean
     message.isOutgoing && message.conversationId == directConversationId(ackSenderHex)
 
 /**
+ * The hop count to store for a delivered message, from what its ACK reported.
+ *
+ * Zero is the recipient saying it does not know. Anything above
+ * [Packet.DEFAULT_TTL] cannot have come from a real trip — no packet starts with
+ * a bigger budget — and the byte is unsigned on the wire, so a buggy or hostile
+ * peer could claim 200. Both become null: the bubble then reads plain
+ * `delivered`, which is true, instead of a distance nobody measured.
+ */
+internal fun storedHops(ack: Acknowledgement): Int? =
+    ack.hops.takeIf { it in 1..Packet.DEFAULT_TTL }
+
+/**
  * The packet to put on the air for [packet], or null to hold it.
  *
  * Broadcasts go out as they are. A direct message goes out only sealed: when
@@ -614,7 +626,7 @@ class MeshCoordinator @Inject constructor(
         }
 
         peers.recordSeen(senderHex)
-        messages.markDelivered(messageId)
+        messages.markDelivered(messageId, storedHops(ack))
         Log.d(TAG, "message delivered to ${Packet.tag(packet.senderId)} in ${ack.hops} hop(s)")
     }
 
