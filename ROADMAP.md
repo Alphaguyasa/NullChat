@@ -45,6 +45,6 @@ exist but only run on a physical phone.
 | 2026-10-15 | #5 Persist peers' agreement keys (Room 3→4) | #8 | v2026-10-15-2 |
 | 2026-10-15 | #6 No plaintext direct messages (held until keyed) | #9 | v2026-10-15-3 |
 | 2026-10-15 | #24 Release tags from CI (`release-tag.yml`) | #11, #12 | v2026-10-15-5 |
-| 2026-10-16 | #7 Hop count on delivered messages (Room 4→5) | #14 | see log |
-| 2026-10-16 | #8 Incoming message notifications (direct messages) | #15 | see log |
-| 2026-10-16 | #9 Unread counts by local receive time (Room 5→6) | #16 | see log |
+| 2026-10-16 | #7 Hop count on delivered messages (Room 4→5) | #14 | v2026-10-16-1 |
+| 2026-10-16 | #8 Incoming message notifications (direct messages) | #15 | v2026-10-16-2 |
+| 2026-10-16 | #9 Unread counts by local receive time (Room 5→6) | #16 | next merge (v2026-10-16-3) |
