@@ -131,8 +131,9 @@ class ChatViewModel @Inject constructor(
      * Tells the app this thread is on screen, or no longer is.
      *
      * Silences its notifications while the user is reading it. Also marks it
-     * read on the way in: a message that arrived while the app was in the
-     * background is read the moment the user comes back to this screen.
+     * read on the way in, and again on the way out: everything that arrived
+     * while the thread was on screen has been seen, and without the second
+     * mark it would come back as unread on the peer list.
      *
      * Takes the thread explicitly rather than reading the bound one: the
      * resume effect can run before [bind]'s coroutine has re-pointed this
@@ -145,6 +146,7 @@ class ChatViewModel @Inject constructor(
             viewModelScope.launch { messages.markRead(conversationId) }
         } else {
             foregroundConversation.leave(conversationId)
+            viewModelScope.launch { messages.markRead(conversationId) }
         }
     }
 

@@ -47,6 +47,9 @@ object DatabaseTestFixtures {
         timestamp: Long = T0,
         deliveryState: DeliveryState = DeliveryState.DELIVERED,
         isOutgoing: Boolean = false,
+        // Defaults to the sender's timestamp, as if both clocks agreed; the
+        // clock-skew tests set it apart on purpose.
+        receivedAt: Long = timestamp,
     ) = MessageEntity(
         id = id,
         conversationId = conversationId,
@@ -55,6 +58,7 @@ object DatabaseTestFixtures {
         timestamp = timestamp,
         deliveryState = deliveryState,
         isOutgoing = isOutgoing,
+        receivedAt = receivedAt,
     )
 
     /** Broadcast recipient id: an all-zero peer id, hex-encoded. */

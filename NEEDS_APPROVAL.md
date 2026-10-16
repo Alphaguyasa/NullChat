@@ -14,6 +14,14 @@ cannot change the routine's model (no RemoteTrigger tool in the session).
 routine "Null Chat daily dev" to it; otherwise keep `opus` (Opus 5.5 today).
 Never upgrade the plan for this.
 
+### 5c. Two-phone check for PR #15 (message notifications, 2026-10-16)
+Phone B sends a direct message while A is on the peer list, on another app, or
+locked. A should show one notification, and a second message turns it into "2 new
+messages". Tapping it opens B's thread and clears the notification. With B's thread
+open on A, no notification should appear. On A's lock screen only "New message"
+shows. Broadcasts should not notify. Also check that `delivered · 1 hop` (PR #14)
+appears under your sent messages.
+
 ### 5b. Two-phone check for PR #9 (no plaintext direct messages)
 On two phones that have **never met** (or after clearing data on one): send a
 direct message before they connect. It must show `queued`, not `sent`. After the

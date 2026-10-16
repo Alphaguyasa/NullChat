@@ -11,7 +11,6 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 9 | **Unread counts** on peer list rows (`lastReadAt` already exists). | P1 | S | |
 | 10 | **Failed state + retry.** Surface FAILED in bubbles, long-press to resend; expire PENDING rows whose queue entry expired. Long text and images (fragmented, not store-and-forwarded) fail when nobody is in range, so retry matters more now. | P1 | M | |
 | 11 | **Settings screen + display name.** Fourth destination; name carried in ANNOUNCE (new field, versioned), shown on radar and peer list. | P1 | L | Wire format change → split PRs. |
 | 12 | **Release build hardening.** Enable R8 with keep rules for Tink/Nearby/Room/Hilt, measure APK size, add `assembleRelease` (unsigned) to CI. | P1 | M | No keystore in repo. |
@@ -46,5 +45,6 @@ exist but only run on a physical phone.
 | 2026-10-15 | #5 Persist peers' agreement keys (Room 3→4) | #8 | v2026-10-15-2 |
 | 2026-10-15 | #6 No plaintext direct messages (held until keyed) | #9 | v2026-10-15-3 |
 | 2026-10-15 | #24 Release tags from CI (`release-tag.yml`) | #11, #12 | v2026-10-15-5 |
-| 2026-10-16 | #7 Hop count on delivered messages (Room 4→5) | #14 | see log |
-| 2026-10-16 | #8 Incoming message notifications (direct messages) | #15 | see log |
+| 2026-10-16 | #7 Hop count on delivered messages (Room 4→5) | #14 | v2026-10-16-1 |
+| 2026-10-16 | #8 Incoming message notifications (direct messages) | #15 | v2026-10-16-2 |
+| 2026-10-16 | #9 Unread counts by local receive time (Room 5→6) | #16 | next merge (v2026-10-16-3) |

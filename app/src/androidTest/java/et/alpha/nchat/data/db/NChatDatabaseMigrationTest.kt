@@ -5,6 +5,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -313,6 +314,60 @@ class NChatDatabaseMigrationTest {
                 val delivered = db.messageDao().findById("m2")
                 assertEquals(DeliveryState.DELIVERED, delivered?.deliveryState)
                 assertEquals(3, delivered?.hops)
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * The v5 → v6 upgrade that adds `messages.receivedAt`.
+     *
+     * Existing rows take their sender timestamp, which is what unread
+     * counting compared until now — so the badge the user sees is the same
+     * before and after the upgrade.
+     */
+    @Test
+    fun migratingToVersion6KeepsHistoryAndTheUnreadBadge() {
+        helper.createDatabase(TEST_DB, 5).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO conversations
+                    (id, peerId, title, createdAt, lastActivityAt, lastReadAt)
+                VALUES ('direct:peer', 'peer', NULL, 1000, 3000, 1500)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO messages
+                    (id, conversationId, senderId, body, timestamp, deliveryState,
+                     isOutgoing, attachmentFile, hops)
+                VALUES ('read', 'direct:peer', 'peer', 'seen', 1000, 'DELIVERED', 0, NULL, NULL),
+                       ('unread', 'direct:peer', 'peer', 'not yet', 2000, 'DELIVERED', 0, NULL, NULL),
+                       ('mine', 'direct:peer', 'self', 'sent', 3000, 'DELIVERED', 1, NULL, 2)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_5_6 and validates the result against schemas/6.json.
+        helper.runMigrationsAndValidate(TEST_DB, 6, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val unread = db.messageDao().findById("unread")
+                assertEquals("not yet", unread?.body)
+                assertEquals(2000L, unread?.receivedAt)
+                assertEquals(2, db.messageDao().findById("mine")?.hops)
+
+                val summary = db.conversationDao().observeSummaries().first().single()
+                assertEquals(3, summary.messageCount)
+                assertEquals(1, summary.unreadCount)
             }
         } finally {
             db.close()

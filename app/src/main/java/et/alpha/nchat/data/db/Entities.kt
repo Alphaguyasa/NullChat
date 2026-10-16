@@ -1,5 +1,6 @@
 package et.alpha.nchat.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -159,6 +160,17 @@ data class MessageEntity(
      * byte, not a measurement; it only ever feeds the `· N hops` suffix.
      */
     val hops: Int? = null,
+    /**
+     * When this device stored the row, epoch millis by this device's clock.
+     *
+     * Unread counting compares this, never [timestamp], against
+     * `ConversationEntity.lastReadAt`. [timestamp] comes from the sender's
+     * clock, and phones with no network and no SIM never sync theirs: a
+     * sender an hour behind would have every new message counted as already
+     * read, and one an hour ahead would leave the badge stuck after reading.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val receivedAt: Long = 0L,
 ) {
     /** Whether this message carries an image rather than text. */
     val hasAttachment: Boolean get() = attachmentFile != null

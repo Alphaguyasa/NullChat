@@ -53,7 +53,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun forwardQueueDao(): ForwardQueueDao
 
     companion object {
-        const val VERSION: Int = 5
+        const val VERSION: Int = 6
 
         const val NAME: String = "nchat.db"
 
@@ -130,6 +130,23 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds `messages.receivedAt`, the local time a row was stored.
+         *
+         * NOT NULL with a default so the entity can keep a plain `Long`. The
+         * best value existing rows can have is their sender timestamp — the
+         * same value unread counting used until now — so the badge a user sees
+         * is unchanged by the upgrade, and only new messages get a local time.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "ALTER TABLE `messages` ADD COLUMN `receivedAt` INTEGER NOT NULL DEFAULT 0",
+                )
+                connection.execSQL("UPDATE `messages` SET `receivedAt` = `timestamp`")
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
@@ -140,6 +157,7 @@ abstract class NChatDatabase : RoomDatabase() {
             MIGRATION_2_3,
             MIGRATION_3_4,
             MIGRATION_4_5,
+            MIGRATION_5_6,
         )
     }
 }

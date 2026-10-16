@@ -62,6 +62,7 @@ class MessageRepository @Inject constructor(
             deliveryState = DeliveryState.PENDING,
             isOutgoing = true,
             attachmentFile = attachmentFile,
+            receivedAt = now,
         )
         database.withTransaction {
             ensureConversation(conversationId, peerId, now)
@@ -99,6 +100,7 @@ class MessageRepository @Inject constructor(
                 deliveryState = DeliveryState.DELIVERED,
                 isOutgoing = false,
                 attachmentFile = attachmentFile,
+                receivedAt = now,
             ),
         )
         val isNew = rowId != -1L

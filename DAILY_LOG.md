@@ -4,6 +4,44 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-16 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Claude Fable 5.1 is still listed above it;
+the run has no RemoteTrigger tool, so it cannot switch → ACTION FOR ALPHA stays open
+(NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`2a6c2cb`). There is still no Android SDK in the cloud box,
+  so CI was the only build.
+- Room identity hashes are now computed locally: `SchemaIdentityKey` is
+  re-implemented from the androidx sources and matches all committed schemas, so a
+  hand-written `N.json` no longer needs a failed CI run to learn its hash.
+- **PR #14** roadmap #7: `messages.hops` (Room 4→5) stores the hop count from
+  the ACK, and the bubble reads `delivered · N hops`. Counts outside 1..6 are dropped.
+  108 instrumented tests green on the first attempt. Merged, `v2026-10-16-1`.
+- **PR #15** roadmap #8: notifications for direct messages, on their own channel. A tap opens
+  the thread. Sender and text are hidden on the lock screen. Nothing is posted for the
+  thread on screen, and broadcasts never notify. Green on the first attempt. Merged,
+  `v2026-10-16-2`. Needs two-phone check.
+- **PR #16** roadmap #9: the unread badge already existed, but it compared the sender's
+  clock with ours. Offline phones never sync their clocks, so new messages could count
+  as read, or a badge could stick. `messages.receivedAt` (Room 5→6) now drives
+  unread, and leaving a thread marks what arrived meanwhile as read.
+- Branch reuse: after each squash-merge the designated branch restarts from main
+  with a `merge -s ours` of its old head, so there is no force-push.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #7 hop count (PR #14); #8 notifications (PR #15); #9 unread by local receive time (PR #16) |
+| Merged | #14 yes `v2026-10-16-1`; #15 yes `v2026-10-16-2`; #16 see notification |
+| Failed or blocked | Nothing failed. No local Android build possible (CI only) |
+| Roadmap | 14 open items + tech debt; no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; two-phone checks for #9 (yesterday) and #15 (notifications); backup; signing; route strip |
+| Next | #10 failed state + retry, #11 settings + display name (split), #12 release build hardening |
+
+---
+
 ## 2026-10-15 — run 1 (scheduled cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Docs list Claude Fable 5.1 as a higher

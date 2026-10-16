@@ -46,6 +46,9 @@ interface ConversationDao {
      *
      * Ordered by the maintained `lastActivityAt` column rather than by a computed
      * max(timestamp) so the sort can use its index instead of scanning messages.
+     *
+     * Unread compares `receivedAt` with `lastReadAt`, both from this device's
+     * clock; see `MessageEntity.receivedAt` for why not the sender's timestamp.
      */
     @Query(
         """
@@ -55,7 +58,7 @@ interface ConversationDao {
             (SELECT COUNT(*) FROM messages m
              WHERE m.conversationId = c.id
                AND m.isOutgoing = 0
-               AND m.timestamp > c.lastReadAt) AS unreadCount,
+               AND m.receivedAt > c.lastReadAt) AS unreadCount,
             (SELECT m.body FROM messages m
              WHERE m.conversationId = c.id
              ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) AS lastMessageBody,
