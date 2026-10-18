@@ -13,6 +13,7 @@ import et.alpha.nchat.data.media.AttachmentStore
 import et.alpha.nchat.data.media.ImagePolicy
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
+import et.alpha.nchat.data.settings.DisplayNameStore
 import et.alpha.nchat.di.MeshScope
 import et.alpha.nchat.mesh.crypto.LocalIdentity
 import et.alpha.nchat.mesh.crypto.PublicKeyDirectory
@@ -31,6 +32,7 @@ import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.protocol.Profile
+import et.alpha.nchat.mesh.protocol.profilePacket
 import et.alpha.nchat.mesh.router.ForwardQueue
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.router.RelayEvent
@@ -49,6 +51,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -207,6 +210,7 @@ class MeshCoordinator @Inject constructor(
     private val cipher: SessionCipher,
     private val attachments: AttachmentStore,
     private val transfers: TransferTracker,
+    private val displayNames: DisplayNameStore,
     @MeshScope private val scope: CoroutineScope,
 ) {
 
@@ -301,6 +305,37 @@ class MeshCoordinator @Inject constructor(
         collectIncoming()
         collectPeers()
         expireStalePending()
+        collectNameChanges()
+    }
+
+    /**
+     * Tells the mesh when the user changes their name.
+     *
+     * Only changes: the name at start goes out with every announcement anyway,
+     * so re-sending it here would just put a second copy on the air. Clearing
+     * the name sends nothing — there is no "forget my name" packet, and old
+     * builds would not understand one. Peers keep the last name they heard until
+     * a new one replaces it.
+     */
+    private fun collectNameChanges() = scope.launch {
+        displayNames.displayName.drop(1).collect { name ->
+            if (name != null) broadcastProfile(name)
+        }
+    }
+
+    /** Broadcasts this device's display name, if it has one. */
+    private suspend fun broadcastProfile(name: String? = displayNames.displayName.value) {
+        val profile = name?.let(Profile::fromInput) ?: return
+        val packet = profilePacket(
+            messageId = newMessageId().hexIdToBytes(),
+            senderId = identity.peerId,
+            profile = profile,
+            timestamp = System.currentTimeMillis(),
+        )
+        // Not queued when nobody is in range: PROFILE is not a store-and-forward
+        // type, and the next connection sends a fresh one after the announcement.
+        runCatching { router.originate(packet) }
+            .onFailure { Log.w(TAG, "failed to send profile: ${it.message}") }
     }
 
     /**
@@ -1054,6 +1089,9 @@ class MeshCoordinator @Inject constructor(
                     // so the peer can verify what follows rather than filing it
                     // all as coming from an unknown sender.
                     announceSelf()
+                    // After the announcement, so the peer holds our key by the
+                    // time the signed name arrives and can verify it.
+                    broadcastProfile()
                     offerQueued(peerId, endpointId)
                 }
             }

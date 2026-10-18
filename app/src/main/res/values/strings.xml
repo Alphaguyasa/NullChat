@@ -61,4 +61,13 @@
     <string name="chat_pair_action">Pair</string>
     <string name="chat_resend_action">Resend</string>
     <string name="chat_resend_hint">tap to resend</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_open">Settings</string>
+    <string name="settings_name_title">Your name</string>
+    <string name="settings_name_placeholder">Name shown to people nearby</string>
+    <string name="settings_name_hint">Sent to every phone in range, next to your id. Leave it empty to be shown by id only.</string>
+    <string name="settings_name_saved">Saved. Phones in range see it now, others the next time you meet.</string>
+    <string name="settings_name_save">Save</string>
+    <string name="settings_id_title">Your id</string>
+    <string name="settings_id_hint">Anyone can pick any name. The id comes from your key, so it is what people should check, by pairing with a QR code.</string>
 </resources>

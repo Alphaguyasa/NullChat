@@ -9,6 +9,7 @@ import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
+import et.alpha.nchat.data.settings.DisplayNameStore
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.transport.NearbyTransport
 import javax.inject.Inject
@@ -94,6 +95,8 @@ data class PeerListState(
     val rows: List<PeerRow> = emptyList(),
     val onlineCount: Int = 0,
     val selfId: String = "",
+    /** The name this device announces, or null when it has none. */
+    val selfName: String? = null,
 )
 
 /**
@@ -117,6 +120,7 @@ class PeerListViewModel @Inject constructor(
     messages: MessageRepository,
     private val transport: NearbyTransport,
     coordinator: MeshCoordinator,
+    displayNames: DisplayNameStore,
 ) : ViewModel() {
 
     val selfId: String = coordinator.selfId
@@ -183,11 +187,12 @@ class PeerListViewModel @Inject constructor(
             onlineCount = online.size,
             selfId = selfId,
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = PeerListState(selfId = selfId),
-    )
+    }.combine(displayNames.displayName) { list, name -> list.copy(selfName = name) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+            initialValue = PeerListState(selfId = selfId, selfName = displayNames.displayName.value),
+        )
 
     private fun ConversationSummary?.toBroadcastRow(onlineCount: Int) = PeerRow(
         peerId = null,

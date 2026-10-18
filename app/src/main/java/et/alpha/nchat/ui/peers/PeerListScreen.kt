@@ -73,6 +73,7 @@ fun PeerListScreen(
     onOpenConversation: (peerId: String?) -> Unit,
     onOpenPairing: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit = {},
     viewModel: PeerListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -94,7 +95,9 @@ fun PeerListScreen(
         Header(
             onlineCount = state.onlineCount,
             selfId = state.selfId,
+            selfName = state.selfName,
             onOpenPairing = onOpenPairing,
+            onOpenSettings = onOpenSettings,
         )
         HorizontalDivider()
 
@@ -148,7 +151,13 @@ fun PeerListScreen(
 }
 
 @Composable
-private fun Header(onlineCount: Int, selfId: String, onOpenPairing: () -> Unit) {
+private fun Header(
+    onlineCount: Int,
+    selfId: String,
+    onOpenPairing: () -> Unit,
+    selfName: String? = null,
+    onOpenSettings: () -> Unit = {},
+) {
     Column(modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -174,6 +183,7 @@ private fun Header(onlineCount: Int, selfId: String, onOpenPairing: () -> Unit) 
                     style = MaterialTheme.typography.labelLarge,
                 )
             }
+
         }
         // Monospace and coloured by the answer: this is a reading off the radio,
         // and how many phones are within reach is the headline fact of the screen.
@@ -190,14 +200,31 @@ private fun Header(onlineCount: Int, selfId: String, onOpenPairing: () -> Unit) 
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
         )
-        if (selfId.isNotEmpty()) {
-            // Shown so two phones under test can be told apart at a glance, and
-            // so the tester can confirm each has a distinct identity.
-            Text(
-                text = "you  ${selfId.take(SHORT_ID_CHARS)}",
-                style = MonoSmall,
-                color = TextMuted,
-            )
+        // Settings sits on the identity line rather than beside pairing: the
+        // title row already gives way to one button at 200% font scale, and the
+        // name this line shows is the main thing the settings screen changes.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (selfId.isNotEmpty()) {
+                // Shown so two phones under test can be told apart at a glance, and
+                // so the tester can confirm each has a distinct identity.
+                Text(
+                    text = "you  " + peerLabel(selfName, selfId),
+                    style = MonoSmall,
+                    color = TextMuted,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            TextButton(onClick = onOpenSettings) {
+                Text(
+                    text = stringResource(R.string.settings_open),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
         }
     }
 }

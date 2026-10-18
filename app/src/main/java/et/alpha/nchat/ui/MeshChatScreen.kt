@@ -12,19 +12,22 @@ import androidx.compose.ui.Modifier
 import et.alpha.nchat.ui.chat.ChatScreen
 import et.alpha.nchat.ui.pair.QrPairScreen
 import et.alpha.nchat.ui.peers.PeerListScreen
+import et.alpha.nchat.ui.settings.SettingsScreen
 import et.alpha.nchat.ui.theme.motionSpec
 import et.alpha.nchat.ui.theme.rememberAnimationsEnabled
 
 /** Where the user currently is. */
-private enum class Destination { PEERS, CHAT, PAIR }
+private enum class Destination { PEERS, CHAT, PAIR, SETTINGS }
 
 /**
- * Host for the app's three screens.
+ * Host for the app's four screens.
  *
- * Still no navigation graph. This used to justify itself with "exactly two
- * destinations"; at three it is a small enum and a `when`, which is still less
- * machinery than a nav library and still has no argument-passing to get wrong.
- * A fourth destination, or any need for deep links, is the point to reconsider.
+ * Still no navigation graph. At four destinations this is a small enum and a
+ * `when`, and still the only argument passed anywhere is the open thread — less
+ * machinery than a nav library and nothing to get wrong. The roadmap's fourth
+ * destination (settings) was the point to reconsider; it changed nothing,
+ * because every screen still returns to the peer list. A screen reached from
+ * another non-root screen, or a need for deep links, is the next such point.
  *
  * The destination and open conversation are [rememberSaveable] so a rotation
  * does not throw the user back to the peer list mid-conversation.
@@ -76,12 +79,15 @@ fun MeshChatScreen(
 
             Destination.PAIR -> QrPairScreen(onBack = { destination = Destination.PEERS })
 
+            Destination.SETTINGS -> SettingsScreen(onBack = { destination = Destination.PEERS })
+
             Destination.PEERS -> PeerListScreen(
                 onOpenConversation = { peerId ->
                     openPeerId = peerId
                     destination = Destination.CHAT
                 },
                 onOpenPairing = { destination = Destination.PAIR },
+                onOpenSettings = { destination = Destination.SETTINGS },
             )
         }
     }
