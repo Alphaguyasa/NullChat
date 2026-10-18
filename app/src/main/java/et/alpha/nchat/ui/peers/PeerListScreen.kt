@@ -475,7 +475,6 @@ private val PeerRow.key: String get() = peerId ?: BROADCAST_KEY
 
 private const val BROADCAST_KEY = "__broadcast__"
 private const val RADAR_KEY = "__radar__"
-private const val SHORT_ID_CHARS = 8
 private const val ENTER_SCALE = 0.9f
 private const val EXIT_SCALE = 0.95f
 
