@@ -96,6 +96,21 @@ data class PeerListState(
     val selfId: String = "",
 )
 
+/**
+ * How a peer is named in the list: their chosen name with the short id beside
+ * it, or the short id alone.
+ *
+ * The id stays even when a name is known. A name is whatever the peer typed,
+ * and two strangers can both be "Maya"; eight hex characters derived from the
+ * key are the part nobody can pick for themselves.
+ */
+private const val SHORT_ID_CHARS = 8
+
+internal fun peerLabel(displayName: String?, peerId: String): String {
+    val shortId = peerId.take(SHORT_ID_CHARS)
+    return if (displayName.isNullOrBlank()) shortId else "$displayName · $shortId"
+}
+
 @HiltViewModel
 class PeerListViewModel @Inject constructor(
     peers: PeerRepository,
@@ -148,7 +163,7 @@ class PeerListViewModel @Inject constructor(
             val summary = byConversation[directConversationId(peer.id)]
             PeerRow(
                 peerId = peer.id,
-                label = peer.displayName ?: peer.id.take(SHORT_ID_CHARS),
+                label = peerLabel(peer.displayName, peer.id),
                 isOnline = peer.id in online,
                 lastMessage = summary?.lastMessageBody,
                 unreadCount = summary?.unreadCount ?: 0,
@@ -183,7 +198,6 @@ class PeerListViewModel @Inject constructor(
     )
 
     private companion object {
-        const val SHORT_ID_CHARS = 8
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }

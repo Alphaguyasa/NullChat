@@ -1,0 +1,25 @@
+package et.alpha.nchat.ui.peers
+
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+
+class PeerLabelTest {
+
+    private val peer = "a1b2c3d4e5f60718"
+
+    @Test
+    fun `a peer with no name is its short id`() {
+        assertEquals("a1b2c3d4", peerLabel(null, peer))
+    }
+
+    @Test
+    fun `a chosen name keeps the short id beside it`() {
+        // Anyone can call themselves Maya; only the id comes from the key.
+        assertEquals("Maya · a1b2c3d4", peerLabel("Maya", peer))
+    }
+
+    @Test
+    fun `a blank name counts as none`() {
+        assertEquals("a1b2c3d4", peerLabel("  ", peer))
+    }
+}
