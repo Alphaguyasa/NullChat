@@ -59,4 +59,6 @@
     <string name="chat_unverified_warning">You have not verified this contact. Pair by QR code to confirm their key really belongs to them.</string>
     <string name="chat_broadcast_warning">Messages to Everyone are not encrypted. Anyone in range can read them.</string>
     <string name="chat_pair_action">Pair</string>
+    <string name="chat_resend_action">Resend</string>
+    <string name="chat_resend_hint">tap to resend</string>
 </resources>

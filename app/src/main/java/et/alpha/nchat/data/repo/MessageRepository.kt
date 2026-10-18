@@ -43,6 +43,10 @@ class MessageRepository @Inject constructor(
      *
      * The returned row carries the id the mesh layer must put in the packet's
      * `messageId` field, so acknowledgements can be matched back to this row.
+     *
+     * @param replaces id of a failed row this message is a resend of. It is
+     *   deleted in the same transaction the new row is inserted in, so the thread
+     *   never shows both copies and a crash can never leave neither.
      */
     suspend fun recordOutgoing(
         conversationId: String,
@@ -52,6 +56,7 @@ class MessageRepository @Inject constructor(
         messageId: String = newMessageId(),
         now: Long = System.currentTimeMillis(),
         attachmentFile: String? = null,
+        replaces: String? = null,
     ): MessageEntity {
         val message = MessageEntity(
             id = messageId,
@@ -67,6 +72,7 @@ class MessageRepository @Inject constructor(
         database.withTransaction {
             ensureConversation(conversationId, peerId, now)
             messageDao.insert(message)
+            if (replaces != null) messageDao.deleteById(replaces)
             conversationDao.bumpActivity(conversationId, now)
         }
         return message
@@ -131,6 +137,18 @@ class MessageRepository @Inject constructor(
 
     suspend fun markFailed(messageId: String): Boolean =
         messageDao.updateDeliveryState(messageId, DeliveryState.FAILED) > 0
+
+    /**
+     * Fails our messages still PENDING after being written at or before [cutoff].
+     *
+     * The forward queue drops an entry after 24 hours, and nothing tells the row
+     * — so without this a message the mesh gave up on would read `queued`
+     * forever, which is the one lie the delivery label must never tell.
+     *
+     * @return how many rows were failed.
+     */
+    suspend fun expirePendingOutgoing(cutoff: Long): Int =
+        messageDao.expireOutgoing(cutoff, DeliveryState.PENDING, DeliveryState.FAILED)
 
     /** Marks everything received up to [at] as read. */
     suspend fun markRead(conversationId: String, at: Long = System.currentTimeMillis()) {

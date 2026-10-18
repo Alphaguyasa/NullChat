@@ -59,7 +59,20 @@ fun newMessageId(): String {
 }
 
 /** Conversation id for the one-to-one thread with [peerId]. */
-fun directConversationId(peerId: String): String = "direct:$peerId"
+fun directConversationId(peerId: String): String = "$DIRECT_PREFIX$peerId"
+
+/**
+ * The peer a one-to-one thread is with, or null for any other conversation id.
+ *
+ * The inverse of [directConversationId], for code that starts from a stored row
+ * and has to address a packet — resending a failed message, for one.
+ */
+fun peerIdOfDirect(conversationId: String): String? =
+    conversationId.takeIf { it.startsWith(DIRECT_PREFIX) }
+        ?.removePrefix(DIRECT_PREFIX)
+        ?.takeIf { it.isNotEmpty() }
+
+private const val DIRECT_PREFIX = "direct:"
 
 /** Id of the single mesh-wide broadcast thread. */
 const val BROADCAST_CONVERSATION_ID: String = "broadcast"

@@ -207,6 +207,7 @@ fun ChatScreen(
                                 transfer = transfers[message.id],
                                 attachmentPath = message.attachmentFile
                                     ?.let(viewModel::attachmentPath),
+                                onResend = { viewModel.onResend(message.id) },
                                 // Settled on the row's first composition and kept:
                                 // a bubble scrolled out of view and back is the
                                 // same message, not a second send.
@@ -374,9 +375,13 @@ private fun ChatMessage(
     transfer: Transfer? = null,
     attachmentPath: String? = null,
     animateSend: Boolean = false,
+    onResend: () -> Unit = {},
 ) {
     val outgoing = message.isOutgoing
     val inFlight = transfer != null && transfer.state != TransferState.COMPLETE
+    // Only ours, only failed. A queued message is still on its way and a second
+    // copy would go out beside it; see `resendTarget` for the same rule below.
+    val resendable = outgoing && message.deliveryState == DeliveryState.FAILED
     val extras: @Composable (ColumnScope.() -> Unit)? =
         if (attachmentPath != null || inFlight) {
             {
@@ -402,6 +407,9 @@ private fun ChatMessage(
         // back in its ACK. `DeliveryStateLabel` drops it on states with no route.
         hopCount = message.hops.takeIf { outgoing },
         animateSend = animateSend,
+        onAction = onResend.takeIf { resendable },
+        actionLabel = stringResource(R.string.chat_resend_action),
+        failedHint = stringResource(R.string.chat_resend_hint).takeIf { resendable },
         content = extras,
     )
 }

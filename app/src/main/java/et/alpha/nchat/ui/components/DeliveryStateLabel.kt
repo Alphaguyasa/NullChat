@@ -35,12 +35,17 @@ import et.alpha.nchat.ui.theme.Warning
  *
  * @param hopCount hops the message travelled, or null when unknown. Zero means
  *   it never left this device, so nothing is appended.
+ * @param failedHint what the user can do about a failed message, appended after
+ *   `failed` and nowhere else. A dead end the user cannot see a way out of reads
+ *   as "the app is broken"; one with the way out written next to it reads as
+ *   "the mesh was empty".
  */
 @Composable
 fun DeliveryStateLabel(
     state: DeliveryState,
     modifier: Modifier = Modifier,
     hopCount: Int? = null,
+    failedHint: String? = null,
 ) {
     val word = when (state) {
         DeliveryState.PENDING -> "queued"
@@ -61,6 +66,7 @@ fun DeliveryStateLabel(
     // count on either would be a contradiction.
     val hops = hopCount
         ?.takeIf { it > 0 && (state == DeliveryState.SENT || state == DeliveryState.DELIVERED) }
+    val hint = failedHint?.takeIf { state == DeliveryState.FAILED }
 
     Text(
         text = buildAnnotatedString {
@@ -69,6 +75,9 @@ fun DeliveryStateLabel(
                 withStyle(SpanStyle(color = TextMuted)) {
                     append(if (hops == 1) " · 1 hop" else " · $hops hops")
                 }
+            }
+            if (hint != null) {
+                withStyle(SpanStyle(color = TextMuted)) { append(" · $hint") }
             }
         },
         style = MonoSmall,
@@ -91,6 +100,7 @@ private fun DeliveryStateLabelPreview() {
                 DeliveryStateLabel(DeliveryState.DELIVERED, hopCount = 2)
                 DeliveryStateLabel(DeliveryState.DELIVERED, hopCount = 4)
                 DeliveryStateLabel(DeliveryState.FAILED)
+                DeliveryStateLabel(DeliveryState.FAILED, failedHint = "tap to resend")
                 // Hop counts are suppressed on states that cannot have a route.
                 DeliveryStateLabel(DeliveryState.PENDING, hopCount = 3)
             }

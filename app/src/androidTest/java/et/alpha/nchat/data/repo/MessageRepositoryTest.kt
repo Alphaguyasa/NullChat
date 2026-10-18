@@ -199,6 +199,31 @@ class MessageRepositoryTest {
         assertEquals(listOf(false, true), thread.map { it.isOutgoing })
     }
 
+    @Test
+    fun aResendReplacesTheFailedRowInOneStep() = runTest {
+        val failed = repo.recordOutgoing(convoId, SELF, "are you there", PEER_A, messageId = "old", now = T0)
+        repo.markFailed(failed.id)
+
+        val resent = repo.recordOutgoing(
+            convoId, SELF, "are you there", PEER_A, messageId = "new", now = T0 + HOUR, replaces = "old",
+        )
+
+        val thread = repo.observeMessages(convoId).first()
+        assertEquals(listOf("new"), thread.map { it.id })
+        assertEquals(DeliveryState.PENDING, resent.deliveryState)
+    }
+
+    @Test
+    fun queuedMessagesExpireOnceTheQueueHasLetThemGo() = runTest {
+        repo.recordOutgoing(convoId, SELF, "yesterday", PEER_A, messageId = "old", now = T0 - 25 * HOUR)
+        repo.recordOutgoing(convoId, SELF, "just now", PEER_A, messageId = "new", now = T0)
+
+        assertEquals(1, repo.expirePendingOutgoing(cutoff = T0 - 24 * HOUR))
+
+        assertEquals(DeliveryState.FAILED, repo.findMessage("old")?.deliveryState)
+        assertEquals(DeliveryState.PENDING, repo.findMessage("new")?.deliveryState)
+    }
+
     private companion object {
         const val HOUR = 60 * 60 * 1000L
     }

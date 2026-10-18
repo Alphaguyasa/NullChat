@@ -213,6 +213,22 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Sends a failed message again, in its place at the bottom of the thread.
+     *
+     * Every outcome but Rejected shows up in the row itself, so only that one
+     * needs a message of its own.
+     */
+    fun onResend(messageId: String) {
+        viewModelScope.launch {
+            when (val result = coordinator.resend(messageId)) {
+                is SendResult.Rejected -> _errors.value = result.reason
+                is SendResult.Failed -> _errors.value = result.reason
+                SendResult.Pending, SendResult.Sent -> Unit
+            }
+        }
+    }
+
     /** Absolute path of a stored attachment, for the bubble to decode. */
     fun attachmentPath(fileName: String): String = attachments.pathFor(fileName)
 

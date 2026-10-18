@@ -206,6 +206,35 @@ class MessageDaoTest {
     }
 
     @Test
+    fun expireOutgoingFailsOnlyOurStalePendingRows() = runTest {
+        messages.insert(
+            message(id = "stale", isOutgoing = true, deliveryState = DeliveryState.PENDING, timestamp = T0 - 1),
+        )
+        messages.insert(
+            message(id = "edge", isOutgoing = true, deliveryState = DeliveryState.PENDING, timestamp = T0),
+        )
+        messages.insert(
+            message(id = "fresh", isOutgoing = true, deliveryState = DeliveryState.PENDING, timestamp = T0 + 1),
+        )
+        // Already went out: an old SENT row is history, not a stuck one.
+        messages.insert(
+            message(id = "sent", isOutgoing = true, deliveryState = DeliveryState.SENT, timestamp = T0 - 1),
+        )
+        messages.insert(
+            message(id = "in", isOutgoing = false, deliveryState = DeliveryState.PENDING, timestamp = T0 - 1),
+        )
+
+        val expired = messages.expireOutgoing(T0, DeliveryState.PENDING, DeliveryState.FAILED)
+
+        assertEquals(2, expired)
+        assertEquals(DeliveryState.FAILED, messages.findById("stale")?.deliveryState)
+        assertEquals(DeliveryState.FAILED, messages.findById("edge")?.deliveryState)
+        assertEquals(DeliveryState.PENDING, messages.findById("fresh")?.deliveryState)
+        assertEquals(DeliveryState.SENT, messages.findById("sent")?.deliveryState)
+        assertEquals(DeliveryState.PENDING, messages.findById("in")?.deliveryState)
+    }
+
+    @Test
     fun honoursTheLimitOnPendingLookups() = runTest {
         repeat(5) {
             messages.insert(
