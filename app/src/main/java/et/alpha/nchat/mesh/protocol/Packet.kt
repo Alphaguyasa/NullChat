@@ -144,6 +144,9 @@ enum class PacketType(val wire: Int) {
     ACK(3),
     KEY_EXCHANGE(4),
     FRAGMENT(5),
+
+    /** The sender's chosen display name. Builds before it drop the packet unread. */
+    PROFILE(6),
     ;
 
     companion object {
