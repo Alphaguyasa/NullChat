@@ -24,15 +24,19 @@ open (NEEDS_APPROVAL #7).
   It is not an ANNOUNCE field, because every existing build parses ANNOUNCE as exactly 64 bytes.
   Names are normalised (no control, bidi or zero-width characters, ≤48 bytes) and stored on the
   existing `peers.displayName` column, so there is no migration. The peer list shows `name · id`.
+  Attempt 1 failed one unit test: `PacketCodecTest` used 6 as its "unknown packet type" example.
+  Fixed on the branch, and this time the whole protocol suite (155 tests) was run locally first.
+  Merged, `v2026-10-18-2`.
 - **PR #19** roadmap #11 part 2: Settings destination (fourth), own name in prefs, PROFILE sent
-  after each ANNOUNCE and on change. Needs two-phone check.
+  after each ANNOUNCE and on change. Green on the first attempt. Merged, `v2026-10-18-3`.
+  Needs two-phone check.
 
 ### REPORT
 | Field | Content |
 |---|---|
 | Done | #10 failed state + resend (PR #17); #11 display names (PRs #18, #19) |
-| Merged | #17 yes `v2026-10-18-1`; #18 and #19 see notification |
-| Failed or blocked | Nothing blocked. No local Android build (CI only); protocol tests also run locally |
+| Merged | #17 yes `v2026-10-18-1`; #18 yes `v2026-10-18-2`; #19 yes `v2026-10-18-3` |
+| Failed or blocked | #18 failed CI once (a stale test assumed type 6 was unknown), fixed on the second attempt. Nothing blocked. No local Android build (CI only) |
 | Roadmap | 12 open items + tech debt; no replan needed |
 | Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
 | Needs approval | Model; two-phone checks for #17/#19 (new), #15, #9; backup; signing; route strip |
