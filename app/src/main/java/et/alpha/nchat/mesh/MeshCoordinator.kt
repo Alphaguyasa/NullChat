@@ -30,6 +30,7 @@ import et.alpha.nchat.mesh.protocol.acknowledgementPacket
 import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
+import et.alpha.nchat.mesh.protocol.Profile
 import et.alpha.nchat.mesh.router.ForwardQueue
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.router.RelayEvent
@@ -692,6 +693,10 @@ class MeshCoordinator @Inject constructor(
                 recordAcknowledgement(packet)
                 return@collect
             }
+            if (packet.type == PacketType.PROFILE) {
+                recordProfile(packet)
+                return@collect
+            }
             if (packet.type != PacketType.MESSAGE) return@collect
 
             val senderHex = packet.senderId.toHexId()
@@ -991,6 +996,21 @@ class MeshCoordinator @Inject constructor(
         )
 
         if (!known) Log.i(TAG, "learned keys for ${Packet.tag(packet.senderId)}")
+    }
+
+    /**
+     * Files the display name a peer chose, from a PROFILE the router verified.
+     *
+     * Verified means signed by the key we hold for that id, so the name really is
+     * the one that peer picked — not that the peer is who the name says. The
+     * peer list therefore keeps the short id beside it; see `peerLabel`.
+     */
+    private suspend fun recordProfile(packet: Packet) {
+        val senderHex = packet.senderId.toHexId()
+        if (senderHex == selfId) return
+        val profile = Profile.parse(packet.payload) ?: return
+        peers.recordSeen(senderHex, displayName = profile.displayName)
+        Log.d(TAG, "profile from ${Packet.tag(packet.senderId)}")
     }
 
     /**
