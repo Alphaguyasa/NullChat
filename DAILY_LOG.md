@@ -4,6 +4,42 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-18 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The docs still list Claude Fable 5.1 above it.
+This session has no RemoteTrigger tool, so it cannot switch → ACTION FOR ALPHA stays
+open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`82a3183`, tag `v2026-10-16-3`). There is still no Android SDK
+  (dl.google.com is blocked). New this run: the pure-Kotlin protocol code and its tests were
+  compiled and run locally with kotlinc 2.2 + JUnit 5 from Maven Central. The rest relied on CI.
+- **PR #17** roadmap #10: FAILED was already shown in the bubble. What was new:
+  (a) PENDING rows older than the queue's 24 h lifetime become FAILED (at start and every 15 min).
+  Before this they read `queued` forever.
+  (b) Tap or long-press a failed bubble to resend. The resend is a new message that replaces the
+  failed row in one transaction. A fresh id is used because fragment ids derive from the message
+  id and would hit seen-caches.
+  Green on the first attempt. Merged, `v2026-10-18-1`. Needs two-phone check.
+- **PR #18** roadmap #11 part 1: a new `PROFILE` packet type (6) carries the display name.
+  It is not an ANNOUNCE field, because every existing build parses ANNOUNCE as exactly 64 bytes.
+  Names are normalised (no control, bidi or zero-width characters, ≤48 bytes) and stored on the
+  existing `peers.displayName` column, so there is no migration. The peer list shows `name · id`.
+- **PR #19** roadmap #11 part 2: Settings destination (fourth), own name in prefs, PROFILE sent
+  after each ANNOUNCE and on change. Needs two-phone check.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #10 failed state + resend (PR #17); #11 display names (PRs #18, #19) |
+| Merged | #17 yes `v2026-10-18-1`; #18 and #19 see notification |
+| Failed or blocked | Nothing blocked. No local Android build (CI only); protocol tests also run locally |
+| Roadmap | 12 open items + tech debt; no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; two-phone checks for #17/#19 (new), #15, #9; backup; signing; route strip |
+| Next | #12 release build hardening (R8), #13 Dependabot, #14 message actions |
+
+---
+
 ## 2026-10-16 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Claude Fable 5.1 is still listed above it;
