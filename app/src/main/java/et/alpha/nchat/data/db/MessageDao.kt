@@ -104,6 +104,23 @@ interface MessageDao {
     @Query("UPDATE messages SET deliveryState = :to WHERE id = :id AND deliveryState = :from")
     suspend fun advanceDeliveryState(id: String, from: DeliveryState, to: DeliveryState): Int
 
+    /**
+     * Moves our own messages written at or before [cutoff] from [from] to [to].
+     *
+     * Always PENDING → FAILED from the repository. Guarded on the current state
+     * for the same reason as [advanceDeliveryState]: a message that went out or
+     * was acknowledged in the meantime must keep that state.
+     *
+     * @return rows affected.
+     */
+    @Query(
+        """
+        UPDATE messages SET deliveryState = :to
+        WHERE isOutgoing = 1 AND deliveryState = :from AND timestamp <= :cutoff
+        """,
+    )
+    suspend fun expireOutgoing(cutoff: Long, from: DeliveryState, to: DeliveryState): Int
+
     @Query(
         """
         SELECT COUNT(*) FROM messages

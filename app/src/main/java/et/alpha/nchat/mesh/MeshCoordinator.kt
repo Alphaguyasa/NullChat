@@ -7,6 +7,7 @@ import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.hexIdToBytes
 import et.alpha.nchat.data.db.newMessageId
+import et.alpha.nchat.data.db.peerIdOfDirect
 import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.media.AttachmentStore
 import et.alpha.nchat.data.media.ImagePolicy
@@ -29,9 +30,11 @@ import et.alpha.nchat.mesh.protocol.acknowledgementPacket
 import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
+import et.alpha.nchat.mesh.router.ForwardQueue
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.router.RelayEvent
 import et.alpha.nchat.mesh.transport.NearbyTransport
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,7 +63,9 @@ sealed interface SendResult {
     /**
      * Stored, but nobody was in range to take it.
      *
-     * Not an error: the row stays PENDING and goes out when a peer appears.
+     * Not an error: the row stays PENDING and goes out when a peer appears —
+     * for as long as the forward queue holds it. After that the row is FAILED
+     * and the user can resend it; see [pendingExpiryCutoff].
      */
     data object Pending : SendResult
 
@@ -146,6 +151,34 @@ internal fun heldFor(peerHex: String, pending: List<MessageEntity>): List<Messag
     }
 
 /**
+ * Where a resend of [message] goes, or null when it is not ours to resend.
+ *
+ * Only our own FAILED rows. A PENDING one is still on its way (queued, or held
+ * for a key) and a resend would put two copies on the air; a SENT or DELIVERED
+ * one has already left. The inner null is the broadcast thread, which is why the
+ * answer is wrapped: "to everyone" and "not at all" must not look alike.
+ */
+internal fun resendTarget(message: MessageEntity): ResendTarget? {
+    if (!message.isOutgoing || message.deliveryState != DeliveryState.FAILED) return null
+    if (message.conversationId == BROADCAST_CONVERSATION_ID) return ResendTarget(null)
+    return peerIdOfDirect(message.conversationId)?.let(::ResendTarget)
+}
+
+/** @property recipientHexId the peer to resend to, or null for everyone. */
+internal data class ResendTarget(val recipientHexId: String?)
+
+/**
+ * The oldest write time a PENDING row may have at [now] and still be queued.
+ *
+ * Matches the forward queue's own lifetime, because that is the promise
+ * `queued` makes: past it the queue has dropped the packet and the row is
+ * waiting for nothing. A row held for want of a key ages out the same way. A
+ * peer that has not announced in a day is not one to keep a message sitting
+ * under `queued` for, and the user can resend it once they are back.
+ */
+internal fun pendingExpiryCutoff(now: Long): Long = now - ForwardQueue.DEFAULT_EXPIRY_MILLIS
+
+/**
  * One reading of a peer's distance, and when it was taken.
  *
  * The timestamp is the whole point: a hop count with no age attached cannot be
@@ -177,6 +210,9 @@ class MeshCoordinator @Inject constructor(
 ) {
 
     private val started = AtomicBoolean(false)
+
+    /** Ids of failed rows a [resend] is working on right now. */
+    private val resending: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     /**
      * Buffers for messages arriving in pieces.
@@ -263,6 +299,23 @@ class MeshCoordinator @Inject constructor(
         router.start()
         collectIncoming()
         collectPeers()
+        expireStalePending()
+    }
+
+    /**
+     * Fails PENDING rows the forward queue has given up on, at start and then
+     * every [EXPIRY_SWEEP_MILLIS].
+     *
+     * Periodic rather than only at start, because the service runs for days: a
+     * message composed on Monday would otherwise stay `queued` until whenever
+     * the process next happened to restart.
+     */
+    private fun expireStalePending() = scope.launch {
+        while (true) {
+            val expired = messages.expirePendingOutgoing(pendingExpiryCutoff(System.currentTimeMillis()))
+            if (expired > 0) Log.i(TAG, "$expired queued message(s) expired undelivered")
+            delay(EXPIRY_SWEEP_MILLIS)
+        }
     }
 
     /**
@@ -321,7 +374,49 @@ class MeshCoordinator @Inject constructor(
      * PENDING and is not transmitted at all; [releaseHeld] sends it once the key
      * arrives. See [sealOrHold].
      */
-    suspend fun send(body: String, recipientHexId: String?): SendResult {
+    suspend fun send(body: String, recipientHexId: String?): SendResult =
+        sendText(body, recipientHexId, replaces = null)
+
+    /**
+     * Sends one of our FAILED messages again, as a new message in its place.
+     *
+     * A fresh id and timestamp rather than a replay of the old ones. Fragment
+     * packet ids derive from the message id, so a replayed image would meet
+     * every seen-cache in the mesh that took part in the first attempt and be
+     * dropped as a duplicate for the next ten minutes — the retry would fail for
+     * exactly the devices that heard part of it. The new row takes the old one's
+     * place in a single transaction, so the thread shows one message, at the
+     * bottom, in its new state.
+     *
+     * @return [SendResult.Rejected] when [messageId] is not a failed message of
+     *   ours, or is already being resent — a double tap would otherwise read the
+     *   row as FAILED twice and put two copies in the thread.
+     */
+    suspend fun resend(messageId: String): SendResult {
+        if (!resending.add(messageId)) return SendResult.Rejected("That message is already being sent again.")
+        try {
+            val row = messages.findMessage(messageId)
+                ?: return SendResult.Rejected("That message is no longer here.")
+            val target = resendTarget(row)
+                ?: return SendResult.Rejected("Only a message that failed can be sent again.")
+
+            val attachment = row.attachmentFile
+                ?: return sendText(row.body, target.recipientHexId, replaces = row.id)
+
+            val jpeg = attachments.read(attachment)
+                ?: return SendResult.Rejected("The image for that message is no longer stored.")
+            val result = sendImage(jpeg, target.recipientHexId, replaces = row.id)
+            // Keyed on the old row being gone rather than on the result: the new
+            // row stores its own copy under its own id, and some failures land
+            // after the swap has already happened.
+            if (messages.findMessage(row.id) == null) attachments.delete(attachment)
+            return result
+        } finally {
+            resending.remove(messageId)
+        }
+    }
+
+    private suspend fun sendText(body: String, recipientHexId: String?, replaces: String?): SendResult {
         if (body.isBlank()) return SendResult.Rejected("empty message")
         if (!MessagePacket.isSendable(body)) {
             return SendResult.Rejected(
@@ -329,7 +424,7 @@ class MeshCoordinator @Inject constructor(
                     "over the ${MessagePacket.MAX_TEXT_BYTES} byte limit",
             )
         }
-        if (!MessagePacket.fits(body)) return sendLongText(body, recipientHexId)
+        if (!MessagePacket.fits(body)) return sendLongText(body, recipientHexId, replaces)
 
         val conversationId = conversationIdFor(recipientHexId)
         val row = messages.recordOutgoing(
@@ -337,6 +432,7 @@ class MeshCoordinator @Inject constructor(
             selfId = selfId,
             body = body,
             peerId = recipientHexId,
+            replaces = replaces,
         )
 
         return if (transmit(row.id, row.body, recipientHexId, row.timestamp)) {
@@ -363,7 +459,11 @@ class MeshCoordinator @Inject constructor(
      * empty, or empties partway, the message is marked FAILED and the user is
      * told — rather than left with a row that looks pending forever.
      */
-    suspend fun sendImage(jpeg: ByteArray, recipientHexId: String?): SendResult {
+    suspend fun sendImage(
+        jpeg: ByteArray,
+        recipientHexId: String?,
+        replaces: String? = null,
+    ): SendResult {
         if (!ImagePolicy.fits(jpeg.size)) {
             return SendResult.Rejected(
                 "image is ${jpeg.size} bytes, over the " +
@@ -385,6 +485,7 @@ class MeshCoordinator @Inject constructor(
             peerId = recipientHexId,
             messageId = messageId,
             attachmentFile = fileName,
+            replaces = replaces,
         )
 
         val fragments = runCatching {
@@ -411,12 +512,17 @@ class MeshCoordinator @Inject constructor(
      * encryption, then FRAGMENT packets the receiver reassembles. Like an image
      * it needs a peer in range for the whole transfer; see [sendImage].
      */
-    private suspend fun sendLongText(body: String, recipientHexId: String?): SendResult {
+    private suspend fun sendLongText(
+        body: String,
+        recipientHexId: String?,
+        replaces: String?,
+    ): SendResult {
         val row = messages.recordOutgoing(
             conversationId = conversationIdFor(recipientHexId),
             selfId = selfId,
             body = body,
             peerId = recipientHexId,
+            replaces = replaces,
         )
 
         val fragments = runCatching {
@@ -986,6 +1092,15 @@ class MeshCoordinator @Inject constructor(
          * changes only when they leave.
          */
         const val HOP_FRESHNESS_MILLIS: Long = 60 * 1000L
+
+        /**
+         * How often queued rows are checked against the queue's lifetime.
+         *
+         * A message can read `queued` for up to this long after the queue has
+         * dropped it. Fifteen minutes on a 24 hour lifetime is a rounding error
+         * for the user and a negligible wake-up for the battery.
+         */
+        const val EXPIRY_SWEEP_MILLIS: Long = 15 * 60 * 1000L
 
         /**
          * Gap between consecutive fragments of one image.

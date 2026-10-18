@@ -3,6 +3,7 @@ package et.alpha.nchat.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -72,6 +73,12 @@ private const val SEND_SCALE = 0.96f
  *   [rememberAnimationsEnabled][et.alpha.nchat.ui.theme.rememberAnimationsEnabled]'s
  *   answer. False leaves both animations parked at their resting values, so an
  *   ordinary bubble costs nothing to draw.
+ * @param onAction makes the bubble itself tappable, on both a tap and a long
+ *   press, and [actionLabel] names what that does for TalkBack. Both gestures,
+ *   because a long press is where chat apps have taught people to look and a
+ *   tap is what someone does who has not been taught. Null leaves the bubble
+ *   inert, which is every bubble but a failed one of ours today.
+ * @param failedHint passed through to [DeliveryStateLabel].
  */
 @Composable
 fun MessageBubble(
@@ -83,6 +90,9 @@ fun MessageBubble(
     deliveryState: DeliveryState? = null,
     hopCount: Int? = null,
     animateSend: Boolean = false,
+    onAction: (() -> Unit)? = null,
+    actionLabel: String? = null,
+    failedHint: String? = null,
     content: @Composable (ColumnScope.() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(
@@ -134,6 +144,20 @@ fun MessageBubble(
             modifier = sendScale
                 .widthIn(max = 280.dp)
                 .clip(shape)
+                .then(
+                    // After the clip, so the ripple stays inside the bubble's
+                    // corners instead of flooding a rectangle around them.
+                    if (onAction != null) {
+                        Modifier.combinedClickable(
+                            onClickLabel = actionLabel,
+                            onLongClickLabel = actionLabel,
+                            onLongClick = onAction,
+                            onClick = onAction,
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
                 .background(
                     if (isOutgoing) {
                         accent.copy(alpha = 0.12f)
@@ -200,6 +224,7 @@ fun MessageBubble(
                         DeliveryStateLabel(
                             state = deliveryState,
                             hopCount = hopCount,
+                            failedHint = failedHint,
                             modifier = Modifier.weight(1f, fill = false),
                         )
                     }
