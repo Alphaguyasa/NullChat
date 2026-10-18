@@ -5,7 +5,16 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
-### 7. ACTION FOR ALPHA: model (2026-10-15)
+### 5d. Two-phone check for PRs #17 and #19 (resend, display names, 2026-10-18)
+*Resend (#17):* with B out of range, send an image from A. It must say `failed ·
+tap to resend`. Bring B in range and tap the bubble on A. The image goes out
+again, only one copy shows on each phone, and it reaches `delivered`.
+*Names (#19):* on A open Settings (on the "you …" line), type a name and Save.
+B's peer list should show `name · <A's id>` within a few seconds if in range,
+otherwise the next time they connect. A phone on an older build must still see
+A by id and still exchange messages (it ignores the new PROFILE packet).
+
+### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-18)
 Anthropic's model docs now list **Claude Fable 5.1** (`claude-fable-5-1`) above
 Opus 5.5 ("for demanding reasoning and long-horizon agentic work"). The MODEL
 POLICY says to use the newest Opus-class model *or any higher tier*. The cloud run

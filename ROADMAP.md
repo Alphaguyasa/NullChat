@@ -11,7 +11,6 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 11 | **Settings screen + display name.** Fourth destination; name carried in a PROFILE packet (type 6, not an ANNOUNCE field: old builds parse ANNOUNCE as exactly 64 bytes), shown on radar and peer list. | P1 | L | Part 1 (#18): PROFILE protocol + receive/store/show. Part 2: settings screen, own name, send PROFILE after ANNOUNCE. |
 | 12 | **Release build hardening.** Enable R8 with keep rules for Tink/Nearby/Room/Hilt, measure APK size, add `assembleRelease` (unsigned) to CI. | P1 | M | No keystore in repo. |
 | 13 | **Dependabot** for Gradle and GitHub Actions (weekly, grouped). | P2 | S | Free. |
 | 14 | **Message actions.** Long-press: copy, delete locally, reply with quote. | P2 | M | |
@@ -48,3 +47,4 @@ exist but only run on a physical phone.
 | 2026-10-16 | #8 Incoming message notifications (direct messages) | #15 | v2026-10-16-2 |
 | 2026-10-16 | #9 Unread counts by local receive time (Room 5→6) | #16 | v2026-10-16-3 |
 | 2026-10-18 | #10 Failed state + resend; queued rows expire with the queue | #17 | v2026-10-18-1 |
+| 2026-10-18 | #11 Settings screen + display names (PROFILE packet, type 6) | #18, #19 | v2026-10-18-2, next merge |
