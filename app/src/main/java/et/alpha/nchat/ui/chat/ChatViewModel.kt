@@ -229,6 +229,18 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Deletes a message from this phone. The menu only offers it where
+     * `canDeleteLocally` allows, so a refusal here means the row went first.
+     */
+    fun onDelete(messageId: String) {
+        viewModelScope.launch {
+            if (!coordinator.deleteLocally(messageId)) {
+                _errors.value = "That message could not be deleted."
+            }
+        }
+    }
+
     /** Absolute path of a stored attachment, for the bubble to decode. */
     fun attachmentPath(fileName: String): String = attachments.pathFor(fileName)
 

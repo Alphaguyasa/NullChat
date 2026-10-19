@@ -11,6 +11,7 @@ import et.alpha.nchat.data.db.peerIdOfDirect
 import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.media.AttachmentStore
 import et.alpha.nchat.data.media.ImagePolicy
+import et.alpha.nchat.data.repo.DeletedMessageStore
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.data.settings.DisplayNameStore
@@ -172,6 +173,17 @@ internal fun resendTarget(message: MessageEntity): ResendTarget? {
 internal data class ResendTarget(val recipientHexId: String?)
 
 /**
+ * Whether [message] may be deleted from this phone.
+ *
+ * Everything but our own PENDING rows. A queued message is already signed and
+ * sitting in the forward queue, or held until its recipient's key arrives, and
+ * would still go out after its row was gone, so deleting it would hide a send
+ * rather than stop it.
+ */
+internal fun canDeleteLocally(message: MessageEntity): Boolean =
+    !(message.isOutgoing && message.deliveryState == DeliveryState.PENDING)
+
+/**
  * The oldest write time a PENDING row may have at [now] and still be queued.
  *
  * Matches the forward queue's own lifetime, because that is the promise
@@ -211,6 +223,7 @@ class MeshCoordinator @Inject constructor(
     private val attachments: AttachmentStore,
     private val transfers: TransferTracker,
     private val displayNames: DisplayNameStore,
+    private val deletedMessages: DeletedMessageStore,
     @MeshScope private val scope: CoroutineScope,
 ) {
 
@@ -450,6 +463,24 @@ class MeshCoordinator @Inject constructor(
         } finally {
             resending.remove(messageId)
         }
+    }
+
+    /**
+     * Deletes [messageId] from this phone only; anyone who received it keeps it.
+     *
+     * The tombstone is written before the row goes, so a relay replaying the
+     * message between the two writes still finds it refused.
+     *
+     * @return false when the message is gone already or [canDeleteLocally]
+     *   refuses it.
+     */
+    suspend fun deleteLocally(messageId: String): Boolean {
+        val row = messages.findMessage(messageId) ?: return false
+        if (!canDeleteLocally(row)) return false
+        deletedMessages.remember(messageId)
+        val removed = messages.deleteMessage(messageId) ?: return false
+        removed.attachmentFile?.let { attachments.delete(it) }
+        return true
     }
 
     private suspend fun sendText(body: String, recipientHexId: String?, replaces: String?): SendResult {
@@ -740,6 +771,10 @@ class MeshCoordinator @Inject constructor(
             // when the cache is empty but the database is not.
             if (senderHex == selfId) return@collect
 
+            // Deleted here earlier and replayed by a relay's forward queue.
+            // Not acknowledged again: the sender had its receipt the first time.
+            if (deletedMessages.isDeleted(packet.messageId.toHexId())) return@collect
+
             val conversationId =
                 if (packet.isBroadcast) BROADCAST_CONVERSATION_ID else directConversationId(senderHex)
 
@@ -887,9 +922,11 @@ class MeshCoordinator @Inject constructor(
         // reassembly buffer and the UI would show "Receiving 1/282" underneath a
         // picture the user is already looking at. The tracker catches it within a
         // session; the message row catches it across a restart, when the tracker
-        // is empty but the history is not.
+        // is empty but the history is not. A message the user deleted is refused
+        // here too, before a progress bar or an image file exists for it.
         if (transfers.transfers.value[messageId]?.state == TransferState.COMPLETE) return
         if (messages.findMessage(messageId) != null) return
+        if (deletedMessages.isDeleted(messageId)) return
 
         val completed = reassembler.offer(packet)
         if (completed != null) {

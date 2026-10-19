@@ -155,6 +155,18 @@ class MessageRepository @Inject constructor(
         conversationDao.markReadUpTo(conversationId, at)
     }
 
+    /**
+     * Deletes one message from this device.
+     *
+     * @return the row as it was, so the caller can remove its attachment file,
+     *   or null when no such message is stored.
+     */
+    suspend fun deleteMessage(messageId: String): MessageEntity? = database.withTransaction {
+        val row = messageDao.findById(messageId) ?: return@withTransaction null
+        messageDao.deleteById(messageId)
+        row
+    }
+
     /** Deletes a thread and, by cascade, its messages. */
     suspend fun deleteConversation(conversationId: String): Boolean =
         conversationDao.deleteById(conversationId) > 0
