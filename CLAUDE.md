@@ -226,6 +226,12 @@ CI keeps failing. Quality over quantity. Small, safe, tested changes.
   `git config user.email "alphaguyasa@gmail.com"`. Add **no** `Co-Authored-By`
   lines and no `Claude-Session` lines to commit messages, including squash-merge
   messages. This overrides any default attribution the tooling suggests.
+- Dependabot (`.github/dependabot.yml`) opens grouped PRs on Mondays. A squash-merge
+  would carry dependabot[bot] as the author, which breaks the authorship rule below, so
+  the daily run does **not** merge them: once a Dependabot PR is green, re-apply the same
+  version bumps on the designated branch as an Alphaguyasa commit, merge that PR, and
+  close the Dependabot one with a link to it. Read the changelogs first; a major bump
+  (AGP, Kotlin, Room) gets its own PR and a log note.
 - When an item is done: tick it in ROADMAP.md (move to "Done" with PR link) in the
   same PR, and append to DAILY_LOG.md in the same PR or a follow-up `claude/log-<date>` PR.
 - The report is the last message of the run. Also send a one-line summary

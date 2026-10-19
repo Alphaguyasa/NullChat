@@ -1,0 +1,42 @@
+# Weekly dependency updates, grouped so a week costs a handful of PRs rather
+# than one per library. Every PR goes through the same CI as any other change,
+# and the daily run reviews and merges it only on green (CLAUDE.md, MERGE POLICY).
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Africa/Nairobi
+    open-pull-requests-limit: 5
+    groups:
+      # AGP, Kotlin, KSP and Hilt's plugin must move together: KSP is versioned
+      # against one exact Kotlin release, and a mismatch fails the build.
+      build-tooling:
+        patterns:
+          - "com.android.*"
+          # Not kotlin*: that would sweep kotlinx-coroutines in as well.
+          - "org.jetbrains.kotlin:*"
+          - "org.jetbrains.kotlin.*"
+          - "com.google.devtools.ksp*"
+          - "com.google.dagger*"
+      androidx:
+        patterns:
+          - "androidx.*"
+      libraries:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Africa/Nairobi
+    groups:
+      actions:
+        patterns:
+          - "*"

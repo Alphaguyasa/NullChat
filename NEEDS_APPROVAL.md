@@ -5,6 +5,26 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5e. Two-phone check for PR #22 (delete for me, 2026-10-19)
+B sends A a direct message and a broadcast. On A, long-press each and choose
+Delete for me, then confirm. Both disappear and the peer list preview updates.
+Now let B (or a third phone that relayed them) leave range and come back. Neither
+message may reappear on A. Long-press, then Copy, must paste the text elsewhere.
+A queued message (B out of range) must not offer Delete.
+
+### 8. Dependabot PRs and the authorship rule (2026-10-19)
+Dependabot now opens weekly grouped update PRs. Squash-merging one would make
+dependabot[bot] the commit author, and your rule is that commits show only you.
+*Default:* the daily run re-applies the bumps on its own branch as your commit
+and closes the Dependabot PR (written into CLAUDE.md). If you would rather it
+merge Dependabot PRs directly when green, say so.
+
+### 9. Release APK is built but not run (2026-10-19)
+PR #21 turned on R8 for release builds. CI builds it, but it is unsigned, so nobody
+has run it on a phone yet. R8 can break code that uses reflection; the app uses
+none and every library ships its own rules, so the risk is low. It becomes
+checkable once signing is decided (item 4). The debug APK you install is unchanged.
+
 ### 5d. Two-phone check for PRs #17 and #19 (resend, display names, 2026-10-18)
 *Resend (#17):* with B out of range, send an image from A. It must say `failed ·
 tap to resend`. Bring B in range and tap the bubble on A. The image goes out
@@ -14,7 +34,7 @@ B's peer list should show `name · <A's id>` within a few seconds if in range,
 otherwise the next time they connect. A phone on an older build must still see
 A by id and still exchange messages (it ignores the new PROFILE packet).
 
-### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-18)
+### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-19)
 Anthropic's model docs now list **Claude Fable 5.1** (`claude-fable-5-1`) above
 Opus 5.5 ("for demanding reasoning and long-horizon agentic work"). The MODEL
 POLICY says to use the newest Opus-class model *or any higher tier*. The cloud run
