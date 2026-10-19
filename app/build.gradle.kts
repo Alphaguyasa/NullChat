@@ -25,8 +25,13 @@ android {
 
     buildTypes {
         release {
+            // R8 code + resource shrinking (AGP 9.3 DSL). The default Android rules
+            // are included automatically and every dependency ships consumer rules,
+            // so the app's own rules in src/main/keepRules/ only silence references
+            // to optional classes. Debug stays unoptimized so instrumented tests
+            // and stack traces see the real code.
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
