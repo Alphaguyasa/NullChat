@@ -1,0 +1,16 @@
+# App-specific R8 rules. Tink, Room, Hilt, Nearby, Compose, CameraX and ZXing
+# ship their own consumer rules, and the app itself uses no reflection, so there
+# is nothing to -keep here.
+
+# Tink and protobuf-lite reference compile-time annotations and optional helpers
+# that are not on the runtime classpath. R8 treats a missing class as a build
+# error; these are never loaded at runtime, so the reference is safe to ignore.
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn com.google.api.client.http.**
+-dontwarn org.joda.time.**
+
+# Line numbers make release crash traces usable with the mapping.txt CI uploads,
+# without keeping the original source file names.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

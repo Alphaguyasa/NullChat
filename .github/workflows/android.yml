@@ -44,6 +44,24 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      # Unsigned: there is no keystore in the repo (NEEDS_APPROVAL #4). Building it
+      # catches R8 failures (missing classes, broken keep rules) before anyone
+      # needs a release, and the step summary tracks APK size over time.
+      - name: Build release APK (R8, unsigned)
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Report APK sizes
+        run: |
+          {
+            echo "### APK size"
+            echo "| APK | Bytes | MiB |"
+            echo "|---|---:|---:|"
+            for f in app/build/outputs/apk/debug/*.apk app/build/outputs/apk/release/*.apk; do
+              b=$(stat -c %s "$f")
+              echo "| $(basename "$f") | $b | $(awk "BEGIN { printf \"%.2f\", $b / 1048576 }") |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # KSP rewrites app/schemas when the schema it generates differs from the
       # committed one. A diff here means an entity changed without its exported
       # schema being committed; the diff is printed so the generated file can be
@@ -62,6 +80,14 @@ jobs:
         with:
           name: nchat-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      # Needed to de-obfuscate a crash trace from an R8 build.
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: nchat-release-mapping
+          path: app/build/outputs/mapping/release/
           retention-days: 30
 
       - name: Upload reports
