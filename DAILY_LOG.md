@@ -4,6 +4,49 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-19 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page still lists Claude Fable 5.1 above
+it and nothing newer. This session has no RemoteTrigger tool, so it cannot switch →
+ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`3a5c997`, tag `v2026-10-18-4`). There is still no Android
+  SDK (Google Maven is blocked). The pure-Kotlin `Tombstones` tests were run locally in a
+  throwaway Gradle JVM project (9/9). Everything else was checked by CI.
+- **PR #21** roadmap #12: release builds now run R8 (`optimization.enable = true`, the AGP 9.3
+  DSL, so the default rules are included). `src/main/keepRules/nchat.keep` only has
+  `-dontwarn` lines for optional annotations, plus line numbers. CI now builds an unsigned
+  `assembleRelease` (R8 took about 75 s), writes APK sizes to the job summary and uploads
+  `mapping.txt`. Green on the first attempt. Merged, `v2026-10-19-1`. The release APK has
+  not been run on a phone (NEEDS_APPROVAL #9).
+- **PR #22** roadmap #14 part 1: a long-press menu with Resend, Copy and Delete for me.
+  Delete asks first and is not offered for our own queued messages, since those still go
+  out. A deleted id becomes a 7-day tombstone (prefs, capped at 1000), and the coordinator
+  drops replays of it, because relay forward queues (24 h) outlive the 10-minute
+  seen-cache. A Room table would have needed a migration, and the schema hash cannot be
+  computed here without Room's sources. Green on the first attempt. Merged, `v2026-10-19-2`.
+  Needs two-phone check. Reply with quote stays open as #14 part 2.
+- **PR #23** roadmap #13: `.github/dependabot.yml`, weekly on Mondays at 04:00 Nairobi time.
+  Gradle is grouped as build-tooling (AGP/Kotlin/KSP/Hilt together), androidx and
+  libraries; GitHub Actions is one group. Merging Dependabot's own PRs would break the
+  authorship rule, so CLAUDE.md now says to re-apply the bumps as alpha's commit
+  (NEEDS_APPROVAL #8). CI also warns that Node 20 actions are deprecated, so the first
+  Actions update is due anyway.
+- Unit tests +12 (TombstonesTest 9, DeleteRuleTest 3). Instrumented +2 (MessageRepositoryTest).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #12 R8 release build in CI (PR #21); #14 part 1 copy + delete for me (PR #22); #13 Dependabot (PR #23) |
+| Merged | #21 yes `v2026-10-19-1`; #22 yes `v2026-10-19-2`; #23 see notification |
+| Failed or blocked | Nothing failed; all green on the first attempt. No local Android build (CI only) |
+| Roadmap | 10 open items + tech debt; no replan needed yet (replan when under 5) |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; two-phone checks #22 (new), #17/#19, #15, #9; Dependabot authorship (new); release APK unrun (new); backup; signing; route strip |
+| Next | #14 part 2 reply with quote, #15 panic wipe, #16 app lock |
+
+---
+
 ## 2026-10-18 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The docs still list Claude Fable 5.1 above it.
