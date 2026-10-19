@@ -14,6 +14,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -222,6 +223,25 @@ class MessageRepositoryTest {
 
         assertEquals(DeliveryState.FAILED, repo.findMessage("old")?.deliveryState)
         assertEquals(DeliveryState.PENDING, repo.findMessage("new")?.deliveryState)
+    }
+
+    @Test
+    fun deleteMessageRemovesOnlyThatRowAndReturnsIt() = runTest {
+        repo.recordIncoming("keep", convoId, PEER_A, "first", T0)
+        repo.recordIncoming("gone", convoId, PEER_A, "second", T0 + 1, attachmentFile = "gone.jpg")
+
+        val removed = repo.deleteMessage("gone")
+
+        assertEquals("gone.jpg", removed?.attachmentFile)
+        assertNull(repo.findMessage("gone"))
+        assertEquals(listOf("keep"), repo.observeMessages(convoId).first().map { it.id })
+        // The thread itself stays, with whatever is left in it.
+        assertEquals(1, repo.observeConversations().first().size)
+    }
+
+    @Test
+    fun deleteMessageOfSomethingNotStoredReturnsNull() = runTest {
+        assertNull(repo.deleteMessage("never"))
     }
 
     private companion object {

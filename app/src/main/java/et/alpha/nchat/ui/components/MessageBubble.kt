@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -73,11 +74,13 @@ private const val SEND_SCALE = 0.96f
  *   [rememberAnimationsEnabled][et.alpha.nchat.ui.theme.rememberAnimationsEnabled]'s
  *   answer. False leaves both animations parked at their resting values, so an
  *   ordinary bubble costs nothing to draw.
- * @param onAction makes the bubble itself tappable, on both a tap and a long
- *   press, and [actionLabel] names what that does for TalkBack. Both gestures,
- *   because a long press is where chat apps have taught people to look and a
- *   tap is what someone does who has not been taught. Null leaves the bubble
- *   inert, which is every bubble but a failed one of ours today.
+ * @param onAction makes the bubble itself tappable, and [actionLabel] names
+ *   what that does for TalkBack. Without [onLongAction] a long press does the
+ *   same, because a long press is where chat apps have taught people to look
+ *   and a tap is what someone does who has not been taught.
+ * @param onLongAction what a long press does, named by [longActionLabel]; also
+ *   the tap when there is no [onAction]. Both null leaves the bubble inert.
+ * @param menu drawn over the bubble, for a dropdown that should anchor to it.
  * @param failedHint passed through to [DeliveryStateLabel].
  */
 @Composable
@@ -92,6 +95,9 @@ fun MessageBubble(
     animateSend: Boolean = false,
     onAction: (() -> Unit)? = null,
     actionLabel: String? = null,
+    onLongAction: (() -> Unit)? = null,
+    longActionLabel: String? = null,
+    menu: @Composable (() -> Unit)? = null,
     failedHint: String? = null,
     content: @Composable (ColumnScope.() -> Unit)? = null,
 ) {
@@ -140,96 +146,101 @@ fun MessageBubble(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isOutgoing) Arrangement.End else Arrangement.Start,
     ) {
-        Column(
-            modifier = sendScale
-                .widthIn(max = 280.dp)
-                .clip(shape)
-                .then(
-                    // After the clip, so the ripple stays inside the bubble's
-                    // corners instead of flooding a rectangle around them.
-                    if (onAction != null) {
-                        Modifier.combinedClickable(
-                            onClickLabel = actionLabel,
-                            onLongClickLabel = actionLabel,
-                            onLongClick = onAction,
-                            onClick = onAction,
-                        )
-                    } else {
-                        Modifier
-                    },
-                )
-                .background(
-                    if (isOutgoing) {
-                        accent.copy(alpha = 0.12f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    },
-                )
-                .border(
-                    width = 1.dp,
-                    // The flash lifts the border towards AccentBright and hands
-                    // it straight back. Zero is spelled out rather than left to
-                    // lerp, so a bubble at rest is the accent itself and not a
-                    // round trip through Oklab that lands near it.
-                    color = when {
-                        !isOutgoing -> MaterialTheme.colorScheme.outlineVariant
-                        flash.value == 0f -> accent
-                        else -> lerp(accent, AccentBright, flash.value)
-                    },
-                    shape = shape,
-                )
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        ) {
-            if (senderId != null) {
-                Text(
-                    text = senderId,
-                    style = MonoSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(4.dp))
-            }
+        // A Box around the bubble alone, so a menu opened from it anchors to the
+        // bubble and not to the full-width row.
+        Box {
+            Column(
+                modifier = sendScale
+                    .widthIn(max = 280.dp)
+                    .clip(shape)
+                    .then(
+                        // After the clip, so the ripple stays inside the bubble's
+                        // corners instead of flooding a rectangle around them.
+                        if (onAction != null) {
+                            Modifier.combinedClickable(
+                                onClickLabel = actionLabel,
+                                onLongClickLabel = actionLabel,
+                                onLongClick = onAction,
+                                onClick = onAction,
+                            )
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .background(
+                        if (isOutgoing) {
+                            accent.copy(alpha = 0.12f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        },
+                    )
+                    .border(
+                        width = 1.dp,
+                        // The flash lifts the border towards AccentBright and hands
+                        // it straight back. Zero is spelled out rather than left to
+                        // lerp, so a bubble at rest is the accent itself and not a
+                        // round trip through Oklab that lands near it.
+                        color = when {
+                            !isOutgoing -> MaterialTheme.colorScheme.outlineVariant
+                            flash.value == 0f -> accent
+                            else -> lerp(accent, AccentBright, flash.value)
+                        },
+                        shape = shape,
+                    )
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                if (senderId != null) {
+                    Text(
+                        text = senderId,
+                        style = MonoSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
 
-            if (content != null) {
-                content()
-                if (text.isNotEmpty()) Spacer(Modifier.height(6.dp))
-            }
+                if (content != null) {
+                    content()
+                    if (text.isNotEmpty()) Spacer(Modifier.height(6.dp))
+                }
 
-            // Skipped rather than rendered empty: a blank Text still occupies a
-            // line, which would leave a gap under an uncaptioned picture.
-            if (text.isNotEmpty()) {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+                // Skipped rather than rendered empty: a blank Text still occupies a
+                // line, which would leave a gap under an uncaptioned picture.
+                if (text.isNotEmpty()) {
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
 
-            if (timestamp != null || deliveryState != null) {
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (timestamp != null) {
-                        Text(
-                            text = timestamp,
-                            style = MonoSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (deliveryState != null) {
-                        if (timestamp != null) Spacer(Modifier.width(8.dp))
-                        // Weighted so it wraps onto a second line rather than
-                        // running out of the bubble. At 200% font scale
-                        // "21:04  delivered · 2 hops" is wider than the 280dp a
-                        // bubble is allowed, and the hop count — the one thing
-                        // this app exists to tell the user — fell off the end.
-                        DeliveryStateLabel(
-                            state = deliveryState,
-                            hopCount = hopCount,
-                            failedHint = failedHint,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
+                if (timestamp != null || deliveryState != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (timestamp != null) {
+                            Text(
+                                text = timestamp,
+                                style = MonoSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (deliveryState != null) {
+                            if (timestamp != null) Spacer(Modifier.width(8.dp))
+                            // Weighted so it wraps onto a second line rather than
+                            // running out of the bubble. At 200% font scale
+                            // "21:04  delivered · 2 hops" is wider than the 280dp a
+                            // bubble is allowed, and the hop count — the one thing
+                            // this app exists to tell the user — fell off the end.
+                            DeliveryStateLabel(
+                                state = deliveryState,
+                                hopCount = hopCount,
+                                failedHint = failedHint,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                        }
                     }
                 }
             }
+            menu?.invoke()
         }
     }
 }

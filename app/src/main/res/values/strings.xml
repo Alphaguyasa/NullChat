@@ -61,6 +61,14 @@
     <string name="chat_pair_action">Pair</string>
     <string name="chat_resend_action">Resend</string>
     <string name="chat_resend_hint">tap to resend</string>
+    <string name="chat_actions_label">Message options</string>
+    <string name="chat_copy_action">Copy</string>
+    <string name="chat_copied">Copied</string>
+    <string name="chat_delete_action">Delete for me</string>
+    <string name="chat_delete_title">Delete this message?</string>
+    <string name="chat_delete_body">It is removed from this phone only. Anyone who already received it keeps their copy.</string>
+    <string name="chat_delete_confirm">Delete</string>
+    <string name="chat_delete_cancel">Cancel</string>
     <string name="settings_title">Settings</string>
     <string name="settings_open">Settings</string>
     <string name="settings_name_title">Your name</string>

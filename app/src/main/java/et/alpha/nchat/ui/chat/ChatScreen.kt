@@ -1,6 +1,9 @@
 package et.alpha.nchat.ui.chat
 
+import android.content.ClipData
 import android.graphics.BitmapFactory
+import android.os.Build
+import android.os.PersistableBundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,6 +30,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
@@ -43,14 +49,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -63,6 +75,7 @@ import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.mesh.Transfer
 import et.alpha.nchat.mesh.TransferState
+import et.alpha.nchat.mesh.canDeleteLocally
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.ui.components.EmptyState
 import et.alpha.nchat.ui.components.MessageBubble
@@ -77,6 +90,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -132,6 +146,22 @@ fun ChatScreen(
     ) { uri -> uri?.let(viewModel::onImagePicked) }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboard.current
+    val copiedText = stringResource(R.string.chat_copied)
+
+    // Saveable so a rotation does not silently cancel a delete the user was
+    // about to confirm.
+    var pendingDelete by rememberSaveable { mutableStateOf<String?>(null) }
+    pendingDelete?.let { messageId ->
+        DeleteMessageDialog(
+            onConfirm = {
+                viewModel.onDelete(messageId)
+                pendingDelete = null
+            },
+            onDismiss = { pendingDelete = null },
+        )
+    }
     LaunchedEffect(error) {
         error?.let {
             snackbarHostState.showSnackbar(it)
@@ -208,6 +238,18 @@ fun ChatScreen(
                                 attachmentPath = message.attachmentFile
                                     ?.let(viewModel::attachmentPath),
                                 onResend = { viewModel.onResend(message.id) },
+                                onCopy = {
+                                    scope.launch {
+                                        clipboard.setClipEntry(
+                                            messageClip(message.body, sensitive = !state.isBroadcast),
+                                        )
+                                        // Android 13 and later confirm a copy themselves.
+                                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                                            snackbarHostState.showSnackbar(copiedText)
+                                        }
+                                    }
+                                },
+                                onDelete = { pendingDelete = message.id },
                                 // Settled on the row's first composition and kept:
                                 // a bubble scrolled out of view and back is the
                                 // same message, not a second send.
@@ -376,12 +418,17 @@ private fun ChatMessage(
     attachmentPath: String? = null,
     animateSend: Boolean = false,
     onResend: () -> Unit = {},
+    onCopy: () -> Unit = {},
+    onDelete: () -> Unit = {},
 ) {
     val outgoing = message.isOutgoing
     val inFlight = transfer != null && transfer.state != TransferState.COMPLETE
     // Only ours, only failed. A queued message is still on its way and a second
     // copy would go out beside it; see `resendTarget` for the same rule below.
     val resendable = outgoing && message.deliveryState == DeliveryState.FAILED
+    val copyable = message.body.isNotEmpty()
+    val deletable = canDeleteLocally(message)
+    var menuOpen by remember { mutableStateOf(false) }
     val extras: @Composable (ColumnScope.() -> Unit)? =
         if (attachmentPath != null || inFlight) {
             {
@@ -409,9 +456,84 @@ private fun ChatMessage(
         animateSend = animateSend,
         onAction = onResend.takeIf { resendable },
         actionLabel = stringResource(R.string.chat_resend_action),
+        // A queued image has neither text to copy nor a delete it can honour, so
+        // its bubble stays inert rather than opening an empty menu.
+        onLongAction = { menuOpen = true }.takeIf { resendable || copyable || deletable },
+        longActionLabel = stringResource(R.string.chat_actions_label),
+        menu = {
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                if (resendable) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_resend_action)) },
+                        onClick = {
+                            menuOpen = false
+                            onResend()
+                        },
+                    )
+                }
+                if (copyable) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_copy_action)) },
+                        onClick = {
+                            menuOpen = false
+                            onCopy()
+                        },
+                    )
+                }
+                if (deletable) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_delete_action)) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        },
+                    )
+                }
+            }
+        },
         failedHint = stringResource(R.string.chat_resend_hint).takeIf { resendable },
         content = extras,
     )
+}
+
+/**
+ * Asks before deleting, and says what "delete" can and cannot reach.
+ *
+ * The body is the point of the dialog: on a mesh with no server there is no
+ * unsend, and someone who expects one would be misled by a plain "Delete?".
+ */
+@Composable
+private fun DeleteMessageDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_delete_title)) },
+        text = { Text(stringResource(R.string.chat_delete_body)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.chat_delete_confirm), color = Danger)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }
+        },
+    )
+}
+
+/**
+ * A copied message, flagged sensitive outside the broadcast thread.
+ *
+ * The flag keeps Android 13+ from previewing a direct message in the clipboard
+ * overlay. Spelled as its string value because the constant only exists from
+ * API 33; older versions ignore the extra.
+ */
+private fun messageClip(text: String, sensitive: Boolean): ClipEntry {
+    val clip = ClipData.newPlainText("message", text)
+    if (sensitive) {
+        clip.description.extras = PersistableBundle().apply {
+            putBoolean("android.content.extra.IS_SENSITIVE", true)
+        }
+    }
+    return ClipEntry(clip)
 }
 
 /**
