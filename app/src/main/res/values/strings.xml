@@ -80,5 +80,13 @@
     <string name="settings_name_saved">Saved. Phones in range see it now, others the next time you meet.</string>
     <string name="settings_name_save">Save</string>
     <string name="settings_id_title">Your id</string>
+    <string name="settings_wipe_title">Panic wipe</string>
+    <string name="settings_wipe_hint">Erases your identity, every message and every image on this phone. Copies on other phones are not touched.</string>
+    <string name="settings_wipe_failed">The wipe did not run and nothing was erased. Clear the app\'s storage in Android settings instead.</string>
+    <string name="settings_wipe_action">Wipe this phone</string>
+    <string name="settings_wipe_confirm_title">Wipe everything?</string>
+    <string name="settings_wipe_confirm_body">Your keys, messages, images and settings are erased and cannot be recovered. Phones you paired with will see a new, unverified contact. The app closes; open it again to start fresh.</string>
+    <string name="settings_wipe_confirm">Wipe</string>
+    <string name="settings_wipe_cancel">Cancel</string>
     <string name="settings_id_hint">Anyone can pick any name. The id comes from your key, so it is what people should check, by pairing with a QR code.</string>
 </resources>

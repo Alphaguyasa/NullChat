@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import et.alpha.nchat.data.settings.DisplayNameStore
+import et.alpha.nchat.data.wipe.PanicWipe
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.protocol.Profile
 import javax.inject.Inject
@@ -34,6 +35,7 @@ data class SettingsState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val names: DisplayNameStore,
+    private val panicWipe: PanicWipe,
     coordinator: MeshCoordinator,
 ) : ViewModel() {
 
@@ -43,6 +45,11 @@ class SettingsViewModel @Inject constructor(
 
     /** True briefly after a save, for the screen to confirm it. */
     val saved: StateFlow<Boolean> = _saved.asStateFlow()
+
+    private val _wipeFailed = MutableStateFlow(false)
+
+    /** The system refused the wipe; nothing was erased. */
+    val wipeFailed: StateFlow<Boolean> = _wipeFailed.asStateFlow()
 
     private val selfId = coordinator.selfId
 
@@ -71,6 +78,14 @@ class SettingsViewModel @Inject constructor(
             draft.value = stored.orEmpty()
             _saved.value = true
         }
+    }
+
+    /**
+     * Erases the phone's copy of everything. On success the process is killed
+     * by the system, so only a failure ever comes back to this screen.
+     */
+    fun onWipe() {
+        _wipeFailed.value = !panicWipe.wipe()
     }
 
     private companion object {

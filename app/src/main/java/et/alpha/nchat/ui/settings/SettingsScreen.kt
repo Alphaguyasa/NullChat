@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +25,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import et.alpha.nchat.R
 import et.alpha.nchat.mesh.protocol.Profile
+import et.alpha.nchat.ui.theme.Danger
 import et.alpha.nchat.ui.theme.MonoBody
 import et.alpha.nchat.ui.theme.MonoSmall
 import et.alpha.nchat.ui.theme.NChatTheme
@@ -44,9 +49,10 @@ import et.alpha.nchat.ui.theme.TextMuted
 /**
  * The fourth destination: what this device calls itself.
  *
- * Only the display name for now. The screen exists as a place for the settings
- * the roadmap lines up behind it (battery modes, app lock, panic wipe), so it is
- * a scrolling column of sections rather than a dialog hung off the peer list.
+ * The display name, the device id and the panic wipe. The screen exists as a
+ * place for the settings the roadmap lines up behind them (battery modes, app
+ * lock), so it is a scrolling column of sections rather than a dialog hung off
+ * the peer list.
  */
 @Composable
 fun SettingsScreen(
@@ -56,13 +62,16 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val saved by viewModel.saved.collectAsState()
+    val wipeFailed by viewModel.wipeFailed.collectAsState()
 
     SettingsContent(
         state = state,
         saved = saved,
+        wipeFailed = wipeFailed,
         onBack = onBack,
         onDraftChange = viewModel::onDraftChange,
         onSave = viewModel::onSave,
+        onWipe = viewModel::onWipe,
         modifier = modifier,
     )
 }
@@ -72,11 +81,24 @@ fun SettingsScreen(
 internal fun SettingsContent(
     state: SettingsState,
     saved: Boolean,
+    wipeFailed: Boolean,
     onBack: () -> Unit,
     onDraftChange: (String) -> Unit,
     onSave: () -> Unit,
+    onWipe: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var confirmWipe by remember { mutableStateOf(false) }
+    if (confirmWipe) {
+        WipeDialog(
+            onConfirm = {
+                confirmWipe = false
+                onWipe()
+            },
+            onDismiss = { confirmWipe = false },
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -186,8 +208,53 @@ internal fun SettingsContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextMuted,
             )
+
+            HorizontalDivider()
+
+            Text(
+                text = stringResource(R.string.settings_wipe_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = if (wipeFailed) {
+                    stringResource(R.string.settings_wipe_failed)
+                } else {
+                    stringResource(R.string.settings_wipe_hint)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (wipeFailed) Danger else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = { confirmWipe = true }) {
+                Text(text = stringResource(R.string.settings_wipe_action), color = Danger)
+            }
         }
     }
+}
+
+/**
+ * The one step between the button and the wipe.
+ *
+ * Exactly one: a panic wipe that takes typing a phrase is one nobody finishes
+ * in a hurry, and a button with no confirmation is one a pocket can press. The
+ * body says what is lost and what other phones will see, because "delete" on a
+ * mesh normally means this phone only, and here it also means the identity.
+ */
+@Composable
+private fun WipeDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_wipe_confirm_title)) },
+        text = { Text(stringResource(R.string.settings_wipe_confirm_body)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.settings_wipe_confirm), color = Danger)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_wipe_cancel)) }
+        },
+    )
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF0E1A26)
@@ -198,9 +265,11 @@ private fun SettingsPreview() {
             SettingsContent(
                 state = SettingsState(selfId = "1ac3f00d9e8b7a65", savedName = "Maya", draft = "Maya T"),
                 saved = false,
+                wipeFailed = false,
                 onBack = {},
                 onDraftChange = {},
                 onSave = {},
+                onWipe = {},
             )
         }
     }

@@ -5,6 +5,14 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5g. One-phone check for panic wipe (2026-10-20)
+Emulators cannot show the part that matters. On a phone with history: Settings,
+scroll to Panic wipe, tap "Wipe this phone". Cancel must leave everything as it
+was. Tap again and choose Wipe. The app closes. Reopen it: the permission screen
+shows again, the peer list and threads are empty, and Settings shows a **new**
+id. On a second phone that had paired with it, the wiped phone appears as a new,
+unverified contact. Android should list the app's storage as nearly empty.
+
 ### 5f. Two-phone check for reply with quote (2026-10-20)
 On A, long-press a message from B and choose Reply. A "replying to" strip shows
 the quoted words above the box; × cancels it. Send a reply. On both phones the

@@ -3,11 +3,13 @@ package et.alpha.nchat.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import et.alpha.nchat.ui.settings.SettingsContent
@@ -34,9 +36,11 @@ class SettingsScreenTest {
                 SettingsContent(
                     state = state,
                     saved = false,
+                    wipeFailed = false,
                     onBack = {},
                     onDraftChange = { state = state.copy(draft = it) },
                     onSave = { saves++ },
+                    onWipe = {},
                 )
             }
         }
@@ -55,14 +59,64 @@ class SettingsScreenTest {
                 SettingsContent(
                     state = SettingsState(selfId = SELF),
                     saved = false,
+                    wipeFailed = false,
                     onBack = {},
                     onDraftChange = {},
                     onSave = {},
+                    onWipe = {},
                 )
             }
         }
 
         compose.onNodeWithText(SELF).assertExists()
+    }
+
+    @Test
+    fun wipingAsksFirstAndCancelErasesNothing() {
+        var wipes = 0
+        setWipeContent(wipeFailed = false) { wipes++ }
+
+        compose.onNodeWithText("Wipe this phone").performScrollTo().performClick()
+        compose.onNodeWithText("Wipe everything?").assertIsDisplayed()
+        assertEquals(0, wipes)
+
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("Wipe everything?").assertDoesNotExist()
+        assertEquals(0, wipes)
+    }
+
+    @Test
+    fun confirmingRunsTheWipeOnce() {
+        var wipes = 0
+        setWipeContent(wipeFailed = false) { wipes++ }
+
+        compose.onNodeWithText("Wipe this phone").performScrollTo().performClick()
+        compose.onNodeWithText("Wipe").performClick()
+
+        assertEquals(1, wipes)
+    }
+
+    @Test
+    fun aRefusedWipeSaysNothingWasErased() {
+        setWipeContent(wipeFailed = true) {}
+
+        compose.onNodeWithText("nothing was erased", substring = true).assertExists()
+    }
+
+    private fun setWipeContent(wipeFailed: Boolean, onWipe: () -> Unit) {
+        compose.setContent {
+            NChatTheme {
+                SettingsContent(
+                    state = SettingsState(selfId = SELF),
+                    saved = false,
+                    wipeFailed = wipeFailed,
+                    onBack = {},
+                    onDraftChange = {},
+                    onSave = {},
+                    onWipe = onWipe,
+                )
+            }
+        }
     }
 
     private companion object {

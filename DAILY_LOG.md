@@ -4,6 +4,50 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-20 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page still lists Claude Fable 5.1 above
+it and nothing newer. This session has no RemoteTrigger tool, so it cannot switch, and the
+ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`d4873f4`, tag `v2026-10-19-3`). There is still no Android
+  SDK here. The protocol package and its tests (169, including the new `QuoteTest`) were run
+  locally in a JVM-only Gradle project. Everything else was checked by CI.
+- **Dependabot, first Monday.** Four PRs. Only Actions (#24) was green. Its bumps were
+  re-applied as **PR #28** (checkout v7, setup-java v6, setup-gradle v6, upload-artifact v7,
+  which clears the Node 20 warning). Merged, `v2026-10-20-1`; #24 closed with a link.
+  The Gradle groups all failed in Lint, and they depend on each other. #25: AGP 9.4.1
+  needs Gradle ≥ 9.6, and the wrapper is 9.5. #27: Nearby 19.5.1 is built with Kotlin
+  2.4 metadata, and Kotlin is 2.2. #26: every androidx bump needs compileSdk ≥ 37. They
+  are left open and became roadmap #25 (AGP + Gradle + Kotlin + KSP together, a major bump
+  with its own PR) and #26 (compileSdk 37 + androidx).
+- **PR #29** roadmap #14 part 2: reply with quote. The quote is a `> snippet` line inside the
+  text, so the wire format is unchanged and older builds show it email style. A binary
+  reference would have shown up there as garbage. Snippets are capped at 64 bytes on a code
+  point boundary. Previews, notifications and Copy show only the answer. Green on the first
+  attempt. Merged. Two-phone look in NEEDS_APPROVAL 5f.
+- **PR #30** roadmap #15: panic wipe in Settings, with one confirm dialog, using
+  `ActivityManager.clearApplicationUserData()`. That is the same as "Clear storage": the
+  database, files, every prefs file and the app's Keystore keys, after which the process is
+  killed. It uses no hand-kept list of files that a new prefs file could slip past. If the
+  system refuses, the screen says nothing was erased. The app closes rather than restarting
+  itself. Needs a real-phone check (NEEDS_APPROVAL 5g).
+- Unit tests +14 (QuoteTest 10, PanicWipeTest 3, notification policy 1). Instrumented +4
+  (QuoteBubbleTest 1, SettingsScreenTest 3).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | Actions bumps from Dependabot (PR #28); #14 part 2 reply with quote (PR #29); #15 panic wipe (PR #30) |
+| Merged | #28 yes `v2026-10-20-1`; #29 yes `v2026-10-20-2`; #30 see notification |
+| Failed or blocked | Dependabot #25/#26/#27 fail CI, as they need each other plus compileSdk 37. Left open and moved to roadmap #25/#26. No local Android build (CI only) |
+| Roadmap | 10 open items + tech debt (2 new: toolchain bump, compileSdk 37); no replan needed yet |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; phone checks 5g wipe (new), 5f reply (new), #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; backup; signing; route strip |
+| Next | #25 toolchain bump (AGP 9.4 / Gradle 9.8 / Kotlin 2.4), #26 compileSdk 37 + androidx, #16 app lock |
+
+---
+
 ## 2026-10-19 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page still lists Claude Fable 5.1 above
