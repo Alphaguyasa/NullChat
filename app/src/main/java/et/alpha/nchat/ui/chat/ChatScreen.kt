@@ -66,6 +66,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -77,6 +78,7 @@ import et.alpha.nchat.mesh.Transfer
 import et.alpha.nchat.mesh.TransferState
 import et.alpha.nchat.mesh.canDeleteLocally
 import et.alpha.nchat.mesh.protocol.MessagePacket
+import et.alpha.nchat.mesh.protocol.Quote
 import et.alpha.nchat.ui.components.EmptyState
 import et.alpha.nchat.ui.components.MessageBubble
 import et.alpha.nchat.ui.theme.Danger
@@ -122,6 +124,7 @@ fun ChatScreen(
     val state by viewModel.state.collectAsState()
     val draft by viewModel.draft.collectAsState()
     val draftBytes by viewModel.draftBytes.collectAsState()
+    val replyTo by viewModel.replyTo.collectAsState()
     val transfers by viewModel.transfers.collectAsState()
     val isPreparingImage by viewModel.isPreparingImage.collectAsState()
     val error by viewModel.errors.collectAsState()
@@ -241,7 +244,12 @@ fun ChatScreen(
                                 onCopy = {
                                     scope.launch {
                                         clipboard.setClipEntry(
-                                            messageClip(message.body, sensitive = !state.isBroadcast),
+                                            // The answer only: the quoted words are
+                                            // someone else's, already in the thread.
+                                            messageClip(
+                                                Quote.replyText(message.body),
+                                                sensitive = !state.isBroadcast,
+                                            ),
                                         )
                                         // Android 13 and later confirm a copy themselves.
                                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
@@ -250,6 +258,7 @@ fun ChatScreen(
                                     }
                                 },
                                 onDelete = { pendingDelete = message.id },
+                                onReply = { viewModel.onReply(message) },
                                 // Settled on the row's first composition and kept:
                                 // a bubble scrolled out of view and back is the
                                 // same message, not a second send.
@@ -272,6 +281,9 @@ fun ChatScreen(
             }
 
             HorizontalDivider()
+            replyTo?.let { quote ->
+                ReplyStrip(quote = quote, onCancel = viewModel::onCancelReply)
+            }
             SendBox(
                 draft = draft,
                 draftBytes = draftBytes,
@@ -420,6 +432,7 @@ private fun ChatMessage(
     onResend: () -> Unit = {},
     onCopy: () -> Unit = {},
     onDelete: () -> Unit = {},
+    onReply: () -> Unit = {},
 ) {
     val outgoing = message.isOutgoing
     val inFlight = transfer != null && transfer.state != TransferState.COMPLETE
@@ -428,6 +441,11 @@ private fun ChatMessage(
     val resendable = outgoing && message.deliveryState == DeliveryState.FAILED
     val copyable = message.body.isNotEmpty()
     val deletable = canDeleteLocally(message)
+    // Anything that has arrived or gone out. Our own queued or failed message
+    // has not reached anyone yet, so there is nothing for a reply to point at.
+    val repliable = !outgoing || message.deliveryState == DeliveryState.SENT ||
+        message.deliveryState == DeliveryState.DELIVERED
+    val parsed = remember(message.body) { Quote.parse(message.body) }
     var menuOpen by remember { mutableStateOf(false) }
     val extras: @Composable (ColumnScope.() -> Unit)? =
         if (attachmentPath != null || inFlight) {
@@ -442,7 +460,8 @@ private fun ChatMessage(
         }
 
     MessageBubble(
-        text = message.body,
+        text = parsed?.reply ?: message.body,
+        quote = parsed?.quote,
         isOutgoing = outgoing,
         modifier = modifier,
         // In the broadcast thread anyone can be talking, so incoming bubbles are
@@ -458,7 +477,8 @@ private fun ChatMessage(
         actionLabel = stringResource(R.string.chat_resend_action),
         // A queued image has neither text to copy nor a delete it can honour, so
         // its bubble stays inert rather than opening an empty menu.
-        onLongAction = { menuOpen = true }.takeIf { resendable || copyable || deletable },
+        onLongAction = { menuOpen = true }
+            .takeIf { resendable || copyable || deletable || repliable },
         longActionLabel = stringResource(R.string.chat_actions_label),
         menu = {
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -468,6 +488,15 @@ private fun ChatMessage(
                         onClick = {
                             menuOpen = false
                             onResend()
+                        },
+                    )
+                }
+                if (repliable) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_reply_action)) },
+                        onClick = {
+                            menuOpen = false
+                            onReply()
                         },
                     )
                 }
@@ -671,6 +700,58 @@ private fun TransferIndicator(transfer: Transfer) {
     }
 }
 
+/**
+ * What the next send will quote, with a way out.
+ *
+ * Above the box rather than inside it, so the quote is plainly not part of the
+ * text being typed and the byte counter's jump when a reply starts has a cause
+ * the user can see.
+ */
+@Composable
+private fun ReplyStrip(quote: String, onCancel: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.primary),
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.chat_replying_to),
+                style = MonoSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = quote,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        val cancelLabel = stringResource(R.string.chat_reply_cancel)
+        IconButton(onClick = onCancel) {
+            Text(
+                text = "×",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clearAndSetSemantics { contentDescription = cancelLabel },
+            )
+        }
+    }
+}
+
 @Composable
 private fun SendBox(
     draft: String,
@@ -827,6 +908,14 @@ private fun ChatPreview() {
                         id = "b", conversationId = "c", senderId = "1ac3f00d",
                         body = "on my way", timestamp = 1_700_000_060_000,
                         deliveryState = DeliveryState.SENT, isOutgoing = true,
+                    ),
+                    isBroadcast = true,
+                )
+                ChatMessage(
+                    message = MessageEntity(
+                        id = "r", conversationId = "c", senderId = "9e8b7a65",
+                        body = "> on my way\nsee you there", timestamp = 1_700_000_090_000,
+                        deliveryState = DeliveryState.DELIVERED, isOutgoing = false,
                     ),
                     isBroadcast = true,
                 )

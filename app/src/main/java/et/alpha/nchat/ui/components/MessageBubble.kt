@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -28,6 +30,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import et.alpha.nchat.data.db.DeliveryState
@@ -88,6 +93,7 @@ fun MessageBubble(
     text: String,
     isOutgoing: Boolean,
     modifier: Modifier = Modifier,
+    quote: String? = null,
     senderId: String? = null,
     timestamp: String? = null,
     deliveryState: DeliveryState? = null,
@@ -198,6 +204,11 @@ fun MessageBubble(
                     Spacer(Modifier.height(4.dp))
                 }
 
+                if (quote != null) {
+                    QuoteBlock(quote)
+                    Spacer(Modifier.height(6.dp))
+                }
+
                 if (content != null) {
                     content()
                     if (text.isNotEmpty()) Spacer(Modifier.height(6.dp))
@@ -242,6 +253,36 @@ fun MessageBubble(
             }
             menu?.invoke()
         }
+    }
+}
+
+/**
+ * The words a reply answers, above the reply itself.
+ *
+ * Muted and capped at two lines: it is context, and the bubble's own text is
+ * the message. The edge is the outline colour, not the accent, so a quote in an
+ * incoming bubble does not borrow the colour that marks the user's own words.
+ */
+@Composable
+private fun QuoteBlock(quote: String) {
+    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+        Box(
+            modifier = Modifier
+                .width(2.dp)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.outline),
+        )
+        Text(
+            text = quote,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(start = 8.dp)
+                // Read as a quote, not as the start of the message.
+                .semantics { contentDescription = "In reply to: $quote" },
+        )
     }
 }
 

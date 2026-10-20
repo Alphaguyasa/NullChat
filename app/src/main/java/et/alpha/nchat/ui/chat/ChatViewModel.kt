@@ -17,6 +17,7 @@ import et.alpha.nchat.mesh.SendResult
 import et.alpha.nchat.mesh.Transfer
 import et.alpha.nchat.mesh.TransferTracker
 import et.alpha.nchat.mesh.protocol.MessagePacket
+import et.alpha.nchat.mesh.protocol.Quote
 import et.alpha.nchat.mesh.transport.NearbyTransport
 import et.alpha.nchat.service.ForegroundConversation
 import javax.inject.Inject
@@ -73,6 +74,16 @@ class ChatViewModel @Inject constructor(
     private val _draft = MutableStateFlow("")
     val draft: StateFlow<String> = _draft.asStateFlow()
 
+    /**
+     * The snippet the next send will quote, or null for a plain message.
+     *
+     * Held as the snippet text rather than the message id: the quote is words,
+     * not a link (see `Quote`), so a message deleted while the reply is being
+     * typed still leaves something to quote.
+     */
+    private val _replyTo = MutableStateFlow<String?>(null)
+    val replyTo: StateFlow<String?> = _replyTo.asStateFlow()
+
     /** Progress bars for images in flight, keyed by message id. */
     val transfers: StateFlow<Map<String, Transfer>> = transferTracker.transfers
 
@@ -114,16 +125,22 @@ class ChatViewModel @Inject constructor(
         initialValue = ChatState(),
     )
 
-    /** Bytes the draft would occupy on the wire, against the single-packet budget. */
-    val draftBytes: StateFlow<Int> = _draft
-        .map(MessagePacket::bodyByteCount)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), 0)
+    /**
+     * Bytes the draft would occupy on the wire, quote included.
+     *
+     * The quote travels in the same body, so a counter that left it out would
+     * let the user type up to a limit the send then refuses.
+     */
+    val draftBytes: StateFlow<Int> = combine(_draft, _replyTo) { draft, quote ->
+        MessagePacket.bodyByteCount(outgoingBody(draft, quote))
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), 0)
 
     /** Points this ViewModel at a conversation. Null opens the broadcast thread. */
     fun bind(target: String?) {
         if (peerId.value == target) return
         peerId.value = target
         _draft.value = ""
+        _replyTo.value = null
         viewModelScope.launch { messages.markRead(conversationIdFor(target)) }
     }
 
@@ -154,6 +171,15 @@ class ChatViewModel @Inject constructor(
         _draft.value = value
     }
 
+    /** Starts a reply to [message]; the next send quotes it. */
+    fun onReply(message: MessageEntity) {
+        _replyTo.value = Quote.snippetOf(message.body)
+    }
+
+    fun onCancelReply() {
+        _replyTo.value = null
+    }
+
     /**
      * Sends the draft, clearing the box immediately.
      *
@@ -162,11 +188,14 @@ class ChatViewModel @Inject constructor(
      * twice.
      */
     fun onSend() {
-        val body = _draft.value.trim()
-        if (body.isEmpty() || !MessagePacket.isSendable(body)) return
+        val text = _draft.value.trim()
+        if (text.isEmpty()) return
+        val body = outgoingBody(text, _replyTo.value)
+        if (!MessagePacket.isSendable(body)) return
 
         val target = peerId.value
         _draft.value = ""
+        _replyTo.value = null
         viewModelScope.launch {
             when (val result = coordinator.send(body = body, recipientHexId = target)) {
                 is SendResult.Rejected -> _errors.value = result.reason
@@ -246,6 +275,12 @@ class ChatViewModel @Inject constructor(
 
     fun onErrorShown() {
         _errors.value = null
+    }
+
+    private fun outgoingBody(draft: String, quote: String?): String {
+        val text = draft.trim()
+        // A quote with nothing under it is not a reply; the count shows the bare draft.
+        return if (quote == null || text.isEmpty()) text else Quote.compose(quote, text)
     }
 
     private fun conversationIdFor(peer: String?): String =

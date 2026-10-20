@@ -1,6 +1,7 @@
 package et.alpha.nchat.service
 
 import et.alpha.nchat.mesh.Arrival
+import et.alpha.nchat.mesh.protocol.Quote
 
 /**
  * What a new-message notification says and when it appears, kept free of
@@ -38,7 +39,9 @@ internal object MessageNotificationPolicy {
     fun text(arrival: Arrival, unseen: Int): String = when {
         unseen > 1 -> "$unseen new messages"
         arrival.isImage -> "Image"
-        else -> arrival.preview.take(MAX_PREVIEW_CHARS)
+        // The reply, not the words it quotes: those are the user's own, and a
+        // notification that opened with them would read as an echo.
+        else -> Quote.replyText(arrival.preview).take(MAX_PREVIEW_CHARS)
     }
 
     /**
