@@ -21,10 +21,10 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -33,7 +33,7 @@ jobs:
       # accepted (ANDROID_HOME), and AGP downloads any missing platform itself.
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Lint
         run: ./gradlew :app:lintDebug --stacktrace
@@ -76,7 +76,7 @@ jobs:
           fi
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nchat-debug-apk
           path: app/build/outputs/apk/debug/*.apk
@@ -84,7 +84,7 @@ jobs:
 
       # Needed to de-obfuscate a crash trace from an R8 build.
       - name: Upload R8 mapping
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nchat-release-mapping
           path: app/build/outputs/mapping/release/
@@ -92,7 +92,7 @@ jobs:
 
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reports
           path: |
@@ -108,16 +108,16 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # Hardware acceleration: without KVM the x86_64 emulator is too slow to boot
       # inside the job timeout.
@@ -144,7 +144,7 @@ jobs:
 
       - name: Upload instrumented reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: instrumented-reports
           path: |
