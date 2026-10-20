@@ -11,6 +11,7 @@ import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.data.settings.DisplayNameStore
 import et.alpha.nchat.mesh.MeshCoordinator
+import et.alpha.nchat.mesh.protocol.Quote
 import et.alpha.nchat.mesh.transport.NearbyTransport
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -169,7 +170,7 @@ class PeerListViewModel @Inject constructor(
                 peerId = peer.id,
                 label = peerLabel(peer.displayName, peer.id),
                 isOnline = peer.id in online,
-                lastMessage = summary?.lastMessageBody,
+                lastMessage = summary?.lastMessageBody?.let(Quote::replyText),
                 unreadCount = summary?.unreadCount ?: 0,
                 isVerified = peer.isVerified,
                 // A live link is the one distance this device actually knows, so
@@ -198,7 +199,7 @@ class PeerListViewModel @Inject constructor(
         peerId = null,
         label = "Everyone",
         isOnline = onlineCount > 0,
-        lastMessage = this?.lastMessageBody,
+        lastMessage = this?.lastMessageBody?.let(Quote::replyText),
         unreadCount = this?.unreadCount ?: 0,
     )
 

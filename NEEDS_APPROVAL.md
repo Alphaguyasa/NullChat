@@ -5,6 +5,14 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5f. Two-phone check for reply with quote (2026-10-20)
+On A, long-press a message from B and choose Reply. A "replying to" strip shows
+the quoted words above the box; × cancels it. Send a reply. On both phones the
+bubble shows the quote as a muted block above the answer, and the peer list and
+B's notification show only the answer. A phone on an **older build** should see
+the reply as two lines, `> quoted words` and the answer under it. Your own queued
+or failed message offers no Reply.
+
 ### 5e. Two-phone check for PR #22 (delete for me, 2026-10-19)
 B sends A a direct message and a broadcast. On A, long-press each and choose
 Delete for me, then confirm. Both disappear and the peer list preview updates.

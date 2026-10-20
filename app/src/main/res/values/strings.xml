@@ -63,6 +63,9 @@
     <string name="chat_resend_hint">tap to resend</string>
     <string name="chat_actions_label">Message options</string>
     <string name="chat_copy_action">Copy</string>
+    <string name="chat_reply_action">Reply</string>
+    <string name="chat_replying_to">replying to</string>
+    <string name="chat_reply_cancel">Cancel reply</string>
     <string name="chat_copied">Copied</string>
     <string name="chat_delete_action">Delete for me</string>
     <string name="chat_delete_title">Delete this message?</string>

@@ -68,6 +68,12 @@ class MessageNotificationPolicyTest {
     }
 
     @Test
+    fun `a reply shows its answer, not the words it quotes`() {
+        val text = MessageNotificationPolicy.text(direct(preview = "> north gate?\non my way"), unseen = 1)
+        assertEquals("on my way", text)
+    }
+
+    @Test
     fun `an image says so instead of showing nothing`() {
         assertEquals("Image", MessageNotificationPolicy.text(direct(preview = "", isImage = true), unseen = 1))
     }

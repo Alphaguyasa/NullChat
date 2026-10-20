@@ -11,7 +11,8 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 14 | **Message actions, part 2: reply with quote.** Copy and delete shipped in #22. | P2 | M | Needs a payload format; the quote must fit the 1000-byte budget. |
+| 25 | **Toolchain bump: AGP 9.4.1 + Gradle 9.8.1 + Kotlin 2.4.21 + KSP 2.3.12**, together with Nearby 19.5.1 and the rest of Dependabot #25/#27. | P1 | M | They only build together: AGP 9.4 needs Gradle ≥ 9.6, and Nearby 19.5.1 is compiled with Kotlin 2.4 metadata. Major bump, so its own PR and a log note. Supersedes Dependabot #25 and #27. |
+| 26 | **compileSdk 37 + androidx bumps** (Dependabot #26: core-ktx 1.19.1, Compose BOM 2026.09.00, hilt-navigation-compose 1.4.0, Room 2.8.5). | P2 | S | Every one of them needs compileSdk ≥ 37 (`checkAarMetadata`). targetSdk stays 35. After #25. |
 | 15 | **Panic wipe.** Delete keys, database and attachments, then restart as a new identity. | P2 | M | Deletes user data on request only; confirm dialog. |
 | 16 | **App lock.** Optional biometric/device-credential lock. | P2 | M | |
 | 17 | **Disappearing messages** per conversation, swept by WorkManager. | P2 | M | |
@@ -49,3 +50,5 @@ exist but only run on a physical phone.
 | 2026-10-19 | #12 Release build: R8 on, unsigned `assembleRelease` + APK size in CI | #21 | v2026-10-19-1 |
 | 2026-10-19 | #14 part 1: copy and delete-for-me (tombstones stop replays) | #22 | v2026-10-19-2 |
 | 2026-10-19 | #13 Dependabot (Gradle + Actions, weekly, grouped) | #23 | see log |
+| 2026-10-20 | Dependabot Actions bumps re-applied (Node 24 majors) | #28 | see log |
+| 2026-10-20 | #14 part 2: reply with quote (`> snippet` line, no wire change) | #29 | see log |
