@@ -7,10 +7,11 @@ plugins {
 
 android {
     namespace = "et.alpha.nchat"
+    // 37 because current androidx (core 1.19, Compose BOM 2026.09) refuses to
+    // compile against less. Only the compile API moves: targetSdk stays 35, so
+    // no runtime behaviour changes until that is bumped on its own.
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
+        version = release(37)
     }
 
     defaultConfig {

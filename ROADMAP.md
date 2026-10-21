@@ -11,7 +11,6 @@ exist but only run on a physical phone.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 26 | **compileSdk 37 + androidx bumps** (Dependabot #26: core-ktx 1.19.1, Compose BOM 2026.09.00, hilt-navigation-compose 1.4.0, Room 2.8.5). | P2 | S | Every one of them needs compileSdk ≥ 37 (`checkAarMetadata`). targetSdk stays 35. After #25. |
 | 16 | **App lock.** Optional biometric/device-credential lock. | P2 | M | |
 | 17 | **Disappearing messages** per conversation, swept by WorkManager. | P2 | M | |
 | 18 | **Contact nicknames** (local rename). | P2 | S | |
@@ -52,3 +51,4 @@ exist but only run on a physical phone.
 | 2026-10-20 | #14 part 2: reply with quote (`> snippet` line, no wire change) | #29 | see log |
 | 2026-10-20 | #15 Panic wipe (Settings → confirm → `clearApplicationUserData`) | #30 | see log |
 | 2026-10-21 | #25 Toolchain bump: AGP 9.4.1, Gradle 9.8.1, Kotlin 2.4.21, KSP 2.3.12 + Dependabot #27 libraries | #31 | see log |
+| 2026-10-21 | #26 compileSdk 37 + androidx (core 1.19.1, Compose BOM 2026.09.00, hilt-navigation-compose 1.4.0, Room 2.8.5) | #32 | see log |
