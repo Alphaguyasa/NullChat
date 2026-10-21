@@ -4,6 +4,48 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-21 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page lists Claude Fable 5.1, Opus 5.5,
+Sonnet 5.5 and Haiku 5.5; nothing newer than Fable 5.1. This session has no RemoteTrigger
+tool, so it cannot switch, and the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`2b8d35e`, tag `v2026-10-20-3`). There is still no Android
+  SDK here (dl.google.com is blocked; maven.google.com answers but redirects there), so CI
+  was the only build.
+- **PR #31** roadmap #25: AGP 9.4.1, Gradle 9.8.1, Kotlin 2.4.21, KSP 2.3.12, plus the
+  libraries group (Nearby 19.5.1, Tink 1.23.0, coroutines 1.11.0, ZXing 3.5.4, JUnit 6.1.3,
+  Turbine 1.2.1, MockK 1.14.11). This is a major bump, so it got its own PR. The wrapper
+  files are Dependabot's own. `android.disallowKotlinSourceSets=false` stays for now; KSP
+  2.3 may not need it, and removing it can be tried on its own. Green on the first attempt.
+  Merged, `v2026-10-21-1`. Dependabot #25 and #27 closed with a link. Nearby changed, so it
+  needs a two-phone check (NEEDS_APPROVAL 5h).
+- **PR #32** roadmap #26: compileSdk 37 (targetSdk stays 35), core-ktx 1.19.1, Compose BOM
+  2026.09.00, hilt-navigation-compose 1.4.0, Room 2.8.5. Green on the first attempt. Merged.
+  Dependabot #26 closed.
+- **PR #33** roadmap #16: app lock. It uses the system prompt (androidx.biometric 1.1.0, weak
+  biometrics or the device PIN/pattern/password), so the app stores no PIN of its own. It
+  locks at cold start, and on return after 60 s or more away; shorter trips, such as the
+  photo picker, do not lock. The lock screen covers the chats instead of replacing them, so
+  the mesh keeps relaying, and the chats are hidden from accessibility services while it is
+  up. On Android 13+ the recents thumbnail is off while the lock is on. It needs Android 9+:
+  before that, the library draws an AppCompat dialog this app has no theme for.
+  `MainActivity` is now a `FragmentActivity`. Needs a one-phone check (NEEDS_APPROVAL 5h).
+- Unit tests +10 (AppLockGateTest). Instrumented +4 (SettingsScreenTest 3, LockScreenTest 1).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #25 toolchain bump (PR #31); #26 compileSdk 37 + androidx (PR #32); #16 app lock (PR #33) |
+| Merged | #31 yes `v2026-10-21-1`; #32 yes `v2026-10-21-2` (expected); #33 see notification |
+| Failed or blocked | Nothing failed. No local Android build (CI only) |
+| Roadmap | 7 open items + tech debt; no replan needed yet (replan when under 5) |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; phone checks 5h (Nearby bump + app lock, new), 5g, 5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; backup; signing; route strip |
+| Next | #17 disappearing messages, #18 contact nicknames, #19 battery modes |
+
+---
+
 ## 2026-10-20 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page still lists Claude Fable 5.1 above

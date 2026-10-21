@@ -5,6 +5,18 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5h. Phone checks for the toolchain bump and app lock (2026-10-21)
+*Nearby 19.5.1 (#31):* the transport library changed version. On two phones,
+pair, send a direct message and an image, and check both reach `delivered`.
+*App lock (#33), one phone, Android 9 or later with a screen lock:* Settings →
+App lock → turn on "Ask to unlock". Leave the app for over a minute and come
+back: the lock screen shows and the fingerprint/PIN prompt opens by itself.
+Cancel it: the lock stays; Unlock asks again. Leave for under a minute (for
+example to pick a photo): no lock. Rotating the phone never unlocks it. The
+recent-apps thumbnail shows no chats (Android 13+). While locked, a second
+phone's messages still arrive (notification shows). On a phone with no screen
+lock the switch is greyed out with a hint.
+
 ### 5g. One-phone check for panic wipe (2026-10-20)
 Emulators cannot show the part that matters. On a phone with history: Settings,
 scroll to Panic wipe, tap "Wipe this phone". Cancel must leave everything as it

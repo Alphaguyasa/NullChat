@@ -6,6 +6,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -101,6 +103,57 @@ class SettingsScreenTest {
         setWipeContent(wipeFailed = true) {}
 
         compose.onNodeWithText("nothing was erased", substring = true).assertExists()
+    }
+
+    @Test
+    fun theLockSwitchReportsTheNewSetting() {
+        val changes = mutableListOf<Boolean>()
+        setLockContent(lockEnabled = false, lockAvailable = true) { changes += it }
+
+        compose.onNode(isToggleable()).performScrollTo().assertIsOff().performClick()
+
+        assertEquals(listOf(true), changes)
+    }
+
+    @Test
+    fun withoutAScreenLockTheSwitchCannotBeTurnedOn() {
+        setLockContent(lockEnabled = false, lockAvailable = false) {}
+
+        compose.onNode(isToggleable()).performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("screen lock, set in Android settings", substring = true).assertExists()
+    }
+
+    @Test
+    fun aLockThatIsOnCanAlwaysBeTurnedOff() {
+        // The phone's screen lock was removed after the app lock was turned on.
+        val changes = mutableListOf<Boolean>()
+        setLockContent(lockEnabled = true, lockAvailable = false) { changes += it }
+
+        compose.onNode(isToggleable()).performScrollTo().assertIsEnabled().performClick()
+
+        assertEquals(listOf(false), changes)
+    }
+
+    private fun setLockContent(
+        lockEnabled: Boolean,
+        lockAvailable: Boolean,
+        onLockChange: (Boolean) -> Unit,
+    ) {
+        compose.setContent {
+            NChatTheme {
+                SettingsContent(
+                    state = SettingsState(selfId = SELF, lockEnabled = lockEnabled),
+                    saved = false,
+                    wipeFailed = false,
+                    onBack = {},
+                    onDraftChange = {},
+                    onSave = {},
+                    onWipe = {},
+                    lockAvailable = lockAvailable,
+                    onLockChange = onLockChange,
+                )
+            }
+        }
     }
 
     private fun setWipeContent(wipeFailed: Boolean, onWipe: () -> Unit) {

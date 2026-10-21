@@ -3,6 +3,7 @@ package et.alpha.nchat.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.DisplayNameStore
 import et.alpha.nchat.data.wipe.PanicWipe
 import et.alpha.nchat.mesh.MeshCoordinator
@@ -22,6 +23,8 @@ data class SettingsState(
     val savedName: String? = null,
     /** The field's contents, unsaved. */
     val draft: String = "",
+    /** Whether opening the app asks for the phone's unlock. */
+    val lockEnabled: Boolean = false,
 ) {
     /** The draft as it would be stored: what the user will actually be called. */
     val normalisedDraft: String get() = Profile.normalize(draft)
@@ -36,6 +39,7 @@ data class SettingsState(
 class SettingsViewModel @Inject constructor(
     private val names: DisplayNameStore,
     private val panicWipe: PanicWipe,
+    private val appLock: AppLockStore,
     coordinator: MeshCoordinator,
 ) : ViewModel() {
 
@@ -53,13 +57,19 @@ class SettingsViewModel @Inject constructor(
 
     private val selfId = coordinator.selfId
 
-    val state: StateFlow<SettingsState> = combine(names.displayName, draft) { saved, text ->
-        SettingsState(selfId = selfId, savedName = saved, draft = text)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = SettingsState(selfId = selfId, savedName = names.displayName.value, draft = draft.value),
-    )
+    val state: StateFlow<SettingsState> =
+        combine(names.displayName, draft, appLock.enabled) { saved, text, lock ->
+            SettingsState(selfId = selfId, savedName = saved, draft = text, lockEnabled = lock)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+            initialValue = SettingsState(
+                selfId = selfId,
+                savedName = names.displayName.value,
+                draft = draft.value,
+                lockEnabled = appLock.enabled.value,
+            ),
+        )
 
     fun onDraftChange(value: String) {
         draft.value = value
@@ -78,6 +88,10 @@ class SettingsViewModel @Inject constructor(
             draft.value = stored.orEmpty()
             _saved.value = true
         }
+    }
+
+    fun onLockChange(enabled: Boolean) {
+        appLock.setEnabled(enabled)
     }
 
     /**
