@@ -107,6 +107,9 @@ dependencies {
     // Mesh transport
     implementation(libs.play.services.nearby)
 
+    // App lock
+    implementation(libs.androidx.biometric)
+
     // Crypto
     implementation(libs.tink.android)
 

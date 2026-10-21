@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,9 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import et.alpha.nchat.R
 import et.alpha.nchat.mesh.protocol.Profile
+import et.alpha.nchat.ui.lock.SystemUnlock
 import et.alpha.nchat.ui.theme.Danger
 import et.alpha.nchat.ui.theme.MonoBody
 import et.alpha.nchat.ui.theme.MonoSmall
@@ -49,9 +53,9 @@ import et.alpha.nchat.ui.theme.TextMuted
 /**
  * The fourth destination: what this device calls itself.
  *
- * The display name, the device id and the panic wipe. The screen exists as a
- * place for the settings the roadmap lines up behind them (battery modes, app
- * lock), so it is a scrolling column of sections rather than a dialog hung off
+ * The display name, the device id, the app lock and the panic wipe. The screen
+ * is also the place for settings the roadmap lines up behind them (battery
+ * modes), so it is a scrolling column of sections rather than a dialog hung off
  * the peer list.
  */
 @Composable
@@ -63,6 +67,8 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val saved by viewModel.saved.collectAsState()
     val wipeFailed by viewModel.wipeFailed.collectAsState()
+    val context = LocalContext.current
+    val lockAvailable = remember { SystemUnlock.isAvailable(context) }
 
     SettingsContent(
         state = state,
@@ -72,6 +78,8 @@ fun SettingsScreen(
         onDraftChange = viewModel::onDraftChange,
         onSave = viewModel::onSave,
         onWipe = viewModel::onWipe,
+        lockAvailable = lockAvailable,
+        onLockChange = viewModel::onLockChange,
         modifier = modifier,
     )
 }
@@ -87,6 +95,9 @@ internal fun SettingsContent(
     onSave: () -> Unit,
     onWipe: () -> Unit,
     modifier: Modifier = Modifier,
+    /** False when the phone has no screen lock to ask for. */
+    lockAvailable: Boolean = true,
+    onLockChange: (Boolean) -> Unit = {},
 ) {
     var confirmWipe by remember { mutableStateOf(false) }
     if (confirmWipe) {
@@ -207,6 +218,40 @@ internal fun SettingsContent(
                 text = stringResource(R.string.settings_id_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextMuted,
+            )
+
+            HorizontalDivider()
+
+            Text(
+                text = stringResource(R.string.settings_lock_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            val lockLabel = stringResource(R.string.settings_lock_switch)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = lockLabel,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = state.lockEnabled,
+                    onCheckedChange = onLockChange,
+                    // Left switchable when already on, so someone whose screen
+                    // lock was removed can still turn the app lock off.
+                    enabled = lockAvailable || state.lockEnabled,
+                    modifier = Modifier.semantics { contentDescription = lockLabel },
+                )
+            }
+            Text(
+                text = if (lockAvailable) {
+                    stringResource(R.string.settings_lock_hint)
+                } else {
+                    stringResource(R.string.settings_lock_unavailable)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             HorizontalDivider()
