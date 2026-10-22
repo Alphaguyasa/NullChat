@@ -4,6 +4,65 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-22 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page lists Claude Fable 5.1, Opus 5.5,
+Sonnet 5.5 and Haiku 5.5, so nothing is newer than Fable 5.1. There is still no
+RemoteTrigger tool in the session, so the run cannot switch models, and the ACTION FOR
+ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`f08334f`, tag `v2026-10-21-3`). There is still no
+  Android SDK here, so CI was the build.
+- **New: Room schema hashes computed locally.** A small script re-implements Room's
+  identity hash (MD5 over the sorted table, field, index and foreign-key keys). It
+  reproduces all six committed hashes, and it produced `7.json` and `8.json`. Both
+  migrations passed CI on the first try, so database work no longer needs a failed
+  CI round to learn the hash.
+- **PR #34**, roadmap #18: contact nicknames. `peers.nickname`, Room 6→7. They are
+  local only, normalised like display names, and never overwritten by an announcement.
+  The peer list, chat title and notifications all use them. Notifications now show a
+  peer's name instead of only the short id. Green on the first attempt. Merged,
+  `v2026-10-22-1`.
+- **PR #35**, roadmap #17 part 1: disappearing messages with a local timer per chat,
+  Room 7→8 (`conversations.disappearAfterMillis`, `messages.expiresAt` + index). The
+  expiry is stamped once, when a row is written, from local arrival time, so a timer
+  never reaches back into history. A sweep every minute in the mesh scope writes
+  tombstones, then deletes the rows, then the images. Queued rows wait until they are
+  sent. A deviation from the roadmap text: there is no WorkManager, because the
+  foreground service already keeps the scope alive (see the PR). Part 2 (syncing the
+  timer to the other phone) became roadmap #39. Green on the first attempt. Merged.
+- **PR #36**, roadmap #19: battery modes, Automatic / Normal / Saver. Saver keeps the
+  5 s scan but rests longer: a 60 s cycle, then 180 s once backed off. Automatic
+  follows the system battery saver (`PowerSaveMonitor`, a not-exported receiver).
+  The radio timing changed, so it needs a two-phone check (NEEDS_APPROVAL 5i).
+- **Replan.** Three items were done and four would have been left (under 5), so a
+  second audit (code, security, battery, UX, tests, features) added roadmap #27–#41.
+  Top findings, each checked against the code:
+  - Sends run in `viewModelScope`, so leaving mid-image strands the row as `queued`
+    (#27).
+  - Inbound images are not size-checked before `decodeFile` (#28).
+  - Ordering uses the sender's clock (#29).
+  - An unauthenticated endpoint name can drain the forward queue for a peer id (#30).
+  - The router verifies every duplicate before the seen-cache check (#32).
+  - Fonts are downloadable, which needs internet (#34).
+  - It also strengthens NEEDS_APPROVAL #3 (backup).
+- Unit tests +17 (PeerRenameTest 4, PeerLabelTest 3, notification title 1,
+  DisappearingTimerTest 3, DutyCycleTest 3, BatteryModeTest 3). Instrumented +12
+  (migrations 2, PeerDaoTest 2, MessageRepositoryTest 7, SettingsScreenTest 1).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #18 nicknames (PR #34); #17 disappearing messages part 1 (PR #35); #19 battery modes (PR #36) |
+| Merged | #34 yes `v2026-10-22-1`; #35 yes `v2026-10-22-2` (expected); #36 see notification |
+| Failed or blocked | Nothing failed. No local Android build (CI only) |
+| Roadmap | Replanned: 15 new items (#27–#41) + 4 older ones open. Top: sends survive leaving the chat, bound received images, local-clock ordering |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3, now recommended: exclude history); phone checks 5i (new: nicknames, disappearing, battery modes on two phones), 5h, 5g, 5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
+| Next | #27 sends survive leaving the chat, #28 bound received images, #29 local-clock ordering |
+
+---
+
 ## 2026-10-21 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page lists Claude Fable 5.1, Opus 5.5,

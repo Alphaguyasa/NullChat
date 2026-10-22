@@ -4,11 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -33,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -43,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import et.alpha.nchat.R
 import et.alpha.nchat.mesh.protocol.Profile
+import et.alpha.nchat.mesh.transport.BatteryMode
 import et.alpha.nchat.ui.lock.SystemUnlock
 import et.alpha.nchat.ui.theme.Danger
 import et.alpha.nchat.ui.theme.MonoBody
@@ -80,6 +87,7 @@ fun SettingsScreen(
         onWipe = viewModel::onWipe,
         lockAvailable = lockAvailable,
         onLockChange = viewModel::onLockChange,
+        onBatteryModeChange = viewModel::onBatteryModeChange,
         modifier = modifier,
     )
 }
@@ -98,6 +106,7 @@ internal fun SettingsContent(
     /** False when the phone has no screen lock to ask for. */
     lockAvailable: Boolean = true,
     onLockChange: (Boolean) -> Unit = {},
+    onBatteryModeChange: (BatteryMode) -> Unit = {},
 ) {
     var confirmWipe by remember { mutableStateOf(false) }
     if (confirmWipe) {
@@ -257,6 +266,43 @@ internal fun SettingsContent(
             HorizontalDivider()
 
             Text(
+                text = stringResource(R.string.settings_battery_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Column(modifier = Modifier.selectableGroup()) {
+                BatteryMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = mode == state.batteryMode,
+                                onClick = { onBatteryModeChange(mode) },
+                                role = Role.RadioButton,
+                            )
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // The row is the touch target and carries the semantics.
+                        RadioButton(selected = mode == state.batteryMode, onClick = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = stringResource(batteryModeLabel(mode)),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            }
+            Text(
+                text = stringResource(R.string.settings_battery_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            HorizontalDivider()
+
+            Text(
                 text = stringResource(R.string.settings_wipe_title),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -275,6 +321,12 @@ internal fun SettingsContent(
             }
         }
     }
+}
+
+private fun batteryModeLabel(mode: BatteryMode): Int = when (mode) {
+    BatteryMode.AUTOMATIC -> R.string.settings_battery_automatic
+    BatteryMode.NORMAL -> R.string.settings_battery_normal
+    BatteryMode.SAVER -> R.string.settings_battery_saver
 }
 
 /**

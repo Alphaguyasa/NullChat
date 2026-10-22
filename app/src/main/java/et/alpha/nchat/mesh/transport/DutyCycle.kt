@@ -20,6 +20,10 @@ class DutyCycle(
     private val backoffPeriodMillis: Long = DEFAULT_BACKOFF_PERIOD_MILLIS,
     /** How long with nothing found before widening the cycle. */
     private val backoffAfterMillis: Long = DEFAULT_BACKOFF_AFTER_MILLIS,
+    /** Total cycle length in saver mode while peers are still turning up. */
+    private val saverPeriodMillis: Long = DEFAULT_SAVER_PERIOD_MILLIS,
+    /** Total cycle length in saver mode once backed off. */
+    private val saverBackoffPeriodMillis: Long = DEFAULT_SAVER_BACKOFF_PERIOD_MILLIS,
     private val timeSource: () -> Long = System::currentTimeMillis,
 ) {
 
@@ -29,7 +33,21 @@ class DutyCycle(
         require(backoffPeriodMillis > scanMillis) {
             "backoff period ($backoffPeriodMillis) must leave room for a ${scanMillis}ms scan"
         }
+        require(saverPeriodMillis > scanMillis && saverBackoffPeriodMillis > scanMillis) {
+            "saver periods must leave room for a ${scanMillis}ms scan"
+        }
     }
+
+    /**
+     * True for the slow schedule (see [BatteryMode]).
+     *
+     * Only the rest between scans changes, never the scan itself: a shorter scan
+     * would save little and miss phones that need the whole window to be found,
+     * so saver mode finds people as reliably, just less often. It takes effect
+     * from the next rest, so a switch never cuts a scan short.
+     */
+    @Volatile
+    var isSaving: Boolean = false
 
     @Volatile
     private var lastFoundAt: Long = timeSource()
@@ -56,8 +74,12 @@ class DutyCycle(
      * period, so "back off to 60 second intervals" means a scan starts every 60
      * seconds — not that the radio rests for 60 seconds on top of a 5 second scan.
      */
-    fun idleMillis(): Long =
-        if (isBackedOff()) backoffPeriodMillis - scanMillis else activeIdleMillis
+    fun idleMillis(): Long = when {
+        isSaving && isBackedOff() -> saverBackoffPeriodMillis - scanMillis
+        isSaving -> saverPeriodMillis - scanMillis
+        isBackedOff() -> backoffPeriodMillis - scanMillis
+        else -> activeIdleMillis
+    }
 
     /** Full cycle length, scan included. Useful for logging and tests. */
     fun periodMillis(): Long = scanMillis + idleMillis()
@@ -67,5 +89,14 @@ class DutyCycle(
         const val DEFAULT_ACTIVE_IDLE_MILLIS: Long = 25_000
         const val DEFAULT_BACKOFF_PERIOD_MILLIS: Long = 60_000
         const val DEFAULT_BACKOFF_AFTER_MILLIS: Long = 5 * 60_000
+
+        /**
+         * Saver mode scans every minute, then every three once nobody new turns
+         * up: roughly half and a third of the normal radio time. A message to
+         * someone who walks into range waits up to a minute longer to be found,
+         * which is the trade the user asked for.
+         */
+        const val DEFAULT_SAVER_PERIOD_MILLIS: Long = 60_000
+        const val DEFAULT_SAVER_BACKOFF_PERIOD_MILLIS: Long = 3 * 60_000
     }
 }

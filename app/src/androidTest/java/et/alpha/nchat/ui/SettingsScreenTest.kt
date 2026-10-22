@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import et.alpha.nchat.mesh.transport.BatteryMode
 import et.alpha.nchat.ui.settings.SettingsContent
 import et.alpha.nchat.ui.settings.SettingsState
 import et.alpha.nchat.ui.theme.NChatTheme
@@ -154,6 +156,31 @@ class SettingsScreenTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun choosingABatteryModeSelectsIt() {
+        var state by mutableStateOf(SettingsState(selfId = SELF))
+        compose.setContent {
+            NChatTheme {
+                SettingsContent(
+                    state = state,
+                    saved = false,
+                    wipeFailed = false,
+                    onBack = {},
+                    onDraftChange = {},
+                    onSave = {},
+                    onWipe = {},
+                    onBatteryModeChange = { state = state.copy(batteryMode = it) },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Automatic:", substring = true).performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Saver: look", substring = true).performScrollTo().performClick()
+
+        compose.onNodeWithText("Saver: look", substring = true).assertIsSelected()
+        assertEquals(BatteryMode.SAVER, state.batteryMode)
     }
 
     private fun setWipeContent(wipeFailed: Boolean, onWipe: () -> Unit) {
