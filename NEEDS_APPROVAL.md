@@ -5,6 +5,19 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5i. Phone checks for nicknames, disappearing messages and battery modes (2026-10-22)
+*Nicknames (#34), one phone:* open a chat, ⋮ → Rename, type "Mom", Save. The title,
+the peer list and the next notification from that person read `Mom · <id>`. Rename
+with an empty box to go back to the name they chose.
+*Disappearing messages (#35), one phone:* ⋮ → Disappearing messages → 1 hour. The
+subtitle shows the timer. Messages already in the chat stay. A message that arrives
+now, image included, is gone about an hour later and does not come back when the
+sender's phone reconnects.
+*Battery modes (#36), **two phones** (radio timing changed):* Settings → Battery use →
+Saver. A phone walking into range is found within about a minute (it was 30 s), and
+messages still reach `delivered`. With Automatic, turning on the system battery saver
+should do the same.
+
 ### 5h. Phone checks for the toolchain bump and app lock (2026-10-21)
 *Nearby 19.5.1 (#31):* the transport library changed version. On two phones,
 pair, send a direct message and an image, and check both reach `delivered`.
@@ -94,6 +107,11 @@ have two phones nearby, install the APK from the latest CI run (Actions → run 
 *Default:* keep merging on green CI and list unverified PRs here.
 
 ### 3. Should chat history be included in Google cloud backup? (2026-10-14)
+**Update 2026-10-22:** the audit adds two reasons to exclude it. A backup made before a
+panic wipe or before messages disappear brings them back on restore. A restore onto a
+new phone also brings back "verified" contacts under an identity that cannot decrypt
+them. Recommendation: (a). It is a small change (roadmap note under the open items)
+once you say yes.
 `android:allowBackup="true"`. Keys are already excluded, but the message database
 and images are backed up to the user's Google account. For a privacy-focused
 offline messenger that is arguably a leak; excluding it means history is lost when

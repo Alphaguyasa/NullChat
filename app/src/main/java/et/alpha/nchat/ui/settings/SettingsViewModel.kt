@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import et.alpha.nchat.data.settings.AppLockStore
+import et.alpha.nchat.data.settings.BatteryModeStore
 import et.alpha.nchat.data.settings.DisplayNameStore
 import et.alpha.nchat.data.wipe.PanicWipe
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.protocol.Profile
+import et.alpha.nchat.mesh.transport.BatteryMode
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,6 +27,8 @@ data class SettingsState(
     val draft: String = "",
     /** Whether opening the app asks for the phone's unlock. */
     val lockEnabled: Boolean = false,
+    /** How hard the radio works; see [BatteryMode]. */
+    val batteryMode: BatteryMode = BatteryMode.AUTOMATIC,
 ) {
     /** The draft as it would be stored: what the user will actually be called. */
     val normalisedDraft: String get() = Profile.normalize(draft)
@@ -40,6 +44,7 @@ class SettingsViewModel @Inject constructor(
     private val names: DisplayNameStore,
     private val panicWipe: PanicWipe,
     private val appLock: AppLockStore,
+    private val battery: BatteryModeStore,
     coordinator: MeshCoordinator,
 ) : ViewModel() {
 
@@ -58,8 +63,14 @@ class SettingsViewModel @Inject constructor(
     private val selfId = coordinator.selfId
 
     val state: StateFlow<SettingsState> =
-        combine(names.displayName, draft, appLock.enabled) { saved, text, lock ->
-            SettingsState(selfId = selfId, savedName = saved, draft = text, lockEnabled = lock)
+        combine(names.displayName, draft, appLock.enabled, battery.mode) { saved, text, lock, mode ->
+            SettingsState(
+                selfId = selfId,
+                savedName = saved,
+                draft = text,
+                lockEnabled = lock,
+                batteryMode = mode,
+            )
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -68,6 +79,7 @@ class SettingsViewModel @Inject constructor(
                 savedName = names.displayName.value,
                 draft = draft.value,
                 lockEnabled = appLock.enabled.value,
+                batteryMode = battery.mode.value,
             ),
         )
 
@@ -92,6 +104,10 @@ class SettingsViewModel @Inject constructor(
 
     fun onLockChange(enabled: Boolean) {
         appLock.setEnabled(enabled)
+    }
+
+    fun onBatteryModeChange(mode: BatteryMode) {
+        battery.set(mode)
     }
 
     /**

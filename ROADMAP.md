@@ -4,25 +4,45 @@ Prioritized backlog. Work top-down; the daily run takes up to 3 items.
 Priority: **P0** broken / security · **P1** high value · **P2** solid improvement · **P3** nice to have.
 Effort: **S** < 2 h · **M** half a day · **L** a day or more (split into several PRs).
 
-Audit of 2026-10-14. Baseline: 231 JVM unit tests passing; instrumented tests
-exist but only run on a physical phone.
+Audit of 2026-10-14; **replanned 2026-10-22** (second audit: bugs, security,
+battery, UX, tests, features). Items 27–41 come from that audit, with the evidence in
+DAILY_LOG 2026-10-22. Bugs come first: the most common failures of a phone with no
+network are a wrong clock and leaving the app mid-send.
 
 ## Open
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 19 | **Battery modes** over `DutyCycle`, auto-saver when system battery saver is on. | P2 | M | |
+| 27 | **Sends survive leaving the chat**: image, long-text and resend jobs run in `viewModelScope` and are cancelled between fragments, so the row stays `queued` until the 24 h expiry. Run them in the mesh scope, and fail the row on cancellation. | P1 | S | Bug. Needs a cancellation test |
+| 28 | **Bound received images**: hold inbound JPEGs to `ImagePolicy.MAX_ENCODED_BYTES` (the reassembler allows 64 KB) and decode in two passes, capped at about 1024 px (`ChatScreen` calls `decodeFile` with no bounds). A stranger's broadcast can crash the Everyone thread. | P1 | S | Security |
+| 29 | **Order by this phone's clock**: threads and the peer list sort by the sender's `timestamp`, and `bumpActivity` only moves forward. A sender whose clock is a year fast stays pinned at the top. Sort by `receivedAt` and clamp skew. | P1 | M | Bug, Room change |
+| 30 | **A link belongs to a peer only after a verified ANNOUNCE**: today the endpoint name alone makes a peer "online" and `offerQueued` hands over (and marks sent) everything queued for that id. | P1 | M | Security, needs two-phone check |
+| 31 | **Delete chat, forget peer, block sender** (`deleteConversation` exists but nothing calls it; a spammer cannot be silenced). Block drops delivery but still relays. | P1 | M | |
+| 32 | **Router: skip duplicates before verifying, cap ttl**: check the seen-cache before the Ed25519 verify (it costs CPU for every duplicate in a dense cluster), and clamp inbound ttl to 6. | P2 | S | Battery, needs two-phone check |
+| 33 | **App lock hides notification text**: while the lock is on, show "New message" only. | P2 | S | Privacy |
+| 34 | **Bundle the fonts**: `GoogleFont.Provider` needs internet. On a phone that was never online the fingerprints render in a proportional font. Ship the OFL fonts in `res/font`. | P2 | S | APK +~300 KB |
+| 35 | **`InboundHandler` extraction + JVM tests** for the inbound path (collectIncoming, fragments, offerQueued, releaseHeld). Replaces the tech-debt line. | P2 | M | |
+| 36 | **Message info** on long-press: sent time, received time, state, hops, sender id. | P2 | S | |
+| 37 | **Search in a chat** (LIKE over the body, highlighted). | P2 | M | |
+| 38 | **Share into Null Chat / forward a message** (`SEND text/plain` + peer picker). | P2 | M | No wire change |
+| 39 | **Disappearing messages, part 2**: tell the other phone the timer (new packet type, old builds ignore it). | P2 | M | Wire change |
+| 40 | **Carry others' mail**: offer queued unicast to any new neighbour (capped), not only to the recipient, so a chain of phones can deliver. | P2 | M | Needs two-phone check |
 | 20 | **Tablet / landscape layout**: list + chat side by side on wide screens. | P2 | M | |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
 | 23 | **Route strip**: show relay chain on tap. Privacy trade-off — see NEEDS_APPROVAL. | P3 | M | |
+| 41 | **Export a chat to a file** (system file picker, text, never automatic). | P3 | M | |
+
+**Waiting for alpha:** keeping chat history out of Google backup (NEEDS_APPROVAL #3).
+The audit found it also undoes panic wipe and disappearing messages. It is an S-sized
+change once decided.
 
 ### Tech debt (slot into light days)
 
 - Stale KDoc: `KeyManager` says the X25519 key is "unused until SessionCipher lands". (`MeshCoordinator`'s `flushPending`/`TESTING.md` references were fixed in #9.)
 - Receiving side still accepts plaintext direct messages from older builds (`openedBody` fallback). Once every phone runs a build with #9, consider rejecting them.
 - Delete `ExampleUnitTest` and `ExampleInstrumentedTest`.
-- `MeshCoordinator` is 745 lines; extract inbound handling (`InboundHandler`) once #1 and #2 land.
+- `MeshCoordinator` is now about 1250 lines; see roadmap #35.
 - `MainActivityPreview` composes `MeshChatScreen`, which needs Hilt ViewModels; replace with a stateless preview.
 
 ## Done
@@ -52,3 +72,4 @@ exist but only run on a physical phone.
 | 2026-10-21 | #16 App lock (system fingerprint / face / screen lock, 60 s grace) | #33 | see log |
 | 2026-10-22 | #18 Contact nicknames (local only, Room 6→7) | #34 | see log |
 | 2026-10-22 | #17 Disappearing messages, part 1: local timer per chat (Room 7→8; in-process sweep, not WorkManager — see PR) | #35 | see log |
+| 2026-10-22 | #19 Battery modes (automatic / normal / saver over `DutyCycle`) | #36 | see log |

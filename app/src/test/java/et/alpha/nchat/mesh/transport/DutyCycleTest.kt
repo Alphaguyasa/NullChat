@@ -85,4 +85,32 @@ class DutyCycleTest {
             DutyCycle(scanMillis = 5_000, backoffPeriodMillis = 4_000)
         }
     }
+
+    @Test
+    fun `saver mode scans once a minute, then every three`() {
+        val clock = FakeClock()
+        val cycle = DutyCycle(timeSource = clock).apply { isSaving = true }
+
+        assertEquals(5_000, cycle.scanMillis, "the scan itself is never shortened")
+        assertEquals(60_000, cycle.periodMillis())
+
+        clock.advance(5 * 60_000)
+        assertEquals(180_000, cycle.periodMillis())
+    }
+
+    @Test
+    fun `leaving saver mode returns to the normal schedule at once`() {
+        val cycle = DutyCycle(timeSource = FakeClock()).apply { isSaving = true }
+
+        cycle.isSaving = false
+
+        assertEquals(25_000, cycle.idleMillis())
+    }
+
+    @Test
+    fun `rejects a saver period too short to fit a scan`() {
+        assertThrows<IllegalArgumentException> {
+            DutyCycle(scanMillis = 5_000, saverPeriodMillis = 5_000)
+        }
+    }
 }

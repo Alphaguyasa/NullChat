@@ -105,4 +105,9 @@
     <string name="lock_unlock">Unlock</string>
     <string name="lock_prompt_title">Unlock Null Chat</string>
     <string name="settings_id_hint">Anyone can pick any name. The id comes from your key, so it is what people should check, by pairing with a QR code.</string>
+    <string name="settings_battery_title">Battery use</string>
+    <string name="settings_battery_automatic">Automatic: save when the phone\'s battery saver is on</string>
+    <string name="settings_battery_normal">Normal: look for phones every 30 seconds</string>
+    <string name="settings_battery_saver">Saver: look for phones once a minute</string>
+    <string name="settings_battery_hint">Saver uses about half the radio time. Phones that come into range can take up to a minute longer to be found, so messages may wait longer before they go out.</string>
 </resources>

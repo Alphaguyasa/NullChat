@@ -14,11 +14,13 @@ import dagger.hilt.android.AndroidEntryPoint
 import et.alpha.nchat.MainActivity
 import et.alpha.nchat.R
 import et.alpha.nchat.data.db.preferredName
+import et.alpha.nchat.data.settings.BatteryModeStore
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.transport.DutyCycle
 import et.alpha.nchat.mesh.transport.NearbyTransport
+import et.alpha.nchat.mesh.transport.PowerSaveMonitor
 import et.alpha.nchat.mesh.transport.RadioBlocker
 import et.alpha.nchat.mesh.transport.RadioMonitor
 import et.alpha.nchat.mesh.transport.RadioState
@@ -63,6 +65,10 @@ class MeshForegroundService : Service() {
     @Inject lateinit var foregroundConversation: ForegroundConversation
 
     @Inject lateinit var peerRepository: PeerRepository
+
+    @Inject lateinit var batteryMode: BatteryModeStore
+
+    @Inject lateinit var powerSave: PowerSaveMonitor
 
     private val scope = CoroutineScope(SupervisorJob())
 
@@ -162,6 +168,15 @@ class MeshForegroundService : Service() {
      * for why advertising must not cycle with it.
      */
     private fun runDutyCycle() = scope.launch {
+        // The user's battery mode, applied to the schedule from the next rest.
+        launch {
+            combine(batteryMode.mode, powerSave.saverOn) { mode, systemSaver -> mode.saves(systemSaver) }
+                .collect { saving ->
+                    Log.i(TAG, "battery saver schedule ${if (saving) "on" else "off"}")
+                    dutyCycle.isSaving = saving
+                }
+        }
+
         // A peer appearing resets the backoff, so a device that has gone quiet for
         // five minutes returns to fast scanning the moment anyone turns up.
         launch {
