@@ -136,6 +136,24 @@ interface MessageDao {
     suspend fun deleteById(id: String): Int
 
     /** Prunes history older than [cutoff]. @return rows deleted. */
+    /**
+     * Rows whose disappearing timer has run out at [now].
+     *
+     * Our own PENDING messages wait: the packet is still in the forward queue
+     * and goes out regardless, and a row deleted before then would leave the
+     * user with no sign that it is still being sent. They are swept once sent.
+     */
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE expiresAt IS NOT NULL AND expiresAt <= :now AND deliveryState != :pending
+        """,
+    )
+    suspend fun findExpired(now: Long, pending: DeliveryState = DeliveryState.PENDING): List<MessageEntity>
+
+    @Query("DELETE FROM messages WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>): Int
+
     @Query("DELETE FROM messages WHERE timestamp < :cutoff")
     suspend fun deleteOlderThan(cutoff: Long): Int
 }

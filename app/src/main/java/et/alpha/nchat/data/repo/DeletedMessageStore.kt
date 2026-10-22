@@ -42,6 +42,20 @@ class DeletedMessageStore @Inject constructor(
         }
     }
 
+    /**
+     * Records several deletions with one write, for the disappearing-message
+     * sweep, which can expire a whole evening of a busy thread at once.
+     */
+    suspend fun rememberAll(messageIds: List<String>, now: Long = System.currentTimeMillis()) {
+        if (messageIds.isEmpty()) return
+        withContext(Dispatchers.IO) {
+            synchronized(lock) {
+                messageIds.forEach { tombstones.add(it, now) }
+                preferences.edit().putString(KEY_IDS, tombstones.encode()).commit()
+            }
+        }
+    }
+
     fun isDeleted(messageId: String, now: Long = System.currentTimeMillis()): Boolean =
         synchronized(lock) { tombstones.contains(messageId, now) }
 

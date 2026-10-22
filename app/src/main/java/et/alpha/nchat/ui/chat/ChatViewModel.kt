@@ -51,6 +51,8 @@ data class ChatState(
     val nickname: String? = null,
     /** True when [title] is a name rather than a bare peer id. */
     val isNamed: Boolean = false,
+    /** This thread's disappearing timer on this phone, or null when off. */
+    val disappearAfterMillis: Long? = null,
 )
 
 /**
@@ -116,7 +118,8 @@ class ChatViewModel @Inject constructor(
             // A peer row may not exist yet for someone we have never heard from,
             // which reads as unverified — correctly.
             if (peer == null) flowOf(null) else peers.observePeer(peer),
-        ) { rows, online, peerRow ->
+            messages.observeConversation(conversationIdFor(peer)),
+        ) { rows, online, peerRow, conversation ->
             val name = peerRow?.preferredName
             ChatState(
                 messages = rows,
@@ -132,6 +135,7 @@ class ChatViewModel @Inject constructor(
                 isPeerOnline = online,
                 isBroadcast = peer == null,
                 isVerified = peerRow?.isVerified == true,
+                disappearAfterMillis = conversation?.disappearAfterMillis,
             )
         }
     }.stateIn(
@@ -305,6 +309,12 @@ class ChatViewModel @Inject constructor(
     fun onRename(input: String) {
         val peer = peerId.value ?: return
         viewModelScope.launch { peers.rename(peer, input) }
+    }
+
+    /** Sets this thread's disappearing timer; null turns it off. */
+    fun onSetDisappearing(millis: Long?) {
+        val peer = peerId.value
+        viewModelScope.launch { messages.setDisappearAfter(conversationIdFor(peer), peer, millis) }
     }
 
     private fun conversationIdFor(peer: String?): String =

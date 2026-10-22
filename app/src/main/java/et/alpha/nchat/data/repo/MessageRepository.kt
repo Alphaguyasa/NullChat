@@ -58,24 +58,25 @@ class MessageRepository @Inject constructor(
         attachmentFile: String? = null,
         replaces: String? = null,
     ): MessageEntity {
-        val message = MessageEntity(
-            id = messageId,
-            conversationId = conversationId,
-            senderId = selfId,
-            body = body,
-            timestamp = now,
-            deliveryState = DeliveryState.PENDING,
-            isOutgoing = true,
-            attachmentFile = attachmentFile,
-            receivedAt = now,
-        )
-        database.withTransaction {
+        return database.withTransaction {
             ensureConversation(conversationId, peerId, now)
+            val message = MessageEntity(
+                id = messageId,
+                conversationId = conversationId,
+                senderId = selfId,
+                body = body,
+                timestamp = now,
+                deliveryState = DeliveryState.PENDING,
+                isOutgoing = true,
+                attachmentFile = attachmentFile,
+                receivedAt = now,
+                expiresAt = expiresAt(conversationId, now),
+            )
             messageDao.insert(message)
             if (replaces != null) messageDao.deleteById(replaces)
             conversationDao.bumpActivity(conversationId, now)
+            message
         }
-        return message
     }
 
     /**
@@ -107,6 +108,10 @@ class MessageRepository @Inject constructor(
                 isOutgoing = false,
                 attachmentFile = attachmentFile,
                 receivedAt = now,
+                // From when it arrived here, not from the sender's timestamp:
+                // that clock is never synced, and a sender an hour fast would
+                // have messages vanish an hour early.
+                expiresAt = expiresAt(conversationId, now),
             ),
         )
         val isNew = rowId != -1L
@@ -173,6 +178,36 @@ class MessageRepository @Inject constructor(
 
     suspend fun pruneOlderThan(cutoff: Long): Int = messageDao.deleteOlderThan(cutoff)
 
+    fun observeConversation(conversationId: String): Flow<ConversationEntity?> =
+        conversationDao.observeById(conversationId)
+
+    /**
+     * Sets how long new messages in a thread stay on this phone; null keeps
+     * them. Creates the thread if needed, so a timer can be set before the
+     * first message.
+     */
+    suspend fun setDisappearAfter(
+        conversationId: String,
+        peerId: String?,
+        millis: Long?,
+        now: Long = System.currentTimeMillis(),
+    ) = database.withTransaction {
+        ensureConversation(conversationId, peerId, now)
+        conversationDao.setDisappearAfter(conversationId, millis)
+    }
+
+    /** Messages whose disappearing timer has run out; see [MessageDao.findExpired]. */
+    suspend fun findExpired(now: Long = System.currentTimeMillis()): List<MessageEntity> =
+        messageDao.findExpired(now)
+
+    /** Deletes [ids], in batches that stay under SQLite's bound-parameter limit. */
+    suspend fun deleteMessages(ids: List<String>): Int = database.withTransaction {
+        ids.chunked(DELETE_BATCH).sumOf { messageDao.deleteByIds(it) }
+    }
+
+    private suspend fun expiresAt(conversationId: String, now: Long): Long? =
+        conversationDao.findById(conversationId)?.disappearAfterMillis?.let { now + it }
+
     /**
      * Creates the conversation row if absent.
      *
@@ -193,5 +228,10 @@ class MessageRepository @Inject constructor(
                 lastActivityAt = now,
             ),
         )
+    }
+
+    private companion object {
+        /** Well under SQLite's 999 bound parameters on the oldest supported version. */
+        const val DELETE_BATCH = 500
     }
 }

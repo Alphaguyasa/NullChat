@@ -420,6 +420,55 @@ class NChatDatabaseMigrationTest {
         }
     }
 
+    /**
+     * The v7 → v8 upgrade that adds the disappearing-message timer.
+     *
+     * Every existing thread starts with the timer off and every existing
+     * message with no expiry, so nothing stored before the upgrade can be
+     * swept because of it.
+     */
+    @Test
+    fun migratingToVersion8AddsTimersWithoutExpiringHistory() {
+        helper.createDatabase(TEST_DB, 7).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO conversations
+                    (id, peerId, title, createdAt, lastActivityAt, lastReadAt)
+                VALUES ('direct:peer', 'peer', NULL, 1000, 1000, 0)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO messages
+                    (id, conversationId, senderId, body, timestamp, deliveryState,
+                     isOutgoing, attachmentFile, hops, receivedAt)
+                VALUES ('m1', 'direct:peer', 'peer', 'survived', 1000, 'DELIVERED', 0, NULL, NULL, 1000)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_7_8 and validates the result against schemas/8.json.
+        helper.runMigrationsAndValidate(TEST_DB, 8, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val old = db.messageDao().findById("m1")
+                assertEquals("survived", old?.body)
+                assertNull(old?.expiresAt)
+                assertNull(db.conversationDao().findById("direct:peer")?.disappearAfterMillis)
+                assertEquals(emptyList<MessageEntity>(), db.messageDao().findExpired(now = Long.MAX_VALUE))
+            }
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

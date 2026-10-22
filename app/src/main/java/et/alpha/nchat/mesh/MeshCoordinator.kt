@@ -318,6 +318,7 @@ class MeshCoordinator @Inject constructor(
         collectIncoming()
         collectPeers()
         expireStalePending()
+        sweepDisappearing()
         collectNameChanges()
     }
 
@@ -364,6 +365,34 @@ class MeshCoordinator @Inject constructor(
             val expired = messages.expirePendingOutgoing(pendingExpiryCutoff(System.currentTimeMillis()))
             if (expired > 0) Log.i(TAG, "$expired queued message(s) expired undelivered")
             delay(EXPIRY_SWEEP_MILLIS)
+        }
+    }
+
+    /**
+     * Deletes messages whose disappearing timer has run out, at start and then
+     * every [DISAPPEAR_SWEEP_MILLIS].
+     *
+     * A loop in the mesh's own scope rather than a WorkManager job. This scope
+     * lives as long as the foreground service, which runs whenever the mesh is
+     * on, so a job would only add a dependency to cover the time the app is
+     * fully stopped; then the sweep at the next start catches up, and nobody
+     * can open the app to read the rows in between.
+     *
+     * Each one goes the way [deleteLocally] goes: tombstone first, so a relay
+     * replaying it from a forward queue cannot bring it back, then the row,
+     * then its image.
+     */
+    private fun sweepDisappearing() = scope.launch {
+        while (true) {
+            val expired = messages.findExpired()
+            if (expired.isNotEmpty()) {
+                val ids = expired.map { it.id }
+                deletedMessages.rememberAll(ids)
+                messages.deleteMessages(ids)
+                expired.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
+                Log.i(TAG, "${expired.size} disappearing message(s) deleted")
+            }
+            delay(DISAPPEAR_SWEEP_MILLIS)
         }
     }
 
@@ -1196,6 +1225,13 @@ class MeshCoordinator @Inject constructor(
          * for the user and a negligible wake-up for the battery.
          */
         const val EXPIRY_SWEEP_MILLIS: Long = 15 * 60 * 1000L
+
+        /**
+         * How often disappearing messages are looked for. A message can outlive
+         * its timer by up to this long; a minute is invisible on the shortest
+         * timer offered (an hour) and the query is one indexed lookup.
+         */
+        const val DISAPPEAR_SWEEP_MILLIS: Long = 60 * 1000L
 
         /**
          * Gap between consecutive fragments of one image.

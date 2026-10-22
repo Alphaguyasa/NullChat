@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -40,6 +42,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -64,6 +67,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
@@ -176,6 +180,17 @@ fun ChatScreen(
             onDismiss = { isRenaming = false },
         )
     }
+    var isChoosingTimer by rememberSaveable { mutableStateOf(false) }
+    if (isChoosingTimer) {
+        DisappearingDialog(
+            current = state.disappearAfterMillis,
+            onChoose = {
+                viewModel.onSetDisappearing(it)
+                isChoosingTimer = false
+            },
+            onDismiss = { isChoosingTimer = false },
+        )
+    }
     LaunchedEffect(error) {
         error?.let {
             snackbarHostState.showSnackbar(it)
@@ -194,7 +209,9 @@ fun ChatScreen(
                     state.isBroadcast -> "Everyone in range"
                     state.isPeerOnline -> "In range"
                     else -> "Out of range"
-                },
+                } + state.disappearAfterMillis
+                    ?.let { " · disappears after ${DisappearingTimer.label(it)}" }
+                    .orEmpty(),
                 // A bare peer id is machine text people compare character by
                 // character; a name or the broadcast thread's "Everyone" is a word
                 // and reads as one.
@@ -202,6 +219,7 @@ fun ChatScreen(
                 isOnline = state.isBroadcast || state.isPeerOnline,
                 onBack = onBack,
                 onRename = if (state.isBroadcast) null else ({ isRenaming = true }),
+                onDisappearing = { isChoosingTimer = true },
             )
         },
     ) { padding ->
@@ -330,7 +348,9 @@ private fun ChatTopBar(
     isOnline: Boolean,
     onBack: () -> Unit,
     onRename: (() -> Unit)? = null,
+    onDisappearing: (() -> Unit)? = null,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     Column {
         Row(
             modifier = Modifier
@@ -373,11 +393,38 @@ private fun ChatTopBar(
                     },
                 )
             }
-            // A word rather than a pencil glyph: it says what it does at any
-            // font scale, and needs no separate label for a screen reader.
-            if (onRename != null) {
-                TextButton(onClick = onRename) {
-                    Text(stringResource(R.string.chat_rename_action))
+            if (onRename != null || onDisappearing != null) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Text(
+                            text = "⋮",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.clearAndSetSemantics {
+                                contentDescription = "More options"
+                            },
+                        )
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        onRename?.let { rename ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_rename_action)) },
+                                onClick = {
+                                    menuOpen = false
+                                    rename()
+                                },
+                            )
+                        }
+                        onDisappearing?.let { choose ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_disappearing_action)) },
+                                onClick = {
+                                    menuOpen = false
+                                    choose()
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -603,6 +650,50 @@ private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: (
             TextButton(onClick = { onSave(text) }) { Text(stringResource(R.string.chat_rename_save)) }
         },
         dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }
+        },
+    )
+}
+
+/**
+ * Picks this thread's disappearing timer.
+ *
+ * The body is the part that matters: the timer is this phone's alone and only
+ * reaches messages from now on. Someone who believed it also cleared the other
+ * phone, or the history already here, would be trusting a deletion that never
+ * happens.
+ */
+@Composable
+private fun DisappearingDialog(current: Long?, onChoose: (Long?) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_disappearing_title)) },
+        text = {
+            Column(modifier = Modifier.selectableGroup()) {
+                Text(stringResource(R.string.chat_disappearing_body))
+                Spacer(Modifier.height(8.dp))
+                DisappearingTimer.OPTIONS.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = option == current,
+                                onClick = { onChoose(option) },
+                                role = Role.RadioButton,
+                            )
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // The row is the touch target and carries the semantics;
+                        // the button is only the picture of the choice.
+                        RadioButton(selected = option == current, onClick = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(DisappearingTimer.label(option))
+                    }
+                }
+            }
+        },
+        confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }
         },
     )
