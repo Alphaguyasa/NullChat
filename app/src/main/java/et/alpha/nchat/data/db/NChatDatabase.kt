@@ -53,7 +53,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun forwardQueueDao(): ForwardQueueDao
 
     companion object {
-        const val VERSION: Int = 6
+        const val VERSION: Int = 7
 
         const val NAME: String = "nchat.db"
 
@@ -147,6 +147,19 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds `peers.nickname`, the name the user gave a peer.
+         *
+         * Nullable and without a default, like the other added columns: no row
+         * is rewritten, and every existing peer reads back with no nickname,
+         * which is true — the user has not named anyone yet.
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `peers` ADD COLUMN `nickname` TEXT")
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
@@ -158,6 +171,7 @@ abstract class NChatDatabase : RoomDatabase() {
             MIGRATION_3_4,
             MIGRATION_4_5,
             MIGRATION_5_6,
+            MIGRATION_6_7,
         )
     }
 }

@@ -53,7 +53,12 @@ class MessageNotificationPolicyTest {
 
     @Test
     fun `the title is the short peer id`() {
-        assertEquals("a1b2c3d4", MessageNotificationPolicy.title(direct()))
+        assertEquals("a1b2c3d4", MessageNotificationPolicy.title(direct(), senderName = null))
+    }
+
+    @Test
+    fun `a known name leads the title, with the short id kept beside it`() {
+        assertEquals("Mom · a1b2c3d4", MessageNotificationPolicy.title(direct(), senderName = "Mom"))
     }
 
     @Test

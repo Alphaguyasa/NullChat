@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.ConversationSummary
 import et.alpha.nchat.data.db.directConversationId
+import et.alpha.nchat.data.db.preferredName
 import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
@@ -101,8 +102,8 @@ data class PeerListState(
 )
 
 /**
- * How a peer is named in the list: their chosen name with the short id beside
- * it, or the short id alone.
+ * How a peer is named in the list: the user's nickname for them or their
+ * chosen name, with the short id beside it, or the short id alone.
  *
  * The id stays even when a name is known. A name is whatever the peer typed,
  * and two strangers can both be "Maya"; eight hex characters derived from the
@@ -168,7 +169,7 @@ class PeerListViewModel @Inject constructor(
             val summary = byConversation[directConversationId(peer.id)]
             PeerRow(
                 peerId = peer.id,
-                label = peerLabel(peer.displayName, peer.id),
+                label = peerLabel(peer.preferredName, peer.id),
                 isOnline = peer.id in online,
                 lastMessage = summary?.lastMessageBody?.let(Quote::replyText),
                 unreadCount = summary?.unreadCount ?: 0,

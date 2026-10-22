@@ -165,6 +165,17 @@ fun ChatScreen(
             onDismiss = { pendingDelete = null },
         )
     }
+    var isRenaming by rememberSaveable { mutableStateOf(false) }
+    if (isRenaming) {
+        RenameDialog(
+            current = state.nickname.orEmpty(),
+            onSave = {
+                viewModel.onRename(it)
+                isRenaming = false
+            },
+            onDismiss = { isRenaming = false },
+        )
+    }
     LaunchedEffect(error) {
         error?.let {
             snackbarHostState.showSnackbar(it)
@@ -184,11 +195,13 @@ fun ChatScreen(
                     state.isPeerOnline -> "In range"
                     else -> "Out of range"
                 },
-                // A peer id is machine text people compare character by character;
-                // the broadcast thread's "Everyone" is a word and reads as one.
-                isMonoTitle = !state.isBroadcast,
+                // A bare peer id is machine text people compare character by
+                // character; a name or the broadcast thread's "Everyone" is a word
+                // and reads as one.
+                isMonoTitle = !state.isBroadcast && !state.isNamed,
                 isOnline = state.isBroadcast || state.isPeerOnline,
                 onBack = onBack,
+                onRename = if (state.isBroadcast) null else ({ isRenaming = true }),
             )
         },
     ) { padding ->
@@ -316,6 +329,7 @@ private fun ChatTopBar(
     isMonoTitle: Boolean,
     isOnline: Boolean,
     onBack: () -> Unit,
+    onRename: (() -> Unit)? = null,
 ) {
     Column {
         Row(
@@ -358,6 +372,13 @@ private fun ChatTopBar(
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                 )
+            }
+            // A word rather than a pencil glyph: it says what it does at any
+            // font scale, and needs no separate label for a screen reader.
+            if (onRename != null) {
+                TextButton(onClick = onRename) {
+                    Text(stringResource(R.string.chat_rename_action))
+                }
             }
         }
         // The design system forbids elevation shadows, so the bar is separated
@@ -541,6 +562,45 @@ private fun DeleteMessageDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.chat_delete_confirm), color = Danger)
             }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }
+        },
+    )
+}
+
+/**
+ * Sets the user's own name for a peer.
+ *
+ * The body says who sees it: a name typed here is easily mistaken for one the
+ * peer will receive, and someone who believed that might soften what they type.
+ */
+@Composable
+private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by rememberSaveable { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_rename_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.chat_rename_body))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    label = { Text(stringResource(R.string.chat_rename_label)) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                    ),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text) }) { Text(stringResource(R.string.chat_rename_save)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }

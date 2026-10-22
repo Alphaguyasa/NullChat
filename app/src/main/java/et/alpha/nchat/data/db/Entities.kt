@@ -51,6 +51,11 @@ data class PeerEntity(
      * encrypt to a peer until it happens to announce again.
      */
     val agreementKey: ByteArray? = null,
+    /**
+     * The name this user gave the peer, or null. Local only: never sent, and
+     * never overwritten by anything the peer announces.
+     */
+    val nickname: String? = null,
 ) {
     // ByteArray compares by identity by default, which would make two peers with
     // the same key look different.
@@ -63,7 +68,8 @@ data class PeerEntity(
             firstSeenAt == other.firstSeenAt &&
             lastSeenAt == other.lastSeenAt &&
             publicKey.contentEquals(other.publicKey) &&
-            agreementKey.contentEquals(other.agreementKey)
+            agreementKey.contentEquals(other.agreementKey) &&
+            nickname == other.nickname
     }
 
     override fun hashCode(): Int {
@@ -74,9 +80,21 @@ data class PeerEntity(
         result = 31 * result + firstSeenAt.hashCode()
         result = 31 * result + lastSeenAt.hashCode()
         result = 31 * result + agreementKey.contentHashCode()
+        result = 31 * result + (nickname?.hashCode() ?: 0)
         return result
     }
 }
+
+/**
+ * The name to show for this peer: the user's own nickname first, then the name
+ * the peer chose for itself.
+ *
+ * The nickname wins because it is the only name nobody else can set. A display
+ * name is whatever arrived in a PROFILE packet, and two strangers can both
+ * claim to be "Maya".
+ */
+val PeerEntity.preferredName: String?
+    get() = nickname?.takeIf { it.isNotBlank() } ?: displayName?.takeIf { it.isNotBlank() }
 
 /**
  * A chat thread: either one-to-one with [peerId], or the broadcast thread when

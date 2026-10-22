@@ -84,6 +84,13 @@ interface PeerDao {
     @Query("UPDATE peers SET isVerified = :verified WHERE id = :id")
     suspend fun setVerified(id: String, verified: Boolean): Int
 
+    /**
+     * Sets or, with null, clears the local nickname. Only the user calls this;
+     * [recordSeen] carries the row's nickname over untouched.
+     */
+    @Query("UPDATE peers SET nickname = :nickname WHERE id = :id")
+    suspend fun setNickname(id: String, nickname: String?): Int
+
     @Query("UPDATE peers SET lastSeenAt = :now WHERE id = :id")
     suspend fun touch(id: String, now: Long): Int
 

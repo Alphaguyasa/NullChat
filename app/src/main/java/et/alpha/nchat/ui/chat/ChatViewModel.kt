@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
+import et.alpha.nchat.data.db.preferredName
 import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.media.AttachmentStore
 import et.alpha.nchat.data.media.ImageScaler
@@ -20,6 +21,7 @@ import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.protocol.Quote
 import et.alpha.nchat.mesh.transport.NearbyTransport
 import et.alpha.nchat.service.ForegroundConversation
+import et.alpha.nchat.ui.peers.peerLabel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +47,10 @@ data class ChatState(
      * the radio, because nothing about that ties the key to a person.
      */
     val isVerified: Boolean = false,
+    /** The user's own name for this peer, for the rename dialog to start from. */
+    val nickname: String? = null,
+    /** True when [title] is a name rather than a bare peer id. */
+    val isNamed: Boolean = false,
 )
 
 /**
@@ -111,9 +117,18 @@ class ChatViewModel @Inject constructor(
             // which reads as unverified — correctly.
             if (peer == null) flowOf(null) else peers.observePeer(peer),
         ) { rows, online, peerRow ->
+            val name = peerRow?.preferredName
             ChatState(
                 messages = rows,
-                title = peer ?: EVERYONE,
+                // A named peer reads like the peer list; an unnamed one keeps its
+                // full id, the one thing to compare against a QR code.
+                title = when {
+                    peer == null -> EVERYONE
+                    name != null -> peerLabel(name, peer)
+                    else -> peer
+                },
+                nickname = peerRow?.nickname,
+                isNamed = name != null,
                 isPeerOnline = online,
                 isBroadcast = peer == null,
                 isVerified = peerRow?.isVerified == true,
@@ -281,6 +296,15 @@ class ChatViewModel @Inject constructor(
         val text = draft.trim()
         // A quote with nothing under it is not a reply; the count shows the bare draft.
         return if (quote == null || text.isEmpty()) text else Quote.compose(quote, text)
+    }
+
+    /**
+     * Saves the user's nickname for the open peer; blank input removes it.
+     * Does nothing in the broadcast thread, which is nobody in particular.
+     */
+    fun onRename(input: String) {
+        val peer = peerId.value ?: return
+        viewModelScope.launch { peers.rename(peer, input) }
     }
 
     private fun conversationIdFor(peer: String?): String =

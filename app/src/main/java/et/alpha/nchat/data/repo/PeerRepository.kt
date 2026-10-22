@@ -2,6 +2,7 @@ package et.alpha.nchat.data.repo
 
 import et.alpha.nchat.data.db.PeerDao
 import et.alpha.nchat.data.db.PeerEntity
+import et.alpha.nchat.mesh.protocol.Profile
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -65,6 +66,20 @@ class PeerRepository @Inject constructor(
      */
     suspend fun markVerified(peerId: String, verified: Boolean = true): Boolean =
         peerDao.setVerified(peerId, verified) > 0
+
+    /**
+     * Gives a peer a local nickname, or removes it when [input] has nothing
+     * showable left.
+     *
+     * Normalised exactly like a display name (see [Profile.normalize]): the same
+     * right-to-left overrides and zero-width characters that could disguise a
+     * received name have no business in one the user typed either, and the
+     * same byte cap keeps the label from pushing the short id off a row.
+     *
+     * @return false if no such peer is stored.
+     */
+    suspend fun rename(peerId: String, input: String): Boolean =
+        peerDao.setNickname(peerId, Profile.fromInput(input)?.displayName) > 0
 
     suspend fun forget(peerId: String): Boolean = peerDao.deleteById(peerId) > 0
 

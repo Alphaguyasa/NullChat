@@ -54,11 +54,14 @@ class MessageNotifier @Inject constructor(
     /**
      * Notifies about [arrival] unless policy says otherwise.
      *
+     * [senderName] is the peer's nickname or chosen name, if any; the caller
+     * looks it up because this class has no database access of its own.
+     *
      * Without POST_NOTIFICATIONS on SDK 33+ the system drops the post silently,
      * which is the right outcome: the user said no.
      */
     @Synchronized
-    fun onArrival(arrival: Arrival, foregroundConversationId: String?) {
+    fun onArrival(arrival: Arrival, foregroundConversationId: String?, senderName: String?) {
         if (!MessageNotificationPolicy.shouldNotify(arrival, foregroundConversationId)) return
 
         val count = (unseen[arrival.conversationId] ?: 0) + 1
@@ -71,7 +74,7 @@ class MessageNotifier @Inject constructor(
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(MessageNotificationPolicy.title(arrival))
+            .setContentTitle(MessageNotificationPolicy.title(arrival, senderName))
             .setContentText(MessageNotificationPolicy.text(arrival, count))
             .setNumber(count)
             .setContentIntent(openThread(arrival.senderId))

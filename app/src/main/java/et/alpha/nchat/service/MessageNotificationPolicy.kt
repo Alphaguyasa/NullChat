@@ -2,15 +2,13 @@ package et.alpha.nchat.service
 
 import et.alpha.nchat.mesh.Arrival
 import et.alpha.nchat.mesh.protocol.Quote
+import et.alpha.nchat.ui.peers.peerLabel
 
 /**
  * What a new-message notification says and when it appears, kept free of
  * Android types so it runs as a plain JVM test.
  */
 internal object MessageNotificationPolicy {
-
-    /** Characters of a peer id shown as its name, matching the rest of the UI. */
-    const val SHORT_ID_CHARS: Int = 8
 
     /** Longest preview put in the notification; the full text is in the thread. */
     const val MAX_PREVIEW_CHARS: Int = 120
@@ -26,8 +24,11 @@ internal object MessageNotificationPolicy {
     fun shouldNotify(arrival: Arrival, foregroundConversationId: String?): Boolean =
         !arrival.isBroadcast && arrival.conversationId != foregroundConversationId
 
-    /** Title: who it is from. Short id until display names exist (roadmap #11). */
-    fun title(arrival: Arrival): String = arrival.senderId.take(SHORT_ID_CHARS)
+    /**
+     * Title: who it is from, labelled exactly as on the peer list — the
+     * nickname or chosen name, if any, beside the short id.
+     */
+    fun title(arrival: Arrival, senderName: String?): String = peerLabel(senderName, arrival.senderId)
 
     /**
      * Body: the newest message, or a count once several are waiting.

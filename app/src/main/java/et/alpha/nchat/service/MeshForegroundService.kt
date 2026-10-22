@@ -13,6 +13,8 @@ import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import et.alpha.nchat.MainActivity
 import et.alpha.nchat.R
+import et.alpha.nchat.data.db.preferredName
+import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.transport.DutyCycle
@@ -59,6 +61,8 @@ class MeshForegroundService : Service() {
     @Inject lateinit var messageNotifier: MessageNotifier
 
     @Inject lateinit var foregroundConversation: ForegroundConversation
+
+    @Inject lateinit var peers: PeerRepository
 
     private val scope = CoroutineScope(SupervisorJob())
 
@@ -140,7 +144,8 @@ class MeshForegroundService : Service() {
     private fun notifyArrivals() {
         scope.launch {
             coordinator.arrivals.collect { arrival ->
-                messageNotifier.onArrival(arrival, foregroundConversation.current.value)
+                val senderName = peers.findPeer(arrival.senderId)?.preferredName
+                messageNotifier.onArrival(arrival, foregroundConversation.current.value, senderName)
             }
         }
         scope.launch {
