@@ -62,7 +62,7 @@ class MeshForegroundService : Service() {
 
     @Inject lateinit var foregroundConversation: ForegroundConversation
 
-    @Inject lateinit var peers: PeerRepository
+    @Inject lateinit var peerRepository: PeerRepository
 
     private val scope = CoroutineScope(SupervisorJob())
 
@@ -144,7 +144,7 @@ class MeshForegroundService : Service() {
     private fun notifyArrivals() {
         scope.launch {
             coordinator.arrivals.collect { arrival ->
-                val senderName = peers.findPeer(arrival.senderId)?.preferredName
+                val senderName = peerRepository.findPeer(arrival.senderId)?.preferredName
                 messageNotifier.onArrival(arrival, foregroundConversation.current.value, senderName)
             }
         }

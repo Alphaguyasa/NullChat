@@ -53,7 +53,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun forwardQueueDao(): ForwardQueueDao
 
     companion object {
-        const val VERSION: Int = 7
+        const val VERSION: Int = 8
 
         const val NAME: String = "nchat.db"
 
@@ -160,6 +160,24 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds the disappearing-message timer: `conversations.disappearAfterMillis`
+         * and `messages.expiresAt`, with an index for the sweep.
+         *
+         * Both nullable, and null means "keep", so every existing thread starts
+         * with the timer off and every existing message stays. Nothing that was
+         * stored before the upgrade can disappear because of it.
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `conversations` ADD COLUMN `disappearAfterMillis` INTEGER")
+                connection.execSQL("ALTER TABLE `messages` ADD COLUMN `expiresAt` INTEGER")
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_messages_expiresAt` ON `messages` (`expiresAt`)",
+                )
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
@@ -172,6 +190,7 @@ abstract class NChatDatabase : RoomDatabase() {
             MIGRATION_4_5,
             MIGRATION_5_6,
             MIGRATION_6_7,
+            MIGRATION_7_8,
         )
     }
 }

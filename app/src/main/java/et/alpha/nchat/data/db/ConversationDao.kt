@@ -77,6 +77,9 @@ interface ConversationDao {
     suspend fun markReadUpTo(id: String, at: Long): Int
 
     /** Deletes a thread. Its messages go with it via `ON DELETE CASCADE`. */
+    @Query("UPDATE conversations SET disappearAfterMillis = :millis WHERE id = :id")
+    suspend fun setDisappearAfter(id: String, millis: Long?): Int
+
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun deleteById(id: String): Int
 }

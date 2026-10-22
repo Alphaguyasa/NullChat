@@ -117,6 +117,12 @@ data class ConversationEntity(
     val lastActivityAt: Long,
     /** Everything received at or before this instant counts as read. */
     val lastReadAt: Long = 0L,
+    /**
+     * How long a new message in this thread stays on this phone, in millis, or
+     * null to keep messages. Local only: nothing tells the other phone, so it
+     * keeps its own copies on its own terms.
+     */
+    val disappearAfterMillis: Long? = null,
 )
 
 /**
@@ -146,6 +152,7 @@ data class ConversationEntity(
         Index("conversationId", "timestamp"),
         Index("senderId"),
         Index("deliveryState"),
+        Index("expiresAt"),
     ],
 )
 data class MessageEntity(
@@ -189,6 +196,16 @@ data class MessageEntity(
      */
     @ColumnInfo(defaultValue = "0")
     val receivedAt: Long = 0L,
+    /**
+     * When this phone deletes the row, by this phone's clock, or null to keep it.
+     *
+     * Stamped once, when the row is written, from the thread's
+     * [ConversationEntity.disappearAfterMillis]. Changing the timer later
+     * therefore never reaches back: turning it on cannot wipe a history the
+     * user had no warning about, and turning it off cannot rescue messages
+     * that were sent in the belief they would disappear.
+     */
+    val expiresAt: Long? = null,
 ) {
     /** Whether this message carries an image rather than text. */
     val hasAttachment: Boolean get() = attachmentFile != null

@@ -77,6 +77,9 @@
     <string name="chat_rename_body">Only you see this name. Leave it empty to use the name they chose.</string>
     <string name="chat_rename_label">Nickname</string>
     <string name="chat_rename_save">Save</string>
+    <string name="chat_disappearing_action">Disappearing messages</string>
+    <string name="chat_disappearing_title">Disappearing messages</string>
+    <string name="chat_disappearing_body">New messages in this chat are deleted from this phone after the time you pick. Messages already here stay. The other phone keeps its own copies.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_open">Settings</string>
     <string name="settings_name_title">Your name</string>

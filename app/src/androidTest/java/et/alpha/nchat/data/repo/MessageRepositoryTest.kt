@@ -244,6 +244,79 @@ class MessageRepositoryTest {
         assertNull(repo.deleteMessage("never"))
     }
 
+    @Test
+    fun withNoTimerMessagesNeverExpire() = runTest {
+        repo.recordIncoming("in", convoId, PEER_A, "hello", T0, now = T0)
+
+        assertNull(repo.findMessage("in")?.expiresAt)
+        assertTrue(repo.findExpired(now = T0 + 365 * 24 * HOUR).isEmpty())
+    }
+
+    @Test
+    fun aTimerStampsNewMessagesFromWhenThisPhoneStoredThem() = runTest {
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, now = T0)
+
+        // Sender's clock two hours behind: the timer still runs from arrival.
+        repo.recordIncoming("in", convoId, PEER_A, "hi", timestamp = T0 - 2 * HOUR, now = T0)
+        val out = repo.recordOutgoing(convoId, SELF, "hey", PEER_A, now = T0)
+
+        assertEquals(T0 + HOUR, repo.findMessage("in")?.expiresAt)
+        assertEquals(T0 + HOUR, repo.findMessage(out.id)?.expiresAt)
+    }
+
+    @Test
+    fun turningTheTimerOnLeavesEarlierMessagesAlone() = runTest {
+        repo.recordIncoming("old", convoId, PEER_A, "before", T0, now = T0)
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, now = T0 + 1)
+
+        assertNull(repo.findMessage("old")?.expiresAt)
+        assertTrue(repo.findExpired(now = T0 + 10 * HOUR).isEmpty())
+    }
+
+    @Test
+    fun turningTheTimerOffKeepsWhatWasAlreadyStamped() = runTest {
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, now = T0)
+        repo.recordIncoming("in", convoId, PEER_A, "hi", T0, now = T0)
+        repo.setDisappearAfter(convoId, PEER_A, null, now = T0 + 1)
+        repo.recordIncoming("later", convoId, PEER_A, "kept", T0 + 2, now = T0 + 2)
+
+        assertEquals(listOf("in"), repo.findExpired(now = T0 + HOUR).map { it.id })
+        assertNull(repo.findMessage("later")?.expiresAt)
+    }
+
+    @Test
+    fun aTimerCanBeSetBeforeTheThreadHasAMessage() = runTest {
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, now = T0)
+
+        assertEquals(HOUR, repo.observeConversation(convoId).first()?.disappearAfterMillis)
+    }
+
+    @Test
+    fun expiredMessagesAreFoundOnlyOnceDueAndNeverWhileStillQueued() = runTest {
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, now = T0)
+        repo.recordIncoming("in", convoId, PEER_A, "hi", T0, now = T0)
+        val queued = repo.recordOutgoing(convoId, SELF, "still going", PEER_A, now = T0)
+
+        assertTrue(repo.findExpired(now = T0 + HOUR - 1).isEmpty())
+        assertEquals(listOf("in"), repo.findExpired(now = T0 + HOUR).map { it.id })
+
+        repo.markSent(queued.id)
+        assertEquals(setOf("in", queued.id), repo.findExpired(now = T0 + HOUR).map { it.id }.toSet())
+    }
+
+    @Test
+    fun deleteMessagesRemovesExactlyTheGivenRows() = runTest {
+        repo.recordIncoming("a", convoId, PEER_A, "1", T0, now = T0)
+        repo.recordIncoming("b", convoId, PEER_A, "2", T0, now = T0)
+        repo.recordIncoming("c", convoId, PEER_A, "3", T0, now = T0)
+
+        assertEquals(2, repo.deleteMessages(listOf("a", "c")))
+
+        assertNull(repo.findMessage("a"))
+        assertNotNull(repo.findMessage("b"))
+        assertNull(repo.findMessage("c"))
+    }
+
     private companion object {
         const val HOUR = 60 * 60 * 1000L
     }
