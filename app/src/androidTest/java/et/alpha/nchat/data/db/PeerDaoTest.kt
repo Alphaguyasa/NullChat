@@ -202,4 +202,32 @@ class PeerDaoTest {
         assertEquals(0, peers.deleteById(PEER_A))
         assertNull(peers.findById(PEER_A))
     }
+
+    @Test
+    fun setsAndClearsANickname() = runTest {
+        peers.recordSeen(id = PEER_A, displayName = "sam", now = T0)
+
+        assertEquals(1, peers.setNickname(PEER_A, "Samuel"))
+        assertEquals("Samuel", peers.findById(PEER_A)?.nickname)
+        assertEquals("sam", peers.findById(PEER_A)?.displayName)
+
+        assertEquals(1, peers.setNickname(PEER_A, null))
+        assertNull(peers.findById(PEER_A)?.nickname)
+
+        assertEquals(0, peers.setNickname("absentabsentabse", "x"))
+    }
+
+    // The nickname is the user's; a peer re-announcing itself, under any name,
+    // must not be able to change what the user called it.
+    @Test
+    fun recordSeenKeepsTheNickname() = runTest {
+        peers.recordSeen(id = PEER_A, displayName = "sam", now = T0)
+        peers.setNickname(PEER_A, "Samuel")
+
+        peers.recordSeen(id = PEER_A, displayName = "definitely-not-sam", now = T0 + 1)
+
+        val stored = peers.findById(PEER_A)
+        assertEquals("Samuel", stored?.nickname)
+        assertEquals("definitely-not-sam", stored?.displayName)
+    }
 }

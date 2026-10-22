@@ -374,6 +374,52 @@ class NChatDatabaseMigrationTest {
         }
     }
 
+    /**
+     * The v6 → v7 upgrade that adds `peers.nickname`.
+     *
+     * Every existing peer keeps its name, key and verified flag and reads back
+     * with no nickname, and a nickname set afterwards survives the next
+     * announcement.
+     */
+    @Test
+    fun migratingToVersion7AddsNicknamesAndKeepsPeers() {
+        helper.createDatabase(TEST_DB, 6).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO peers
+                    (id, displayName, publicKey, isVerified, firstSeenAt, lastSeenAt, agreementKey)
+                VALUES ('peer', 'sam', X'0707070707070707070707070707070707070707070707070707070707070707',
+                        1, 500, 1000, NULL)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_6_7 and validates the result against schemas/7.json.
+        helper.runMigrationsAndValidate(TEST_DB, 7, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val peer = db.peerDao().findById("peer")
+                assertEquals("sam", peer?.displayName)
+                assertEquals(true, peer?.isVerified)
+                assertArrayEquals(ByteArray(32) { 7 }, peer?.publicKey)
+                assertNull(peer?.nickname)
+
+                assertEquals(1, db.peerDao().setNickname("peer", "Samuel"))
+                db.peerDao().recordSeen(id = "peer", displayName = "sam2", now = 2000)
+                assertEquals("Samuel", db.peerDao().findById("peer")?.nickname)
+            }
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

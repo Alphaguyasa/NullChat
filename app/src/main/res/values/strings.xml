@@ -72,6 +72,11 @@
     <string name="chat_delete_body">It is removed from this phone only. Anyone who already received it keeps their copy.</string>
     <string name="chat_delete_confirm">Delete</string>
     <string name="chat_delete_cancel">Cancel</string>
+    <string name="chat_rename_action">Rename</string>
+    <string name="chat_rename_title">Rename contact</string>
+    <string name="chat_rename_body">Only you see this name. Leave it empty to use the name they chose.</string>
+    <string name="chat_rename_label">Nickname</string>
+    <string name="chat_rename_save">Save</string>
     <string name="settings_title">Settings</string>
     <string name="settings_open">Settings</string>
     <string name="settings_name_title">Your name</string>

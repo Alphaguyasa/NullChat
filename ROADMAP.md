@@ -12,7 +12,6 @@ exist but only run on a physical phone.
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 17 | **Disappearing messages** per conversation, swept by WorkManager. | P2 | M | |
-| 18 | **Contact nicknames** (local rename). | P2 | S | |
 | 19 | **Battery modes** over `DutyCycle`, auto-saver when system battery saver is on. | P2 | M | |
 | 20 | **Tablet / landscape layout**: list + chat side by side on wide screens. | P2 | M | |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
@@ -52,3 +51,4 @@ exist but only run on a physical phone.
 | 2026-10-21 | #25 Toolchain bump: AGP 9.4.1, Gradle 9.8.1, Kotlin 2.4.21, KSP 2.3.12 + Dependabot #27 libraries | #31 | see log |
 | 2026-10-21 | #26 compileSdk 37 + androidx (core 1.19.1, Compose BOM 2026.09.00, hilt-navigation-compose 1.4.0, Room 2.8.5) | #32 | see log |
 | 2026-10-21 | #16 App lock (system fingerprint / face / screen lock, 60 s grace) | #33 | see log |
+| 2026-10-22 | #18 Contact nicknames (local only, Room 6→7) | #34 | see log |
