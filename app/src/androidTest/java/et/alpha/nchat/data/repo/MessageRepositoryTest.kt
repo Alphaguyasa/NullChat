@@ -229,7 +229,9 @@ class MessageRepositoryTest {
 
     @Test
     fun observeMessagesReflectsBothDirectionsOfTheConversation() = runTest {
-        repo.recordIncoming("in", convoId, PEER_A, "hello", timestamp = T0)
+        // Both clocks pinned: the thread orders by arrival, and an unpinned
+        // `now` is today, years after T0.
+        repo.recordIncoming("in", convoId, PEER_A, "hello", timestamp = T0, now = T0)
         repo.recordOutgoing(convoId, SELF, "hi back", PEER_A, messageId = "out", now = T0 + 1)
 
         val thread = repo.observeMessages(convoId).first()
