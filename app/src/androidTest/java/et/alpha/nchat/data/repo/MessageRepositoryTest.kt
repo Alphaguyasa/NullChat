@@ -3,6 +3,7 @@ package et.alpha.nchat.data.repo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import et.alpha.nchat.data.db.DatabaseTestFixtures
 import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_A
+import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_B
 import et.alpha.nchat.data.db.DatabaseTestFixtures.SELF
 import et.alpha.nchat.data.db.DatabaseTestFixtures.T0
 import et.alpha.nchat.data.db.DeliveryState
@@ -104,6 +105,43 @@ class MessageRepositoryTest {
     }
 
     @Test
+    fun aSenderWithAFastClockDoesNotPinTheThreadToTheTop() = runTest {
+        // The bug: activity took the sender's timestamp and only moves forward,
+        // so a phone a year ahead stayed first in the list for a year.
+        val other = directConversationId(PEER_B)
+        repo.recordIncoming("fast", convoId, PEER_A, "hi", timestamp = T0 + YEAR, now = T0)
+        repo.recordIncoming("later", other, PEER_B, "hi", timestamp = T0 + 1_000, now = T0 + 1_000)
+
+        val threads = repo.observeConversations().first()
+
+        assertEquals(listOf(other, convoId), threads.map { it.conversation.id })
+        assertEquals(T0, threads.last().conversation.lastActivityAt)
+    }
+
+    @Test
+    fun pullBackRepairsAThreadAlreadyPinnedInTheFuture() = runTest {
+        repo.recordIncoming("m1", convoId, PEER_A, "hi", timestamp = T0, now = T0)
+        // What an older build wrote: activity from the sender's clock.
+        db.conversationDao().bumpActivity(convoId, T0 + YEAR)
+
+        assertEquals(1, repo.pullBackFutureActivity(now = T0 + 5_000))
+
+        assertEquals(T0, repo.observeConversations().first().single().conversation.lastActivityAt)
+        // Nothing in the future any more, so a second pass touches nothing.
+        assertEquals(0, repo.pullBackFutureActivity(now = T0 + 5_000))
+    }
+
+    @Test
+    fun pullBackNeverMovesAThreadPastNow() = runTest {
+        // This phone's own clock was set back: even the newest arrival is ahead.
+        repo.recordIncoming("m1", convoId, PEER_A, "hi", timestamp = T0 + YEAR, now = T0 + YEAR)
+
+        repo.pullBackFutureActivity(now = T0)
+
+        assertEquals(T0, repo.observeConversations().first().single().conversation.lastActivityAt)
+    }
+
+    @Test
     fun markSentAdvancesAPendingMessage() = runTest {
         val message = repo.recordOutgoing(convoId, SELF, "hi", PEER_A, now = T0)
 
@@ -191,7 +229,9 @@ class MessageRepositoryTest {
 
     @Test
     fun observeMessagesReflectsBothDirectionsOfTheConversation() = runTest {
-        repo.recordIncoming("in", convoId, PEER_A, "hello", timestamp = T0)
+        // Both clocks pinned: the thread orders by arrival, and an unpinned
+        // `now` is today, years after T0.
+        repo.recordIncoming("in", convoId, PEER_A, "hello", timestamp = T0, now = T0)
         repo.recordOutgoing(convoId, SELF, "hi back", PEER_A, messageId = "out", now = T0 + 1)
 
         val thread = repo.observeMessages(convoId).first()
@@ -319,5 +359,6 @@ class MessageRepositoryTest {
 
     private companion object {
         const val HOUR = 60 * 60 * 1000L
+        const val YEAR = 365L * 24 * HOUR
     }
 }

@@ -5,6 +5,17 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5j. One-phone checks for leaving mid-send and clock ordering (2026-10-23)
+*Sends survive leaving the chat (#37):* with a second phone in range, send an
+image and press Back at once. Reopen the chat: the image reaches `sent` and then
+`delivered`. It must not sit at `queued`.
+*Clock ordering (#39):* on phone B, set the date a day ahead and send A a message,
+then set it back. On A, B's thread is not pinned above newer chats. The bubble
+shows the time it arrived, not tomorrow's. Messages that arrive after it sit
+below it.
+*Received images (#38):* nothing to check by hand. Images from another phone
+should look the same as before.
+
 ### 5i. Phone checks for nicknames, disappearing messages and battery modes (2026-10-22)
 *Nicknames (#34), one phone:* open a chat, ⋮ → Rename, type "Mom", Save. The title,
 the peer list and the next notification from that person read `Mom · <id>`. Rename

@@ -61,8 +61,8 @@ interface ConversationDao {
                AND m.receivedAt > c.lastReadAt) AS unreadCount,
             (SELECT m.body FROM messages m
              WHERE m.conversationId = c.id
-             ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) AS lastMessageBody,
-            (SELECT MAX(m.timestamp) FROM messages m
+             ORDER BY m.receivedAt DESC, m.id DESC LIMIT 1) AS lastMessageBody,
+            (SELECT MAX(m.receivedAt) FROM messages m
              WHERE m.conversationId = c.id) AS lastMessageAt
         FROM conversations c
         ORDER BY c.lastActivityAt DESC, c.id ASC
@@ -72,6 +72,30 @@ interface ConversationDao {
 
     @Query("UPDATE conversations SET lastActivityAt = :at WHERE id = :id AND lastActivityAt < :at")
     suspend fun bumpActivity(id: String, at: Long): Int
+
+    /**
+     * Pulls back every thread whose activity time is later than [now], to its
+     * newest arrival (never past [now]).
+     *
+     * Builds before this one bumped activity with the sender's timestamp, and
+     * [bumpActivity] only moves forward, so a thread from a sender whose clock
+     * was a year fast stayed pinned at the top of the list for that year. New
+     * bumps use this phone's clock; this repairs the rows already written. It
+     * also covers this phone's own clock being set back.
+     */
+    @Query(
+        """
+        UPDATE conversations SET lastActivityAt = MIN(
+            :now,
+            COALESCE(
+                (SELECT MAX(m.receivedAt) FROM messages m WHERE m.conversationId = conversations.id),
+                :now
+            )
+        )
+        WHERE lastActivityAt > :now
+        """,
+    )
+    suspend fun pullBackFutureActivity(now: Long): Int
 
     @Query("UPDATE conversations SET lastReadAt = :at WHERE id = :id AND lastReadAt < :at")
     suspend fun markReadUpTo(id: String, at: Long): Int

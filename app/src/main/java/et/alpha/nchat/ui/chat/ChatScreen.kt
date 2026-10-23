@@ -535,7 +535,7 @@ private fun ChatMessage(
         // In the broadcast thread anyone can be talking, so incoming bubbles are
         // labelled. A direct thread has only one possible sender.
         senderId = if (!outgoing && isBroadcast) message.senderId.take(SHORT_ID_CHARS) else null,
-        timestamp = TIME_FORMAT.format(Date(message.timestamp)),
+        timestamp = TIME_FORMAT.format(Date(message.shownAt)),
         deliveryState = message.deliveryState.takeIf { outgoing },
         // Only the recipient sees a packet's remaining ttl, so the count comes
         // back in its ACK. `DeliveryStateLabel` drops it on states with no route.

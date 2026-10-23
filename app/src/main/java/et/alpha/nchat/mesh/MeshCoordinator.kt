@@ -329,6 +329,7 @@ class MeshCoordinator @Inject constructor(
         collectIncoming()
         collectPeers()
         expireStalePending()
+        pullBackFutureThreads()
         sweepDisappearing()
         collectNameChanges()
     }
@@ -371,6 +372,15 @@ class MeshCoordinator @Inject constructor(
      * message composed on Monday would otherwise stay `queued` until whenever
      * the process next happened to restart.
      */
+    /**
+     * Once per start: new activity is stamped by this phone's clock, so only
+     * rows written before that, or before this clock was set back, need it.
+     */
+    private fun pullBackFutureThreads() = scope.launch {
+        val repaired = messages.pullBackFutureActivity()
+        if (repaired > 0) Log.i(TAG, "$repaired thread(s) had activity in the future")
+    }
+
     private fun expireStalePending() = scope.launch {
         while (true) {
             val expired = messages.expirePendingOutgoing(pendingExpiryCutoff(System.currentTimeMillis()))

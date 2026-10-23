@@ -31,17 +31,20 @@ interface MessageDao {
     suspend fun findById(id: String): MessageEntity?
 
     /**
-     * Messages in a thread, oldest first.
+     * Messages in a thread, in the order this phone stored them.
      *
-     * Ties break on [MessageEntity.id] because mesh timestamps come from other
-     * devices and collide often enough to make ordering non-deterministic
-     * otherwise — which shows up as messages visibly reshuffling on redraw.
+     * By `receivedAt`, this phone's clock, not the sender's `timestamp`: phones
+     * with no network never sync their clocks, and a sender a year fast would
+     * otherwise stay at the bottom of the thread under every later reply.
+     *
+     * Ties break on [MessageEntity.id] so rows stored in the same millisecond
+     * do not visibly reshuffle on redraw.
      */
     @Query(
         """
         SELECT * FROM messages
         WHERE conversationId = :conversationId
-        ORDER BY timestamp ASC, id ASC
+        ORDER BY receivedAt ASC, id ASC
         """,
     )
     fun observeConversation(conversationId: String): Flow<List<MessageEntity>>
@@ -50,7 +53,7 @@ interface MessageDao {
         """
         SELECT * FROM messages
         WHERE conversationId = :conversationId
-        ORDER BY timestamp DESC, id DESC
+        ORDER BY receivedAt DESC, id DESC
         LIMIT 1
         """,
     )

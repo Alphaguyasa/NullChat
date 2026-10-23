@@ -71,8 +71,8 @@ class MessageDaoTest {
     }
 
     @Test
-    fun ordersByTimestampAndBreaksTiesDeterministically() = runTest {
-        // Timestamps come from other devices and collide; ordering must still be
+    fun ordersByArrivalAndBreaksTiesDeterministically() = runTest {
+        // Arrival times collide within a millisecond; ordering must still be
         // stable or the thread visibly reshuffles between redraws.
         messages.insert(message(id = "c", timestamp = T0 + 5))
         messages.insert(message(id = "a", timestamp = T0 + 5))
@@ -81,6 +81,16 @@ class MessageDaoTest {
         val ordered = messages.observeConversation(convoId).first()
 
         assertEquals(listOf("b", "a", "c"), ordered.map { it.id })
+    }
+
+    @Test
+    fun ordersByThisPhonesClockNotTheSenders() = runTest {
+        // The bug: a sender a year fast stayed below every later reply.
+        messages.insert(message(id = "fast", timestamp = T0 + YEAR, receivedAt = T0))
+        messages.insert(message(id = "reply", timestamp = T0 + 1_000, receivedAt = T0 + 1_000))
+
+        assertEquals(listOf("fast", "reply"), messages.observeConversation(convoId).first().map { it.id })
+        assertEquals("reply", messages.findLatestIn(convoId)?.id)
     }
 
     @Test
@@ -316,5 +326,9 @@ class MessageDaoTest {
         assertEquals(1, messages.deleteById("m1"))
         assertEquals(0, messages.deleteById("m1"))
         assertTrue(messages.observeConversation(convoId).first().isEmpty())
+    }
+
+    private companion object {
+        const val YEAR = 365L * 24 * 60 * 60 * 1000
     }
 }
