@@ -189,4 +189,39 @@ class ImagePolicyTest {
     }
 
     // endregion
+
+    // region decoding received images
+
+    @ParameterizedTest(name = "{0}x{1}")
+    @CsvSource(
+        "30000, 30000",
+        "65535, 1",
+        "1, 65535",
+        "4096, 3072",
+        "1024, 1024",
+        "2047, 1000",
+    )
+    fun `a received image is never decoded at 1024 px or more`(width: Int, height: Int) {
+        // The bug: decodeFile trusted the header, so a 14 KB JPEG claiming
+        // 30000 x 30000 asked for a 3.6 GB bitmap.
+        val sample = ImagePolicy.displaySampleSize(width, height)!!
+
+        val longEdge = maxOf(width, height) / sample
+        assertTrue(longEdge < ImagePolicy.MAX_DECODED_DIMENSION, "decoded long edge would be $longEdge")
+    }
+
+    @Test
+    fun `an image we could have sent ourselves is decoded at full size`() {
+        assertEquals(1, ImagePolicy.displaySampleSize(ImagePolicy.MAX_DIMENSION, ImagePolicy.MAX_DIMENSION))
+        assertEquals(1, ImagePolicy.displaySampleSize(320, 180))
+    }
+
+    @ParameterizedTest(name = "{0}x{1}")
+    @CsvSource("0, 100", "100, 0", "-1, -1")
+    fun `a header with no usable size is not decoded`(width: Int, height: Int) {
+        // BitmapFactory reports -1 for a file it cannot read as an image.
+        assertEquals(null, ImagePolicy.displaySampleSize(width, height))
+    }
+
+    // endregion
 }

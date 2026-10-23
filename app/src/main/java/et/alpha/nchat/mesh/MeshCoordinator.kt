@@ -195,6 +195,17 @@ internal fun canDeleteLocally(message: MessageEntity): Boolean =
 internal fun pendingExpiryCutoff(now: Long): Long = now - ForwardQueue.DEFAULT_EXPIRY_MILLIS
 
 /**
+ * Whether a reassembled attachment may be stored.
+ *
+ * The reassembler accepts up to 64 KB, the most any message may claim, but our
+ * own build never sends an image over [ImagePolicy]'s limits. Anything larger
+ * came from a modified client, and storing it would hand the chat screen a file
+ * it has no reason to trust. Text is bounded by the reassembler alone.
+ */
+internal fun acceptsInbound(attachment: Attachment): Boolean =
+    attachment.contentType != ContentType.IMAGE_JPEG || ImagePolicy.fits(attachment.data.size)
+
+/**
  * One reading of a peer's distance, and when it was taken.
  *
  * The timestamp is the whole point: a hop count with no age attached cannot be
@@ -1028,6 +1039,10 @@ class MeshCoordinator @Inject constructor(
             ?: Attachment.text(MessagePacket.UNDECRYPTABLE_BODY).takeIf { decrypted == null }
         if (attachment == null) {
             Log.w(TAG, "reassembled message from ${Packet.tag(message.senderId)} was not readable")
+            return
+        }
+        if (!acceptsInbound(attachment)) {
+            Log.w(TAG, "dropped an oversized image from ${Packet.tag(message.senderId)}")
             return
         }
 
