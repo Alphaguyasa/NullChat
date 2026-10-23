@@ -36,7 +36,7 @@ the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
   `ImagePolicy`, the new helpers) and their tests ran in a scratch Kotlin/JVM
   Gradle project: 51 tests. The main #27 test failed when the old behaviour
   was put back, as it should.
-- Unit tests +26 (SendLifetimeTest 7, InboundImageTest 4, ImagePolicyTest 11
+- Unit tests +25 (SendLifetimeTest 7, InboundImageTest 4, ImagePolicyTest 10
   cases, ShownTimeTest 4). Instrumented +4 (MessageDaoTest 1, MessageRepositoryTest 3).
 
 ### REPORT
