@@ -209,6 +209,20 @@ data class MessageEntity(
 ) {
     /** Whether this message carries an image rather than text. */
     val hasAttachment: Boolean get() = attachmentFile != null
+
+    /**
+     * The time to show on the bubble: the sender's [timestamp], but never later
+     * than [receivedAt].
+     *
+     * A message cannot have been written after it arrived, so a later stamp is
+     * only the sender's clock running fast. Without the clamp, a bubble from a
+     * phone a year ahead would show tomorrow's time in a thread ordered by
+     * arrival. An earlier stamp is kept: a store-and-forwarded message really
+     * was written hours before it got here. Rows from before `receivedAt`
+     * existed carry 0 and keep their timestamp.
+     */
+    val shownAt: Long
+        get() = if (isOutgoing || receivedAt <= 0L) timestamp else minOf(timestamp, receivedAt)
 }
 
 /**

@@ -4,6 +4,54 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-23 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page still lists Claude Fable 5.1
+above it and no newer Opus. There is still no RemoteTrigger tool in the session, so
+the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- **Main CI at the start: cancelled, not broken.** The emulator job for #36's merge
+  (`88fb3b3`) ran every test to BUILD SUCCESSFUL in 20 s. It then hung after
+  `adb emu kill` until the 45-minute job timeout cancelled it. The same tree had
+  passed on the PR. One re-run was green, so main was green before any work
+  started. This is an emulator-runner teardown hang, not the app. If it comes
+  back, the next step is a shorter timeout on that step plus one re-run, not a
+  code change.
+- **PR #37**, roadmap #27: sends survive leaving the chat. `send`, `sendImage` and
+  `resend` run in the mesh scope (`outliveCaller`), and the screen only waits for
+  the result. A transfer cancelled partway (the mesh scope itself ending) marks the
+  row FAILED, under `NonCancellable`. Green on the first attempt. Merged,
+  `v2026-10-23-1`.
+- **PR #38**, roadmap #28: bound received images. Reassembled JPEGs over 14 KB are
+  dropped before they are stored. Display decodes in two passes and stays under
+  1024 px. Green on the first attempt. Merged.
+- **PR #39**, roadmap #29: order by this phone's clock. The thread, its preview and
+  thread activity now use `receivedAt`. Threads already pinned in the future are
+  pulled back once at start. A bubble's time is clamped to its arrival. It needed
+  no schema change: `receivedAt` already existed (Room 5→6), so there is no
+  migration. The thread query now sorts on a column the `(conversationId,
+  timestamp)` index does not cover. That is fine at chat sizes; an index would
+  need a migration if it ever matters.
+- **New: JVM checks without the Android SDK.** Pure files (the protocol package,
+  `ImagePolicy`, the new helpers) and their tests ran in a scratch Kotlin/JVM
+  Gradle project: 51 tests. The main #27 test failed when the old behaviour
+  was put back, as it should.
+- Unit tests +26 (SendLifetimeTest 7, InboundImageTest 4, ImagePolicyTest 11
+  cases, ShownTimeTest 4). Instrumented +4 (MessageDaoTest 1, MessageRepositoryTest 3).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #27 sends survive leaving the chat (PR #37); #28 bound received images (PR #38); #29 local-clock ordering (PR #39) |
+| Merged | #37 yes `v2026-10-23-1`; #38 yes `v2026-10-23-2` (expected); #39 see notification |
+| Failed or blocked | Nothing failed. Main's post-merge emulator job hung on teardown once; re-run green |
+| Roadmap | 15 open (#30–#41, #20–#23); no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5j (new), 5i, 5h, 5g, 5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
+| Next | #30 link belongs to a peer only after a verified ANNOUNCE, #31 delete chat / block sender, #32 router dedup before verify |
+
+---
+
 ## 2026-10-22 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page lists Claude Fable 5.1, Opus 5.5,

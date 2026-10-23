@@ -115,7 +115,9 @@ class MessageRepository @Inject constructor(
             ),
         )
         val isNew = rowId != -1L
-        if (isNew) conversationDao.bumpActivity(conversationId, timestamp)
+        // Local time, like receivedAt: the sender's clock decides nothing about
+        // where the thread sits in the list.
+        if (isNew) conversationDao.bumpActivity(conversationId, now)
         isNew
     }
 
@@ -156,6 +158,10 @@ class MessageRepository @Inject constructor(
         messageDao.expireOutgoing(cutoff, DeliveryState.PENDING, DeliveryState.FAILED)
 
     /** Marks everything received up to [at] as read. */
+    /** See [ConversationDao.pullBackFutureActivity]. @return threads repaired. */
+    suspend fun pullBackFutureActivity(now: Long = System.currentTimeMillis()): Int =
+        conversationDao.pullBackFutureActivity(now)
+
     suspend fun markRead(conversationId: String, at: Long = System.currentTimeMillis()) {
         conversationDao.markReadUpTo(conversationId, at)
     }
