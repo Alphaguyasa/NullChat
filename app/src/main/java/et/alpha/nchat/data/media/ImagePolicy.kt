@@ -78,6 +78,29 @@ object ImagePolicy {
     /** Total bytes on the wire for one hop, including packet headers and signatures. */
     fun wireCost(encodedSize: Int): Int = fragmentCount(encodedSize) * 180
 
+    /**
+     * Longest edge a received image is decoded to, exclusive.
+     *
+     * Our own build never sends more than [MAX_DIMENSION], but the header of a
+     * 14 KB JPEG may claim 30000 x 30000, and decoding that at full size is a
+     * gigabyte of bitmap: a stranger's broadcast could crash the Everyone thread
+     * every time it scrolled into view. A bubble is at most about 720 px wide, so
+     * nothing visible is lost.
+     */
+    const val MAX_DECODED_DIMENSION: Int = 1024
+
+    /**
+     * The `inSampleSize` for showing a received [width] x [height] image, or
+     * null when the header's dimensions are not usable.
+     *
+     * Samples toward half of [MAX_DECODED_DIMENSION], since [sampleSizeFor] stops
+     * at the last halving that stays at or above its target: the result's long
+     * edge is then always under [MAX_DECODED_DIMENSION]. An image we sent
+     * ourselves is decoded at sample 1.
+     */
+    fun displaySampleSize(width: Int, height: Int): Int? =
+        if (width <= 0 || height <= 0) null else sampleSizeFor(width, height, MAX_DECODED_DIMENSION / 2)
+
     /** Whether an image of [encodedSize] is within every limit above. */
     fun fits(encodedSize: Int): Boolean =
         encodedSize in 1..MAX_ENCODED_BYTES && fragmentCount(encodedSize) <= MAX_FRAGMENTS

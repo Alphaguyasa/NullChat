@@ -1,7 +1,6 @@
 package et.alpha.nchat.ui.chat
 
 import android.content.ClipData
-import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.PersistableBundle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,6 +77,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import et.alpha.nchat.R
 import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
+import et.alpha.nchat.data.media.decodeBoundedImage
 import et.alpha.nchat.mesh.Transfer
 import et.alpha.nchat.mesh.TransferState
 import et.alpha.nchat.mesh.canDeleteLocally
@@ -757,14 +757,15 @@ private class SendAnimations(private val openedAt: Long) {
  * the file lands rather than staying blank.
  *
  * No image-loading library. Coil would be the obvious choice, but the whole
- * feature is one 14 KB JPEG from local storage, and BitmapFactory does that in
- * three lines without adding a dependency.
+ * feature is one 14 KB JPEG from local storage, and BitmapFactory does that
+ * without adding a dependency. The file may come from a stranger, so it is
+ * decoded with bounds: see [decodeBoundedImage].
  */
 @Composable
 private fun AttachmentImage(path: String, transfer: Transfer?) {
     val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
         value = withContext(Dispatchers.IO) {
-            runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull()
+            decodeBoundedImage(path)?.asImageBitmap()
         }
     }
 
