@@ -32,6 +32,10 @@ the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
   migration. The thread query now sorts on a column the `(conversationId,
   timestamp)` index does not cover. That is fine at chat sizes; an index would
   need a migration if it ever matters.
+  Attempt 1 failed one instrumented test: `observeMessagesReflectsBothDirections…`
+  stored its incoming row with the real clock (2026) and its outgoing row at T0
+  (2023), so arrival order flipped them. The test now pins `now`. Attempt 2 was
+  green. Merged.
 - **New: JVM checks without the Android SDK.** Pure files (the protocol package,
   `ImagePolicy`, the new helpers) and their tests ran in a scratch Kotlin/JVM
   Gradle project: 51 tests. The main #27 test failed when the old behaviour
@@ -43,8 +47,8 @@ the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
 | Field | Content |
 |---|---|
 | Done | #27 sends survive leaving the chat (PR #37); #28 bound received images (PR #38); #29 local-clock ordering (PR #39) |
-| Merged | #37 yes `v2026-10-23-1`; #38 yes `v2026-10-23-2` (expected); #39 see notification |
-| Failed or blocked | Nothing failed. Main's post-merge emulator job hung on teardown once; re-run green |
+| Merged | #37 yes `v2026-10-23-1`; #38 yes `v2026-10-23-2`; #39 yes `v2026-10-23-3` (expected) |
+| Failed or blocked | #39 failed CI once (a test used the real clock), fixed on the branch. Main's post-merge emulator job hung on teardown once; re-run green |
 | Roadmap | 15 open (#30–#41, #20–#23); no replan needed |
 | Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
 | Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5j (new), 5i, 5h, 5g, 5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
