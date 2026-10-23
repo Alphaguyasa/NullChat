@@ -451,9 +451,12 @@ class MeshCoordinator @Inject constructor(
      * A direct message to a peer whose agreement key we do not hold yet stays
      * PENDING and is not transmitted at all; [releaseHeld] sends it once the key
      * arrives. See [sealOrHold].
+     *
+     * This and the other send entry points run in the mesh scope, not the
+     * caller's: see [outliveCaller].
      */
     suspend fun send(body: String, recipientHexId: String?): SendResult =
-        sendText(body, recipientHexId, replaces = null)
+        scope.outliveCaller { sendText(body, recipientHexId, replaces = null) }
 
     /**
      * Sends one of our FAILED messages again, as a new message in its place.
@@ -470,7 +473,9 @@ class MeshCoordinator @Inject constructor(
      *   ours, or is already being resent — a double tap would otherwise read the
      *   row as FAILED twice and put two copies in the thread.
      */
-    suspend fun resend(messageId: String): SendResult {
+    suspend fun resend(messageId: String): SendResult = scope.outliveCaller { resendNow(messageId) }
+
+    private suspend fun resendNow(messageId: String): SendResult {
         if (!resending.add(messageId)) return SendResult.Rejected("That message is already being sent again.")
         try {
             val row = messages.findMessage(messageId)
@@ -483,7 +488,7 @@ class MeshCoordinator @Inject constructor(
 
             val jpeg = attachments.read(attachment)
                 ?: return SendResult.Rejected("The image for that message is no longer stored.")
-            val result = sendImage(jpeg, target.recipientHexId, replaces = row.id)
+            val result = sendImageNow(jpeg, target.recipientHexId, replaces = row.id)
             // Keyed on the old row being gone rather than on the result: the new
             // row stores its own copy under its own id, and some failures land
             // after the swap has already happened.
@@ -555,10 +560,13 @@ class MeshCoordinator @Inject constructor(
      * empty, or empties partway, the message is marked FAILED and the user is
      * told — rather than left with a row that looks pending forever.
      */
-    suspend fun sendImage(
+    suspend fun sendImage(jpeg: ByteArray, recipientHexId: String?): SendResult =
+        scope.outliveCaller { sendImageNow(jpeg, recipientHexId, replaces = null) }
+
+    private suspend fun sendImageNow(
         jpeg: ByteArray,
         recipientHexId: String?,
-        replaces: String? = null,
+        replaces: String?,
     ): SendResult {
         if (!ImagePolicy.fits(jpeg.size)) {
             return SendResult.Rejected(
@@ -691,27 +699,38 @@ class MeshCoordinator @Inject constructor(
      * the packets that overflow are simply lost — which for a fragmented message
      * means the whole image fails. The spacing costs a few seconds and stays well
      * inside the receiver's 60 second window.
+     *
+     * Cancelled partway (the mesh scope itself is going away), the row is
+     * marked FAILED: fragments are never queued, so it would otherwise sit as
+     * PENDING, shown as `queued`, for a message that can no longer go out.
      */
     private suspend fun transmitFragments(messageId: String, fragments: List<Packet>): SendResult {
         transfers.start(messageId, fragments.size, isOutgoing = true)
         Log.i(TAG, "sending ${fragments.size} fragments")
 
-        fragments.forEachIndexed { index, fragment ->
-            if (!router.originate(fragment)) {
-                // Nobody in range. Fragments are not queued, so the rest of this
-                // message would be shouting into an empty room.
-                Log.w(TAG, "transfer stalled at fragment $index/${fragments.size}, no peers")
+        return onCancellation(
+            onCancel = {
                 transfers.fail(messageId)
                 messages.markFailed(messageId)
-                return SendResult.Failed("Nobody was in range for long enough to receive it.")
+            },
+        ) {
+            fragments.forEachIndexed { index, fragment ->
+                if (!router.originate(fragment)) {
+                    // Nobody in range. Fragments are not queued, so the rest of this
+                    // message would be shouting into an empty room.
+                    Log.w(TAG, "transfer stalled at fragment $index/${fragments.size}, no peers")
+                    transfers.fail(messageId)
+                    messages.markFailed(messageId)
+                    return@onCancellation SendResult.Failed("Nobody was in range for long enough to receive it.")
+                }
+                transfers.advance(messageId, index + 1)
+                if (index < fragments.lastIndex) delay(FRAGMENT_SPACING_MILLIS)
             }
-            transfers.advance(messageId, index + 1)
-            if (index < fragments.lastIndex) delay(FRAGMENT_SPACING_MILLIS)
-        }
 
-        transfers.complete(messageId)
-        messages.markSent(messageId)
-        return SendResult.Sent
+            transfers.complete(messageId)
+            messages.markSent(messageId)
+            SendResult.Sent
+        }
     }
 
     /**
