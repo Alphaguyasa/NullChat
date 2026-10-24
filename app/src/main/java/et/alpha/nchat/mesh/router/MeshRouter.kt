@@ -79,6 +79,20 @@ class MeshRouter(
     val delivered: Flow<Packet> = deliveries.receiveAsFlow()
 
     /**
+     * Buffered and single-consumer for the same reason as [deliveries]: a lost
+     * proof leaves a real contact's link unbound, and its queued messages wait
+     * until it reconnects.
+     */
+    private val proofs = Channel<LinkProof>(Channel.UNLIMITED)
+
+    /**
+     * Verified ANNOUNCEs, each tagged with the link it arrived on. See
+     * [LinkBindings] for why the coordinator needs the link and not just the
+     * sender.
+     */
+    val linkProofs: Flow<LinkProof> = proofs.receiveAsFlow()
+
+    /**
      * Deliberately the opposite contract to [deliveries], field for field.
      *
      * Delivery is a buffered channel because losing one costs the user a chat
@@ -263,6 +277,12 @@ class MeshRouter(
         // Rules 1 and 2: drop if already seen, otherwise remember it. One atomic
         // step — see SeenCache.markSeen.
         if (!seenCache.markSeen(packet.messageId)) return
+
+        // Only a first sighting counts: a duplicate is a copy someone else
+        // carried, and a replay inside the seen-cache window is dropped above.
+        if (packet.type == PacketType.ANNOUNCE && verification == Verification.VALID) {
+            proofs.trySend(LinkProof(inbound.fromPeer, packet.senderId.copyOf()))
+        }
 
         // Rule 3: deliver anything addressed to us or to everyone — but only if
         // we could actually check who sent it.

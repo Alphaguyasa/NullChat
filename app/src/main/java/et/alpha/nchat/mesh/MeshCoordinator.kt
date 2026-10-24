@@ -35,6 +35,7 @@ import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.protocol.Profile
 import et.alpha.nchat.mesh.protocol.profilePacket
 import et.alpha.nchat.mesh.router.ForwardQueue
+import et.alpha.nchat.mesh.router.LinkBindings
 import et.alpha.nchat.mesh.router.MeshRouter
 import et.alpha.nchat.mesh.router.RelayEvent
 import et.alpha.nchat.mesh.transport.NearbyTransport
@@ -252,6 +253,9 @@ class MeshCoordinator @Inject constructor(
      */
     private val reassembler = FragmentReassembler()
 
+    /** Which connected endpoints have proved the peer id they advertise. */
+    private val links = LinkBindings()
+
     private val _arrivals = MutableSharedFlow<Arrival>(
         extraBufferCapacity = ARRIVAL_BUFFER,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -328,6 +332,7 @@ class MeshCoordinator @Inject constructor(
         router.start()
         collectIncoming()
         collectPeers()
+        collectLinkProofs()
         expireStalePending()
         pullBackFutureThreads()
         sweepDisappearing()
@@ -1177,38 +1182,52 @@ class MeshCoordinator @Inject constructor(
     }
 
     /**
-     * Connected endpoints become peer rows, and each newly connected peer is
-     * offered whatever the forward queue was holding for it.
+     * Each newly connected endpoint is greeted, and offered what the forward
+     * queue holds for it once it has proved who it is.
      *
      * Per-peer rather than the old edge-triggered "mesh became non-empty" flush:
      * the queue is keyed by recipient, so the useful moment is when *that*
      * recipient appears, not when any peer at all does.
+     *
+     * The endpoint's name is only a claim, so connecting no longer makes a peer
+     * "online" or drains its queue (anyone can advertise a contact's id). Its
+     * signed ANNOUNCE arriving on the same link does both: the announcement
+     * marks it seen in [recordAnnouncement], and [collectLinkProofs] offers the
+     * queue. See [LinkBindings].
      */
     private fun collectPeers() = scope.launch {
-        val flushed = mutableSetOf<String>()
+        val greeted = mutableSetOf<String>()
         transport.connectedPeers.collect { endpoints ->
+            // First, so an endpoint that left and came back must prove itself
+            // again on its new link.
+            links.retain(endpoints)
             endpoints.forEach { endpointId ->
                 val peerId = transport.peerIdFor(endpointId) ?: return@forEach
-                peers.recordSeen(peerId.toHexId())
 
                 // Only on the transition into being connected. Without this a
-                // peer count going 1 -> 2 would re-offer to the peer that was
-                // already there, and every emission would re-run the flush.
-                if (flushed.add(endpointId)) {
-                    // Introduce ourselves before handing over anything queued,
-                    // so the peer can verify what follows rather than filing it
-                    // all as coming from an unknown sender.
+                // peer count going 1 -> 2 would re-greet the peer that was
+                // already there.
+                if (greeted.add(endpointId)) {
+                    // Introduce ourselves first, so the peer can verify what
+                    // follows rather than filing it as from an unknown sender.
                     announceSelf()
                     // After the announcement, so the peer holds our key by the
                     // time the signed name arrives and can verify it.
                     broadcastProfile()
-                    offerQueued(peerId, endpointId)
+                    if (links.claim(endpointId, peerId)) offerQueued(peerId, endpointId)
                 }
             }
 
             // Endpoints that went away become eligible again, so a peer that
-            // reconnects later gets a fresh offer.
-            flushed.retainAll(endpoints)
+            // reconnects later gets a fresh greeting.
+            greeted.retainAll(endpoints)
+        }
+    }
+
+    /** A link that proves the id it claimed gets that id's queued packets. */
+    private fun collectLinkProofs() = scope.launch {
+        router.linkProofs.collect { proof ->
+            if (links.prove(proof)) offerQueued(proof.peerId, proof.endpointId)
         }
     }
 
