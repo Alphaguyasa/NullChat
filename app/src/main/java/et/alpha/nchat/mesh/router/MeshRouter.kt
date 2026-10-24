@@ -250,12 +250,17 @@ class MeshRouter(
     private fun onInbound(inbound: InboundPayload) {
         // A peer that sends us garbage must not take the router down with it, so
         // a parse failure is counted and dropped rather than thrown at the collector.
-        val packet = try {
+        val decoded = try {
             PacketCodec.decode(inbound.bytes)
         } catch (e: PacketDecodeException) {
             _droppedMalformed.incrementAndGet()
             return
         }
+        // ttl is unsigned, so a hostile relay can raise it. Every build starts
+        // packets at DEFAULT_TTL, so anything above it is forged: clamped rather
+        // than dropped, because the packet itself may be genuine. Unclamped, a
+        // ttl of 255 floods far past the intended radius and reads as -249 hops.
+        val packet = if (decoded.ttl > Packet.DEFAULT_TTL) decoded.copy(ttl = Packet.DEFAULT_TTL) else decoded
 
         // Ahead of both dedup and verification, because the claim being made is
         // only that bytes crossed this link — which a duplicate or a forgery does
@@ -264,7 +269,13 @@ class MeshRouter(
         // other people's traffic, looking idle.
         _relayActivity.tryEmit(RelayEvent(inbound.fromPeer, RelayEvent.Direction.IN))
 
-        // Verified before the dedup cache is touched, deliberately. markSeen is
+        // Rule 1, early: a copy we already handled is dropped before the
+        // Ed25519 check. In a dense cluster most arrivals are duplicates, and
+        // verifying each one costs CPU and battery for nothing. contains()
+        // only reads, so this claims no slot in the cache.
+        if (seenCache.contains(packet.messageId)) return
+
+        // Verified before the dedup cache is written, deliberately. markSeen is
         // what claims a slot in a bounded LRU, so verifying afterwards would let
         // an attacker evict genuine entries with forged ids and get real
         // messages re-relayed or dropped.
@@ -274,8 +285,8 @@ class MeshRouter(
             return
         }
 
-        // Rules 1 and 2: drop if already seen, otherwise remember it. One atomic
-        // step — see SeenCache.markSeen.
+        // Rules 1 and 2 again, atomically: the early check above can race with
+        // another transport delivering the same packet. See SeenCache.markSeen.
         if (!seenCache.markSeen(packet.messageId)) return
 
         // Only a first sighting counts: a duplicate is a copy someone else

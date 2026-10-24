@@ -5,7 +5,7 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
-### 5k. Two-phone check for verified links (2026-10-24)
+### 5k. Phone checks for verified links, delete chat and router cost (2026-10-24)
 *Verified links (#40):* the queue is now handed over only after the other phone's
 signed announcement arrives over the same link. With B out of range, send B a
 direct message from A: it shows `queued`. Bring B in range: within a few seconds
@@ -17,6 +17,9 @@ Delete. The thread empties, the peer list preview clears, images are gone. A
 message of yours still `queued` stays and still goes out. A timer set under
 Disappearing messages is still shown. When the other phone comes back in range,
 the old messages do not reappear.
+*Router cost (#42), two or three phones:* nothing new to see. Broadcasts and direct
+messages still reach `delivered`, with the same hop counts as before. It only
+saves work on duplicate copies.
 
 ### 5j. One-phone checks for leaving mid-send and clock ordering (2026-10-23)
 *Sends survive leaving the chat (#37):* with a second phone in range, send an

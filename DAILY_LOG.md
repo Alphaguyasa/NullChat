@@ -4,6 +4,49 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-24 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's pages still list Opus 5.5
+(2026-09-22) as the newest Opus, with Claude Fable 5.1 above it. There is still no
+RemoteTrigger tool in the session, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`cc6be04`, `v2026-10-23-3`). No PRs were open.
+- **PR #40**, roadmap #30: a link belongs to a peer only after a verified ANNOUNCE
+  arrives on it. The router reports each first-seen, verified ANNOUNCE with its link
+  (`linkProofs`). The pure `LinkBindings` binds an endpoint only when the proof's id
+  matches the id the endpoint advertised. Connecting no longer marks a peer online
+  or drains its queue. A stranger in range of the real contact can still relay that
+  contact's live announcement onto its own link, and closing that needs a
+  challenge (wire change). That is now roadmap #42. Green on the first attempt.
+  Merged, `v2026-10-24-1`. Needs two-phone check (5k).
+- **PR #41**, roadmap #31 part 1: Delete chat from the thread menu. Rows are
+  tombstoned and then deleted. The user's own queued messages and the thread's
+  disappearing timer stay. No schema change. Green on the first attempt. Merged.
+  Part 2 (forget peer, block sender, Room 8→9) stays as #31.
+- **PR #42**, roadmap #32: the router drops a duplicate before the Ed25519 check
+  (`SeenCache.contains` only reads, so the eviction argument for verifying before
+  `markSeen` still holds). Inbound ttl above 6 is clamped. A forged 255 used to
+  flood past the radius and read as -249 hops.
+- Local JVM checks: the router and protocol packages build in a scratch Gradle
+  project with no SDK. Maven Central returned 429 there, and Google's Maven Central
+  mirror worked. 59 router tests pass. Each new router test failed on the code
+  before its fix.
+- Unit tests +16 (LinkBindingsTest 8, LinkProofTest 4, InboundCostTest 3,
+  DeleteRuleTest 1). Instrumented +1 (MessageDaoTest).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #30 verified links (PR #40); #31 part 1 delete chat (PR #41); #32 router dedup before verify + ttl cap (PR #42) |
+| Merged | #40 yes `v2026-10-24-1`; #41 yes `v2026-10-24-2`; #42 see notification |
+| Failed or blocked | Nothing failed. No local Android build (CI only) |
+| Roadmap | 14 open (#31 part 2, #33–#42, #20–#23); new #42 link challenge; no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5k (new), 5j, 5i, 5h, 5g, 5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
+| Next | #31 part 2 forget peer / block sender, #33 lock hides notification text, #34 bundle fonts |
+
+---
+
 ## 2026-10-23 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page still lists Claude Fable 5.1
