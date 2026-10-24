@@ -13,7 +13,6 @@ network are a wrong clock and leaving the app mid-send.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 30 | **A link belongs to a peer only after a verified ANNOUNCE**: today the endpoint name alone makes a peer "online" and `offerQueued` hands over (and marks sent) everything queued for that id. | P1 | M | Security, needs two-phone check |
 | 31 | **Delete chat, forget peer, block sender** (`deleteConversation` exists but nothing calls it; a spammer cannot be silenced). Block drops delivery but still relays. | P1 | M | |
 | 32 | **Router: skip duplicates before verifying, cap ttl**: check the seen-cache before the Ed25519 verify (it costs CPU for every duplicate in a dense cluster), and clamp inbound ttl to 6. | P2 | S | Battery, needs two-phone check |
 | 33 | **App lock hides notification text**: while the lock is on, show "New message" only. | P2 | S | Privacy |
@@ -28,6 +27,7 @@ network are a wrong clock and leaving the app mid-send.
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
 | 23 | **Route strip**: show relay chain on tap. Privacy trade-off — see NEEDS_APPROVAL. | P3 | M | |
+| 42 | **Link challenge**: a stranger in range of a contact can still relay the contact's live ANNOUNCE onto its own link and be bound (see `LinkBindings`). Close it with a nonce the link must sign (new packet type). | P3 | M | Wire change, needs two-phone check |
 | 41 | **Export a chat to a file** (system file picker, text, never automatic). | P3 | M | |
 
 **Waiting for alpha:** keeping chat history out of Google backup (NEEDS_APPROVAL #3).
@@ -73,3 +73,4 @@ change once decided.
 | 2026-10-23 | #27 Sends survive leaving the chat (mesh scope; cancelled transfers fail the row) | #37 | see log |
 | 2026-10-23 | #28 Bound received images (refuse over 14 KB; two-pass decode under 1024 px) | #38 | see log |
 | 2026-10-23 | #29 Order by this phone's clock (`receivedAt`; future threads pulled back at start; no schema change) | #39 | see log |
+| 2026-10-24 | #30 A link belongs to a peer only after a verified ANNOUNCE on it (`LinkBindings`) | #40 | see log |
