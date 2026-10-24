@@ -59,6 +59,9 @@ interface MessageDao {
     )
     suspend fun findLatestIn(conversationId: String): MessageEntity?
 
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId")
+    suspend fun findIn(conversationId: String): List<MessageEntity>
+
     /** Outbound messages still awaiting a transport, oldest first. */
     @Query(
         """

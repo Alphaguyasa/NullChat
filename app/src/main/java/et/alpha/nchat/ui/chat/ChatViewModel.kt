@@ -289,6 +289,12 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** Empties the open thread on this phone; the user's queued messages stay. */
+    fun onDeleteChat() {
+        val peer = peerId.value
+        viewModelScope.launch { coordinator.deleteChat(peer) }
+    }
+
     /** Absolute path of a stored attachment, for the bubble to decode. */
     fun attachmentPath(fileName: String): String = attachments.pathFor(fileName)
 

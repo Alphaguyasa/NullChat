@@ -185,6 +185,13 @@ internal fun canDeleteLocally(message: MessageEntity): Boolean =
     !(message.isOutgoing && message.deliveryState == DeliveryState.PENDING)
 
 /**
+ * The rows "Delete chat" removes: every one a single delete could, so our own
+ * queued messages stay in the thread until they go out, for the same reason
+ * [canDeleteLocally] keeps them.
+ */
+internal fun chatDeletion(rows: List<MessageEntity>): List<MessageEntity> = rows.filter(::canDeleteLocally)
+
+/**
  * The oldest write time a PENDING row may have at [now] and still be queued.
  *
  * Matches the forward queue's own lifetime, because that is the promise
@@ -541,6 +548,27 @@ class MeshCoordinator @Inject constructor(
         val removed = messages.deleteMessage(messageId) ?: return false
         removed.attachmentFile?.let { attachments.delete(it) }
         return true
+    }
+
+    /**
+     * Empties a thread on this phone only; see [chatDeletion] for what stays.
+     *
+     * The thread row itself is kept, so its disappearing timer survives: someone
+     * who set one and then cleared the chat expects new messages to keep
+     * disappearing. Tombstones first, as in [deleteLocally], so relays cannot
+     * replay the history back in.
+     *
+     * @return how many messages were deleted.
+     */
+    suspend fun deleteChat(recipientHexId: String?): Int {
+        val doomed = chatDeletion(messages.findIn(conversationIdFor(recipientHexId)))
+        if (doomed.isEmpty()) return 0
+        val ids = doomed.map { it.id }
+        deletedMessages.rememberAll(ids)
+        messages.deleteMessages(ids)
+        doomed.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
+        Log.i(TAG, "${doomed.size} message(s) deleted with their chat")
+        return doomed.size
     }
 
     private suspend fun sendText(body: String, recipientHexId: String?, replaces: String?): SendResult {

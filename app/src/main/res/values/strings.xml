@@ -72,6 +72,9 @@
     <string name="chat_delete_body">It is removed from this phone only. Anyone who already received it keeps their copy.</string>
     <string name="chat_delete_confirm">Delete</string>
     <string name="chat_delete_cancel">Cancel</string>
+    <string name="chat_delete_chat_action">Delete chat</string>
+    <string name="chat_delete_chat_title">Delete this chat?</string>
+    <string name="chat_delete_chat_body">Every message in it is removed from this phone only. Anyone who received them keeps their copy. Your messages still waiting to be sent stay until they go.</string>
     <string name="chat_rename_action">Rename</string>
     <string name="chat_rename_title">Rename contact</string>
     <string name="chat_rename_body">Only you see this name. Leave it empty to use the name they chose.</string>
