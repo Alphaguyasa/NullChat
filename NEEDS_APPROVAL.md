@@ -12,6 +12,11 @@ direct message from A: it shows `queued`. Bring B in range: within a few seconds
 it turns `sent`, then `delivered`, and B shows as nearby, as before. If it stays
 `queued` while B is listed nearby, that is this change failing; say so and it
 will be reverted.
+*Delete chat (#41), one phone:* open a chat with history, ⋮ → Delete chat →
+Delete. The thread empties, the peer list preview clears, images are gone. A
+message of yours still `queued` stays and still goes out. A timer set under
+Disappearing messages is still shown. When the other phone comes back in range,
+the old messages do not reappear.
 
 ### 5j. One-phone checks for leaving mid-send and clock ordering (2026-10-23)
 *Sends survive leaving the chat (#37):* with a second phone in range, send an

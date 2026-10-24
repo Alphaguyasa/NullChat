@@ -117,6 +117,19 @@ class MessageDaoTest {
     }
 
     @Test
+    fun findInReturnsOnlyThatThreadsRows() = runTest {
+        // Delete chat reads this list; a row from another thread here would be
+        // deleted along with it.
+        val other = "direct:other"
+        conversations.insert(conversation(id = other, peerId = "other"))
+        messages.insert(message(id = "mine1", conversationId = convoId))
+        messages.insert(message(id = "mine2", conversationId = convoId))
+        messages.insert(message(id = "theirs", conversationId = other))
+
+        assertEquals(setOf("mine1", "mine2"), messages.findIn(convoId).map { it.id }.toSet())
+    }
+
+    @Test
     fun updatesDeliveryStateAndReportsWhetherARowMatched() = runTest {
         messages.insert(message(id = "m1", deliveryState = DeliveryState.PENDING))
 

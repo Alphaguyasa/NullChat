@@ -180,6 +180,16 @@ fun ChatScreen(
             onDismiss = { isRenaming = false },
         )
     }
+    var isDeletingChat by rememberSaveable { mutableStateOf(false) }
+    if (isDeletingChat) {
+        DeleteChatDialog(
+            onConfirm = {
+                viewModel.onDeleteChat()
+                isDeletingChat = false
+            },
+            onDismiss = { isDeletingChat = false },
+        )
+    }
     var isChoosingTimer by rememberSaveable { mutableStateOf(false) }
     if (isChoosingTimer) {
         DisappearingDialog(
@@ -220,6 +230,7 @@ fun ChatScreen(
                 onBack = onBack,
                 onRename = if (state.isBroadcast) null else ({ isRenaming = true }),
                 onDisappearing = { isChoosingTimer = true },
+                onDeleteChat = { isDeletingChat = true },
             )
         },
     ) { padding ->
@@ -349,6 +360,7 @@ private fun ChatTopBar(
     onBack: () -> Unit,
     onRename: (() -> Unit)? = null,
     onDisappearing: (() -> Unit)? = null,
+    onDeleteChat: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Column {
@@ -393,7 +405,7 @@ private fun ChatTopBar(
                     },
                 )
             }
-            if (onRename != null || onDisappearing != null) {
+            if (onRename != null || onDisappearing != null || onDeleteChat != null) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Text(
@@ -421,6 +433,15 @@ private fun ChatTopBar(
                                 onClick = {
                                     menuOpen = false
                                     choose()
+                                },
+                            )
+                        }
+                        onDeleteChat?.let { delete ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_delete_chat_action)) },
+                                onClick = {
+                                    menuOpen = false
+                                    delete()
                                 },
                             )
                         }
@@ -605,6 +626,27 @@ private fun DeleteMessageDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.chat_delete_title)) },
         text = { Text(stringResource(R.string.chat_delete_body)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.chat_delete_confirm), color = Danger)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }
+        },
+    )
+}
+
+/**
+ * Confirms emptying a thread. Says what stays, so nobody believes it unsent
+ * anything: the other phone keeps its copy and queued messages still go.
+ */
+@Composable
+private fun DeleteChatDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_delete_chat_title)) },
+        text = { Text(stringResource(R.string.chat_delete_chat_body)) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.chat_delete_confirm), color = Danger)

@@ -3,6 +3,7 @@ package et.alpha.nchat.mesh
 import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -36,5 +37,16 @@ class DeleteRuleTest {
         DeliveryState.entries.forEach { state ->
             assertTrue(canDeleteLocally(message(state, isOutgoing = false)), "$state")
         }
+    }
+
+    @Test
+    fun `delete chat keeps only our queued messages`() {
+        val queued = message(DeliveryState.PENDING).copy(id = "01".repeat(16))
+        val sent = message(DeliveryState.SENT).copy(id = "02".repeat(16))
+        val received = message(DeliveryState.DELIVERED, isOutgoing = false).copy(id = "03".repeat(16))
+
+        val deleted = chatDeletion(listOf(queued, sent, received)).map { it.id }
+
+        assertEquals(listOf(sent.id, received.id), deleted)
     }
 }

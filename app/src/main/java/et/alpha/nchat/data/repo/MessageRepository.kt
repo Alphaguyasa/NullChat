@@ -38,6 +38,9 @@ class MessageRepository @Inject constructor(
 
     suspend fun findMessage(id: String): MessageEntity? = messageDao.findById(id)
 
+    /** Every row in a thread, in no particular order. */
+    suspend fun findIn(conversationId: String): List<MessageEntity> = messageDao.findIn(conversationId)
+
     /**
      * Stores a message this device is sending, in [DeliveryState.PENDING].
      *
