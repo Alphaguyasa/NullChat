@@ -14,7 +14,6 @@ network are a wrong clock and leaving the app mid-send.
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 31 | **Forget peer, block sender** (part 2; delete chat shipped in #41). A spammer cannot be silenced. Block drops delivery but still relays; needs a `peers.blocked` column (Room 8→9). | P1 | M | |
-| 32 | **Router: skip duplicates before verifying, cap ttl**: check the seen-cache before the Ed25519 verify (it costs CPU for every duplicate in a dense cluster), and clamp inbound ttl to 6. | P2 | S | Battery, needs two-phone check |
 | 33 | **App lock hides notification text**: while the lock is on, show "New message" only. | P2 | S | Privacy |
 | 34 | **Bundle the fonts**: `GoogleFont.Provider` needs internet. On a phone that was never online the fingerprints render in a proportional font. Ship the OFL fonts in `res/font`. | P2 | S | APK +~300 KB |
 | 35 | **`InboundHandler` extraction + JVM tests** for the inbound path (collectIncoming, fragments, offerQueued, releaseHeld). Replaces the tech-debt line. | P2 | M | |
@@ -75,3 +74,4 @@ change once decided.
 | 2026-10-23 | #29 Order by this phone's clock (`receivedAt`; future threads pulled back at start; no schema change) | #39 | see log |
 | 2026-10-24 | #30 A link belongs to a peer only after a verified ANNOUNCE on it (`LinkBindings`) | #40 | see log |
 | 2026-10-24 | #31 part 1: Delete chat (thread menu; own queued messages and the timer stay; tombstoned) | #41 | see log |
+| 2026-10-24 | #32 Router: duplicates dropped before the Ed25519 check; inbound ttl clamped to 6 | #42 | see log |
