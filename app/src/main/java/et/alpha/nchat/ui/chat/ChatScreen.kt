@@ -190,6 +190,16 @@ fun ChatScreen(
             onDismiss = { isDeletingChat = false },
         )
     }
+    var isBlocking by rememberSaveable { mutableStateOf(false) }
+    if (isBlocking) {
+        BlockDialog(
+            onConfirm = {
+                viewModel.onSetBlocked(true)
+                isBlocking = false
+            },
+            onDismiss = { isBlocking = false },
+        )
+    }
     var isChoosingTimer by rememberSaveable { mutableStateOf(false) }
     if (isChoosingTimer) {
         DisappearingDialog(
@@ -231,6 +241,13 @@ fun ChatScreen(
                 onRename = if (state.isBroadcast) null else ({ isRenaming = true }),
                 onDisappearing = { isChoosingTimer = true },
                 onDeleteChat = { isDeletingChat = true },
+                // Unblocking takes nothing away, so only blocking asks first.
+                onBlock = when {
+                    state.isBroadcast -> null
+                    state.isBlocked -> ({ viewModel.onSetBlocked(false) })
+                    else -> ({ isBlocking = true })
+                },
+                isBlocked = state.isBlocked,
             )
         },
     ) { padding ->
@@ -246,6 +263,15 @@ fun ChatScreen(
             // unverified is the default state of every contact.
             if (state.isBroadcast) {
                 WarningBanner(text = stringResource(R.string.chat_broadcast_warning))
+            } else if (state.isBlocked) {
+                // Above the verification warning: while blocked, what this
+                // person sends is not shown at all, which matters more than
+                // whether their key was checked.
+                WarningBanner(
+                    text = stringResource(R.string.chat_blocked_banner),
+                    actionLabel = stringResource(R.string.chat_unblock_action),
+                    onAction = { viewModel.onSetBlocked(false) },
+                )
             } else if (!state.isVerified) {
                 WarningBanner(
                     text = stringResource(R.string.chat_unverified_warning),
@@ -361,6 +387,8 @@ private fun ChatTopBar(
     onRename: (() -> Unit)? = null,
     onDisappearing: (() -> Unit)? = null,
     onDeleteChat: (() -> Unit)? = null,
+    onBlock: (() -> Unit)? = null,
+    isBlocked: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Column {
@@ -405,7 +433,7 @@ private fun ChatTopBar(
                     },
                 )
             }
-            if (onRename != null || onDisappearing != null || onDeleteChat != null) {
+            if (onRename != null || onDisappearing != null || onDeleteChat != null || onBlock != null) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Text(
@@ -442,6 +470,21 @@ private fun ChatTopBar(
                                 onClick = {
                                     menuOpen = false
                                     delete()
+                                },
+                            )
+                        }
+                        onBlock?.let { toggle ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            if (isBlocked) R.string.chat_unblock_action else R.string.chat_block_action,
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    toggle()
                                 },
                             )
                         }
@@ -650,6 +693,27 @@ private fun DeleteChatDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.chat_delete_confirm), color = Danger)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }
+        },
+    )
+}
+
+/**
+ * Confirms a block. Says what it does not do as well: the sender is not told,
+ * this phone still relays for them, and nothing already received goes away.
+ */
+@Composable
+private fun BlockDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_block_title)) },
+        text = { Text(stringResource(R.string.chat_block_body)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.chat_block_confirm), color = Danger)
             }
         },
         dismissButton = {

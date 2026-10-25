@@ -75,6 +75,12 @@
     <string name="chat_delete_chat_action">Delete chat</string>
     <string name="chat_delete_chat_title">Delete this chat?</string>
     <string name="chat_delete_chat_body">Every message in it is removed from this phone only. Anyone who received them keeps their copy. Your messages still waiting to be sent stay until they go.</string>
+    <string name="chat_block_action">Block</string>
+    <string name="chat_unblock_action">Unblock</string>
+    <string name="chat_block_title">Block this person?</string>
+    <string name="chat_block_body">New messages from them are dropped on this phone, with no notification. They are not told, but their messages to you stay at sent instead of delivered. Your phone still relays mesh traffic, theirs included. What you already received stays.</string>
+    <string name="chat_block_confirm">Block</string>
+    <string name="chat_blocked_banner">You blocked this person. Their new messages are not shown.</string>
     <string name="chat_rename_action">Rename</string>
     <string name="chat_rename_title">Rename contact</string>
     <string name="chat_rename_body">Only you see this name. Leave it empty to use the name they chose.</string>

@@ -877,6 +877,14 @@ class MeshCoordinator @Inject constructor(
             // Not acknowledged again: the sender had its receipt the first time.
             if (deletedMessages.isDeleted(packet.messageId.toHexId())) return@collect
 
+            // Blocked: not stored, so nothing to show or notify, and not
+            // acknowledged, so the sender sees `sent` rather than `delivered`
+            // and learns nothing it could not see before. Not tombstoned either:
+            // a spammer's flood would push the user's real deletions out of the
+            // bounded tombstone set. So a message still in a relay's queue can
+            // arrive after an unblock, which is the user asking for it.
+            if (peers.isBlocked(senderHex)) return@collect
+
             val conversationId =
                 if (packet.isBroadcast) BROADCAST_CONVERSATION_ID else directConversationId(senderHex)
 
@@ -1029,6 +1037,9 @@ class MeshCoordinator @Inject constructor(
         if (transfers.transfers.value[messageId]?.state == TransferState.COMPLETE) return
         if (messages.findMessage(messageId) != null) return
         if (deletedMessages.isDeleted(messageId)) return
+        // Checked on every piece, not only the first, so a block set partway
+        // through a transfer stops it before the image is ever written.
+        if (peers.isBlocked(senderHex)) return
 
         val completed = reassembler.offer(packet)
         if (completed != null) {

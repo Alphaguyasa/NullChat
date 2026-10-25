@@ -91,6 +91,17 @@ interface PeerDao {
     @Query("UPDATE peers SET nickname = :nickname WHERE id = :id")
     suspend fun setNickname(id: String, nickname: String?): Int
 
+    /**
+     * Blocks or unblocks a peer. Only the user calls this; [recordSeen] copies
+     * the row, so nothing a peer announces can lift a block.
+     */
+    @Query("UPDATE peers SET isBlocked = :blocked WHERE id = :id")
+    suspend fun setBlocked(id: String, blocked: Boolean): Int
+
+    /** Null for a peer with no row, which nobody can have blocked. */
+    @Query("SELECT isBlocked FROM peers WHERE id = :id")
+    suspend fun isBlocked(id: String): Boolean?
+
     @Query("UPDATE peers SET lastSeenAt = :now WHERE id = :id")
     suspend fun touch(id: String, now: Long): Int
 
