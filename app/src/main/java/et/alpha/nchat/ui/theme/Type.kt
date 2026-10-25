@@ -2,43 +2,40 @@ package et.alpha.nchat.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
 import et.alpha.nchat.R
 
-// Three families, two weights each — 400 and 500, no more. Downloadable fonts
-// are fetched once by Play Services and cached; if the fetch fails Compose falls
-// back to the platform font, which is the correct behaviour for an app that is
-// expected to run with no network at all.
-private val provider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs,
-)
-
-private val SpaceGroteskFont = GoogleFont("Space Grotesk")
-private val InterFont = GoogleFont("Inter")
-private val JetBrainsMonoFont = GoogleFont("JetBrains Mono")
+// Three families, two weights each — 400 and 500, no more — shipped in the APK.
+// They used to be downloadable fonts, but Play Services can only fetch those
+// over the internet, and this app is meant for phones that have never been
+// online. There they fell back to the platform font, and a peer id or a
+// fingerprint rendered in a proportional face is harder to compare character
+// by character. Bundling also means the app no longer asks Play Services to
+// download anything.
+//
+// The files are static 400/500 instances of the OFL variable fonts from
+// google/fonts, subset to Latin, Greek, Cyrillic and common symbols with
+// hinting dropped (Android does not use it). Licences: assets/licenses/.
 
 /** Display and headers. Technical, slightly mechanical. */
 val SpaceGrotesk = FontFamily(
-    Font(googleFont = SpaceGroteskFont, fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = SpaceGroteskFont, fontProvider = provider, weight = FontWeight.Medium),
+    Font(R.font.space_grotesk_400, FontWeight.Normal),
+    Font(R.font.space_grotesk_500, FontWeight.Medium),
 )
 
 /** Body and chat. */
 val Inter = FontFamily(
-    Font(googleFont = InterFont, fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = InterFont, fontProvider = provider, weight = FontWeight.Medium),
+    Font(R.font.inter_400, FontWeight.Normal),
+    Font(R.font.inter_500, FontWeight.Medium),
 )
 
 /** Peer IDs, fingerprints, hop counts — anything the user reads out or compares. */
 val JetBrainsMono = FontFamily(
-    Font(googleFont = JetBrainsMonoFont, fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = JetBrainsMonoFont, fontProvider = provider, weight = FontWeight.Medium),
+    Font(R.font.jetbrains_mono_400, FontWeight.Normal),
+    Font(R.font.jetbrains_mono_500, FontWeight.Medium),
 )
 
 // Material has no monospace slot, so the mono styles live outside Typography and

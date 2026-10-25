@@ -14,7 +14,6 @@ network are a wrong clock and leaving the app mid-send.
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 31 | **Forget peer** (part 3; delete chat shipped in #41, block sender in #43). Remove a contact's row, key and chat in one step. Careful: `PublicKeyDirectory` is first-wins, so forgetting a key lets the next ANNOUNCE for that id set a new one; needs a design note before code. | P2 | S | |
-| 34 | **Bundle the fonts**: `GoogleFont.Provider` needs internet. On a phone that was never online the fingerprints render in a proportional font. Ship the OFL fonts in `res/font`. | P2 | S | APK +~300 KB |
 | 35 | **`InboundHandler` extraction + JVM tests** for the inbound path (collectIncoming, fragments, offerQueued, releaseHeld). Replaces the tech-debt line. | P2 | M | |
 | 36 | **Message info** on long-press: sent time, received time, state, hops, sender id. | P2 | S | |
 | 37 | **Search in a chat** (LIKE over the body, highlighted). | P2 | M | |
@@ -76,3 +75,4 @@ change once decided.
 | 2026-10-24 | #32 Router: duplicates dropped before the Ed25519 check; inbound ttl clamped to 6 | #42 | see log |
 | 2026-10-25 | #31 part 2: Block sender (Room 8→9; dropped before storing, not acknowledged, still relayed) | #43 | see log |
 | 2026-10-25 | #33 App lock hides notification text ("New message" only, sender name too) | #44 | see log |
+| 2026-10-25 | #34 Bundle the fonts (static 400/500 OFL subsets in `res/font`; Play Services font download removed) | #45 | see log |

@@ -4,6 +4,51 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-25 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page is unchanged: Opus 5.5
+is still the newest Opus, and Claude Fable 5.1 sits above it. There is still no
+RemoteTrigger tool in the session, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`0fab337`, `v2026-10-24-3`). No PRs were open, and no
+  Dependabot PRs (they come on Mondays).
+- **PR #43**, roadmap #31 part 2: block sender. `peers.isBlocked` (NOT NULL DEFAULT 0),
+  Room 8→9, with a migration test. Messages and fragments from a blocked peer are dropped
+  before they are stored, so they are not shown, not notified and not acknowledged.
+  Relaying is unchanged. They are not tombstoned, because a spammer's flood would push
+  the user's real deletions out of the bounded set. The chat menu has Block (with a
+  confirm) and Unblock, and a banner shows while blocked. Green on the first attempt.
+  Merged, `v2026-10-25-1`. Forget peer stays open as #31 part 3, now P2/S. It needs a
+  design note first, because the key directory is first-wins.
+- **Room identity hash script rebuilt.** It was not committed last time. The new one
+  sorts with Java's English `Collator`, as Room does, and reproduces all eight committed
+  hashes before writing `9.json`. The 8→9 migration test passed on the first CI run.
+- **PR #44**, roadmap #33: with the app lock on, notifications say only "New message"
+  (or "N new messages"), with no name and no text. Green on the first attempt. Merged.
+- **PR #45**, roadmap #34: fonts are bundled in `res/font`. These are static 400/500
+  instances of the OFL variable fonts from google/fonts, made with fontTools, subset to
+  Latin, Greek, Cyrillic and symbols, hinting dropped. They total about 945 KB raw,
+  roughly 0.45 MB compressed (the roadmap guessed 300 KB). `ui-text-google-fonts` and
+  `font_certs.xml` are removed, so the app no longer asks Play Services to download
+  fonts. Licences are in `assets/licenses/`. None of the fonts has a Reserved Font
+  Name, so the subsets may keep their names. A new `ArchitectureRulesTest` case keeps
+  downloadable fonts out.
+- Unit tests +8 (PeerBlockTest 4, MessageNotificationPolicyTest 3, ArchitectureRulesTest 1).
+  Instrumented +3 (PeerDaoTest 2, migration 8→9).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #31 part 2 block sender (PR #43); #33 lock hides notification text (PR #44); #34 bundled fonts (PR #45) |
+| Merged | #43 yes `v2026-10-25-1`; #44 yes `v2026-10-25-2`; #45 see notification |
+| Failed or blocked | Nothing failed. No local Android build (CI only) |
+| Roadmap | 13 open (#31 part 3 forget peer, #35–#42, #20–#23); no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5l (new), 5k, 5j, 5i, 5h, 5g, 5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
+| Next | #35 `InboundHandler` extraction + JVM tests, #36 message info, #37 search in a chat |
+
+---
+
 ## 2026-10-24 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's pages still list Opus 5.5

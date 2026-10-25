@@ -5,7 +5,7 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
-### 5l. Phone checks for block sender and locked notifications (2026-10-25)
+### 5l. Phone checks for block sender, locked notifications and fonts (2026-10-25)
 *Block (#43), two phones, A and B:* on A, open B's chat, ⋮ → Block → Block. A
 banner says B is blocked. B sends A a direct message, an image and a broadcast:
 none appear on A, no notification shows, and on B the direct message stays at
@@ -18,6 +18,10 @@ is on another app or the home screen: the notification says only "New message",
 with no name and no text, and a second message turns it into "2 new messages".
 Tapping it asks to unlock first. Turn the lock off: the next notification shows
 the name and text again.
+*Fonts (#45), one phone, ideally one that has never been online:* peer ids,
+the hop counts under messages and the fingerprint words on the pairing screen
+are in a monospaced font (every character the same width). Headers look as
+before. The APK is about 0.5 MB bigger.
 
 ### 5k. Phone checks for verified links, delete chat and router cost (2026-10-24)
 *Verified links (#40):* the queue is now handed over only after the other phone's
