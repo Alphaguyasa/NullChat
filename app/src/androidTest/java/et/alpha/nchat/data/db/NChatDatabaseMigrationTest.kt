@@ -469,6 +469,53 @@ class NChatDatabaseMigrationTest {
         }
     }
 
+    /**
+     * The v8 → v9 upgrade that adds blocking.
+     *
+     * Every existing peer keeps its name, key, nickname and verified flag and
+     * reads back unblocked, and a block set afterwards survives the next
+     * announcement.
+     */
+    @Test
+    fun migratingToVersion9AddsBlockingAndKeepsPeers() {
+        helper.createDatabase(TEST_DB, 8).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO peers
+                    (id, displayName, publicKey, isVerified, firstSeenAt, lastSeenAt, agreementKey, nickname)
+                VALUES ('peer', 'sam', X'0707070707070707070707070707070707070707070707070707070707070707',
+                        1, 500, 1000, NULL, 'Samuel')
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_8_9 and validates the result against schemas/9.json.
+        helper.runMigrationsAndValidate(TEST_DB, 9, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val peer = db.peerDao().findById("peer")
+                assertEquals("sam", peer?.displayName)
+                assertEquals("Samuel", peer?.nickname)
+                assertEquals(true, peer?.isVerified)
+                assertArrayEquals(ByteArray(32) { 7 }, peer?.publicKey)
+                assertEquals(false, peer?.isBlocked)
+
+                assertEquals(1, db.peerDao().setBlocked("peer", true))
+                db.peerDao().recordSeen(id = "peer", displayName = "sam2", now = 2000)
+                assertEquals(true, db.peerDao().findById("peer")?.isBlocked)
+            }
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

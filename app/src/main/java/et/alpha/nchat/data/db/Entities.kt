@@ -56,6 +56,18 @@ data class PeerEntity(
      * never overwritten by anything the peer announces.
      */
     val nickname: String? = null,
+    /**
+     * True when the user blocked this peer: its messages are not stored,
+     * acknowledged or notified. Local only, like [nickname]. Relaying is
+     * untouched, because a relay cannot tell a blocked sender's packet from
+     * anyone else's without reading it, and the mesh needs every phone to carry
+     * what it can.
+     *
+     * The default is declared in SQL as well, so the 8 → 9 migration can add
+     * the column NOT NULL and every existing peer reads back unblocked.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val isBlocked: Boolean = false,
 ) {
     // ByteArray compares by identity by default, which would make two peers with
     // the same key look different.
@@ -69,7 +81,8 @@ data class PeerEntity(
             lastSeenAt == other.lastSeenAt &&
             publicKey.contentEquals(other.publicKey) &&
             agreementKey.contentEquals(other.agreementKey) &&
-            nickname == other.nickname
+            nickname == other.nickname &&
+            isBlocked == other.isBlocked
     }
 
     override fun hashCode(): Int {
@@ -81,6 +94,7 @@ data class PeerEntity(
         result = 31 * result + lastSeenAt.hashCode()
         result = 31 * result + agreementKey.contentHashCode()
         result = 31 * result + (nickname?.hashCode() ?: 0)
+        result = 31 * result + isBlocked.hashCode()
         return result
     }
 }

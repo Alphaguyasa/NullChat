@@ -53,7 +53,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun forwardQueueDao(): ForwardQueueDao
 
     companion object {
-        const val VERSION: Int = 8
+        const val VERSION: Int = 9
 
         const val NAME: String = "nchat.db"
 
@@ -178,6 +178,22 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds `peers.isBlocked`.
+         *
+         * NOT NULL with a default of 0, like `receivedAt` in 5 → 6, so the
+         * entity keeps a plain `Boolean`. No row is rewritten and every existing
+         * peer reads back unblocked, which is true: nobody could block anyone
+         * before this version.
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "ALTER TABLE `peers` ADD COLUMN `isBlocked` INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
@@ -191,6 +207,7 @@ abstract class NChatDatabase : RoomDatabase() {
             MIGRATION_5_6,
             MIGRATION_6_7,
             MIGRATION_7_8,
+            MIGRATION_8_9,
         )
     }
 }

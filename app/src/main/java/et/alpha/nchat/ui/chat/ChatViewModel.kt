@@ -53,6 +53,8 @@ data class ChatState(
     val isNamed: Boolean = false,
     /** This thread's disappearing timer on this phone, or null when off. */
     val disappearAfterMillis: Long? = null,
+    /** True when the user blocked this peer; its new messages are dropped. */
+    val isBlocked: Boolean = false,
 )
 
 /**
@@ -136,6 +138,7 @@ class ChatViewModel @Inject constructor(
                 isBroadcast = peer == null,
                 isVerified = peerRow?.isVerified == true,
                 disappearAfterMillis = conversation?.disappearAfterMillis,
+                isBlocked = peerRow?.isBlocked == true,
             )
         }
     }.stateIn(
@@ -315,6 +318,15 @@ class ChatViewModel @Inject constructor(
     fun onRename(input: String) {
         val peer = peerId.value ?: return
         viewModelScope.launch { peers.rename(peer, input) }
+    }
+
+    /**
+     * Blocks or unblocks the open peer. Does nothing in the broadcast thread:
+     * a spammer there is blocked from their own chat, reached from the peer list.
+     */
+    fun onSetBlocked(blocked: Boolean) {
+        val peer = peerId.value ?: return
+        viewModelScope.launch { peers.block(peer, blocked) }
     }
 
     /** Sets this thread's disappearing timer; null turns it off. */

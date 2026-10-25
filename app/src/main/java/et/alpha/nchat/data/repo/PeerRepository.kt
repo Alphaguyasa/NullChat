@@ -81,6 +81,17 @@ class PeerRepository @Inject constructor(
     suspend fun rename(peerId: String, input: String): Boolean =
         peerDao.setNickname(peerId, Profile.fromInput(input)?.displayName) > 0
 
+    /**
+     * Stops storing anything [peerId] sends; see [PeerEntity.isBlocked].
+     *
+     * @return false if no such peer is stored. A peer with no row has never
+     *   sent us anything, so there is nothing yet to block it from.
+     */
+    suspend fun block(peerId: String, blocked: Boolean = true): Boolean =
+        peerDao.setBlocked(peerId, blocked) > 0
+
+    suspend fun isBlocked(peerId: String): Boolean = peerDao.isBlocked(peerId) == true
+
     suspend fun forget(peerId: String): Boolean = peerDao.deleteById(peerId) > 0
 
     companion object {

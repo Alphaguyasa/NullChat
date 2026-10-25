@@ -230,4 +230,31 @@ class PeerDaoTest {
         assertEquals("Samuel", stored?.nickname)
         assertEquals("definitely-not-sam", stored?.displayName)
     }
+
+    @Test
+    fun blocksAndUnblocksAPeer() = runTest {
+        peers.recordSeen(id = PEER_A, now = T0)
+        assertEquals(false, peers.isBlocked(PEER_A))
+
+        assertEquals(1, peers.setBlocked(PEER_A, true))
+        assertEquals(true, peers.isBlocked(PEER_A))
+
+        assertEquals(1, peers.setBlocked(PEER_A, false))
+        assertEquals(false, peers.isBlocked(PEER_A))
+
+        assertEquals(0, peers.setBlocked("absentabsentabse", true))
+        assertNull(peers.isBlocked("absentabsentabse"))
+    }
+
+    // The block is the user's. A blocked peer that keeps announcing, or sends a
+    // new profile, must not be able to lift it.
+    @Test
+    fun recordSeenKeepsTheBlock() = runTest {
+        peers.recordSeen(id = PEER_A, displayName = "spam", now = T0)
+        peers.setBlocked(PEER_A, true)
+
+        peers.recordSeen(id = PEER_A, displayName = "not-spam", publicKey = ByteArray(32) { 1 }, now = T0 + 1)
+
+        assertEquals(true, peers.findById(PEER_A)?.isBlocked)
+    }
 }
