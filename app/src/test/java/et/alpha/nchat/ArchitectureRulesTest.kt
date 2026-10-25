@@ -57,6 +57,23 @@ class ArchitectureRulesTest {
         )
     }
 
+    // The bug: fonts came from Play Services over the internet, so on a phone
+    // that was never online peer ids and fingerprints fell back to a
+    // proportional font. Bundled fonts need no network; this keeps it that way.
+    @Test
+    fun `fonts ship in the APK, not over the network`() {
+        val offenders = sourceFiles()
+            .filter { file -> file.readLines().any { it.startsWith("import androidx.compose.ui.text.googlefonts") } }
+            .map { it.name }
+            .sorted()
+
+        assertEquals(
+            emptyList<String>(),
+            offenders,
+            "Downloadable fonts need the internet. Add the font file to res/font instead.",
+        )
+    }
+
     private fun sourceFiles(): List<File> =
         sourceRoot().walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
 
