@@ -14,6 +14,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import et.alpha.nchat.MainActivity
 import et.alpha.nchat.R
 import et.alpha.nchat.data.db.preferredName
+import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.BatteryModeStore
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.mesh.MeshCoordinator
@@ -65,6 +66,8 @@ class MeshForegroundService : Service() {
     @Inject lateinit var foregroundConversation: ForegroundConversation
 
     @Inject lateinit var peerRepository: PeerRepository
+
+    @Inject lateinit var appLock: AppLockStore
 
     @Inject lateinit var batteryMode: BatteryModeStore
 
@@ -150,8 +153,16 @@ class MeshForegroundService : Service() {
     private fun notifyArrivals() {
         scope.launch {
             coordinator.arrivals.collect { arrival ->
-                val senderName = peerRepository.findPeer(arrival.senderId)?.preferredName
-                messageNotifier.onArrival(arrival, foregroundConversation.current.value, senderName)
+                // Read per arrival rather than captured once, so turning the
+                // lock on takes effect from the very next message.
+                val hideContent = appLock.enabled.value
+                val senderName = if (hideContent) null else peerRepository.findPeer(arrival.senderId)?.preferredName
+                messageNotifier.onArrival(
+                    arrival,
+                    foregroundConversation.current.value,
+                    senderName,
+                    hideContent,
+                )
             }
         }
         scope.launch {

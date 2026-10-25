@@ -26,6 +26,9 @@ import javax.inject.Singleton
  * `VISIBILITY_PRIVATE` with a public version that says only "New message".
  * Who wrote and what they said stay behind the lock: a phone left on a table
  * is the most likely way anyone else reads this app's messages.
+ *
+ * With the app lock on, the private version says no more than the public one
+ * (see [MessageNotificationPolicy.title]).
  */
 @Singleton
 class MessageNotifier @Inject constructor(
@@ -56,12 +59,18 @@ class MessageNotifier @Inject constructor(
      *
      * [senderName] is the peer's nickname or chosen name, if any; the caller
      * looks it up because this class has no database access of its own.
+     * [hideContent] is whether the app lock is on.
      *
      * Without POST_NOTIFICATIONS on SDK 33+ the system drops the post silently,
      * which is the right outcome: the user said no.
      */
     @Synchronized
-    fun onArrival(arrival: Arrival, foregroundConversationId: String?, senderName: String?) {
+    fun onArrival(
+        arrival: Arrival,
+        foregroundConversationId: String?,
+        senderName: String?,
+        hideContent: Boolean,
+    ) {
         if (!MessageNotificationPolicy.shouldNotify(arrival, foregroundConversationId)) return
 
         val count = (unseen[arrival.conversationId] ?: 0) + 1
@@ -74,8 +83,8 @@ class MessageNotifier @Inject constructor(
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(MessageNotificationPolicy.title(arrival, senderName))
-            .setContentText(MessageNotificationPolicy.text(arrival, count))
+            .setContentTitle(MessageNotificationPolicy.title(arrival, senderName, hideContent))
+            .setContentText(MessageNotificationPolicy.text(arrival, count, hideContent))
             .setNumber(count)
             .setContentIntent(openThread(arrival.senderId))
             .setAutoCancel(true)

@@ -5,7 +5,7 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
-### 5l. One-phone check for block sender (2026-10-25)
+### 5l. Phone checks for block sender and locked notifications (2026-10-25)
 *Block (#43), two phones, A and B:* on A, open B's chat, ⋮ → Block → Block. A
 banner says B is blocked. B sends A a direct message, an image and a broadcast:
 none appear on A, no notification shows, and on B the direct message stays at
@@ -13,6 +13,11 @@ none appear on A, no notification shows, and on B the direct message stays at
 when B is the only phone between them. ⋮ → Unblock (or the banner's Unblock):
 B's next message arrives as normal. A message B sent while blocked can still
 arrive after Unblock if a phone was carrying it (up to a day); that is expected.
+*Locked notifications (#44):* Settings → App lock on. Have B message A while A
+is on another app or the home screen: the notification says only "New message",
+with no name and no text, and a second message turns it into "2 new messages".
+Tapping it asks to unlock first. Turn the lock off: the next notification shows
+the name and text again.
 
 ### 5k. Phone checks for verified links, delete chat and router cost (2026-10-24)
 *Verified links (#40):* the queue is now handed over only after the other phone's
