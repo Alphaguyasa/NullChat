@@ -10,6 +10,9 @@ import et.alpha.nchat.ui.peers.peerLabel
  */
 internal object MessageNotificationPolicy {
 
+    /** What a notification says, on the lock screen and off it, while the app lock is on. */
+    const val HIDDEN_TITLE: String = "New message"
+
     /** Longest preview put in the notification; the full text is in the thread. */
     const val MAX_PREVIEW_CHARS: Int = 120
 
@@ -27,18 +30,28 @@ internal object MessageNotificationPolicy {
     /**
      * Title: who it is from, labelled exactly as on the peer list — the
      * nickname or chosen name, if any, beside the short id.
+     *
+     * With [hideContent] (the app lock is on) it is [HIDDEN_TITLE] instead. A
+     * lock that guards the threads but leaves the sender and the words in the
+     * shade above them guards nothing worth having: an unlocked phone handed
+     * to someone else shows its notifications without asking.
      */
-    fun title(arrival: Arrival, senderName: String?): String = peerLabel(senderName, arrival.senderId)
+    fun title(arrival: Arrival, senderName: String?, hideContent: Boolean = false): String =
+        if (hideContent) HIDDEN_TITLE else peerLabel(senderName, arrival.senderId)
 
     /**
-     * Body: the newest message, or a count once several are waiting.
+     * Body: the newest message, or a count once several are waiting. Null when
+     * [hideContent] leaves nothing to say beyond the title.
      *
      * Replacing the text with a count rather than stacking lines keeps the
      * notification to one row per conversation and never shows more message
      * content than the newest line.
      */
-    fun text(arrival: Arrival, unseen: Int): String = when {
+    fun text(arrival: Arrival, unseen: Int, hideContent: Boolean = false): String? = when {
         unseen > 1 -> "$unseen new messages"
+        // A count says nothing about who or what; one message needs no text
+        // under a title that already says it.
+        hideContent -> null
         arrival.isImage -> "Image"
         // The reply, not the words it quotes: those are the user's own, and a
         // notification that opened with them would read as an echo.

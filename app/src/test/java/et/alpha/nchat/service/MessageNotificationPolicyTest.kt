@@ -69,7 +69,7 @@ class MessageNotificationPolicyTest {
     @Test
     fun `a long message is cut to the preview length`() {
         val text = MessageNotificationPolicy.text(direct(preview = "x".repeat(1000)), unseen = 1)
-        assertEquals(MessageNotificationPolicy.MAX_PREVIEW_CHARS, text.length)
+        assertEquals(MessageNotificationPolicy.MAX_PREVIEW_CHARS, text?.length)
     }
 
     @Test
@@ -100,5 +100,25 @@ class MessageNotificationPolicyTest {
         assertNull(MessageNotificationPolicy.peerIdFromExtra("A1B2C3D4E5F60718"))
         assertNull(MessageNotificationPolicy.peerIdFromExtra("a1b2c3d4e5f6071"))
         assertNull(MessageNotificationPolicy.peerIdFromExtra("../../a1b2c3d4e5f60718"))
+    }
+
+    // The bug: with the app lock on, the shade still named the sender and
+    // showed the words, so the lock guarded the threads and nothing else.
+    @Test
+    fun `the app lock hides who wrote and what they said`() {
+        val arrival = direct(preview = "meet at the gate")
+
+        assertEquals("New message", MessageNotificationPolicy.title(arrival, senderName = "Mom", hideContent = true))
+        assertNull(MessageNotificationPolicy.text(arrival, unseen = 1, hideContent = true))
+    }
+
+    @Test
+    fun `the app lock hides an image the same way`() {
+        assertNull(MessageNotificationPolicy.text(direct(isImage = true), unseen = 1, hideContent = true))
+    }
+
+    @Test
+    fun `the app lock still shows how many are waiting`() {
+        assertEquals("3 new messages", MessageNotificationPolicy.text(direct(), unseen = 3, hideContent = true))
     }
 }
