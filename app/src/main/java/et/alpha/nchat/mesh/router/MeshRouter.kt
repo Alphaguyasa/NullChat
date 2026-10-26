@@ -222,6 +222,16 @@ class MeshRouter(
     }
 
     /**
+     * Withdraws queued packets the user no longer wants sent; see
+     * [ForwardQueue.cancel]. A packet already handed to a neighbour is out of
+     * reach, and nothing here pretends otherwise.
+     *
+     * @return how many queued packets were dropped.
+     */
+    suspend fun cancelQueued(messageIds: List<ByteArray>): Int =
+        forwardQueue?.cancel(messageIds) ?: 0
+
+    /**
      * Queues a packet that found no route.
      *
      * Only MESSAGE and ACK packets are worth holding. An ANNOUNCE or a

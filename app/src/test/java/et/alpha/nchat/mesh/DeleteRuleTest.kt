@@ -2,6 +2,7 @@ package et.alpha.nchat.mesh
 
 import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
+import et.alpha.nchat.data.db.PeerEntity
 import et.alpha.nchat.data.db.directConversationId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -48,5 +49,14 @@ class DeleteRuleTest {
         val deleted = chatDeletion(listOf(queued, sent, received)).map { it.id }
 
         assertEquals(listOf(sent.id, received.id), deleted)
+    }
+
+    @Test
+    fun `a stored peer can be forgotten, but not while blocked or when unknown`() {
+        val peer = PeerEntity(id = "a1b2c3d4e5f60718", firstSeenAt = 0L, lastSeenAt = 0L)
+        assertTrue(canForget(peer))
+        // Forgetting drops the row the block lives on, so it would lift the block.
+        assertFalse(canForget(peer.copy(isBlocked = true)))
+        assertFalse(canForget(null))
     }
 }

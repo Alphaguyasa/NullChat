@@ -13,7 +13,6 @@ network are a wrong clock and leaving the app mid-send.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 31 | **Forget peer** (part 3; delete chat shipped in #41, block sender in #43). Remove a contact's row, key and chat in one step. Careful: `PublicKeyDirectory` is first-wins, so forgetting a key lets the next ANNOUNCE for that id set a new one; needs a design note before code. | P2 | S | |
 | 35 | **`InboundHandler` extraction + JVM tests** for the inbound path (collectIncoming, fragments, offerQueued, releaseHeld). Replaces the tech-debt line. | P2 | M | |
 | 37 | **Search in a chat** (LIKE over the body, highlighted). | P2 | M | |
 | 38 | **Share into Null Chat / forward a message** (`SEND text/plain` + peer picker). | P2 | M | No wire change |
@@ -77,3 +76,4 @@ change once decided.
 | 2026-10-25 | #34 Bundle the fonts (static 400/500 OFL subsets in `res/font`; Play Services font download removed) | #45 | see log |
 | 2026-10-26 | Dependabot #46 re-applied (Tink 1.24.0, Gradle 9.8.2, test-only kotlinx-serialization 1.12.0) | #47 | see log |
 | 2026-10-26 | #36 Message info (long-press → Info: state and hops, sender id, both clocks, timer) | #48 | see log |
+| 2026-10-26 | #31 part 3: Forget contact (thread, row and queued sends removed; keys kept, since the id commits to them; not while blocked) | #49 | see log |

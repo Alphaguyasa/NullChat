@@ -5,6 +5,18 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5m. Phone checks for message info and forget contact (2026-10-26)
+*Message info (#48), one phone:* long-press one of your own messages and choose
+Info. A queued one says `queued`, a delivered one `delivered · N hops`, with the
+time it was written. Long-press a message from someone else: their full id, the
+time by their clock and the time it arrived here. If a thread has a disappearing
+timer, Info says when the message goes. A queued image now has a menu too (Info only).
+*Forget contact (#49), two phones, A and B:* on A, with B **out of range**, send B a
+message so it shows `queued`. Open B's chat, ⋮ → Forget contact → Forget. A goes
+back to the list; B's thread and row are gone. Bring B in range: B shows up as a
+new, unverified contact with an empty chat, and the queued message from before
+**never arrives** on B. While B is blocked, Forget contact is not in the menu.
+
 ### 5l. Phone checks for block sender, locked notifications and fonts (2026-10-25)
 *Block (#43), two phones, A and B:* on A, open B's chat, ⋮ → Block → Block. A
 banner says B is blocked. B sends A a direct message, an image and a broadcast:

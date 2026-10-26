@@ -4,6 +4,7 @@ import android.util.Log
 import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
+import et.alpha.nchat.data.db.PeerEntity
 import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.hexIdToBytes
 import et.alpha.nchat.data.db.newMessageId
@@ -190,6 +191,15 @@ internal fun canDeleteLocally(message: MessageEntity): Boolean =
  * [canDeleteLocally] keeps them.
  */
 internal fun chatDeletion(rows: List<MessageEntity>): List<MessageEntity> = rows.filter(::canDeleteLocally)
+
+/**
+ * Whether "Forget contact" is offered for [peer].
+ *
+ * Not while blocked: the block lives on the peer's row, so forgetting would
+ * quietly lift it, and the blocked sender's next message would arrive as a
+ * stranger's. Delete chat clears a blocked thread without that.
+ */
+internal fun canForget(peer: PeerEntity?): Boolean = peer != null && !peer.isBlocked
 
 /**
  * The oldest write time a PENDING row may have at [now] and still be queued.
@@ -569,6 +579,43 @@ class MeshCoordinator @Inject constructor(
         doomed.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
         Log.i(TAG, "${doomed.size} message(s) deleted with their chat")
         return doomed.size
+    }
+
+    /**
+     * Removes [peerHex] from this phone: its thread with every message in it,
+     * the thread's timer, the name, nickname and verification on its row, and
+     * our messages to it still waiting to go, which are withdrawn from the
+     * forward queue rather than left to send after their rows are gone.
+     *
+     * The key directory keeps the peer's keys, on purpose. A peer id is the hash
+     * of its signing key and an ANNOUNCE is signed by the key it carries, so no
+     * one but the peer can file different keys under that id; forgetting them
+     * would protect nothing, and would make the peer's packets that this phone
+     * relays unverifiable until it announced again. A peer still in range
+     * announces within seconds and comes back as a new, unverified contact with
+     * an empty thread, which is the honest outcome.
+     *
+     * Runs in the mesh scope, so leaving the chat straight after does not
+     * strand it halfway.
+     *
+     * @return false when the peer is unknown or [canForget] refuses it.
+     */
+    suspend fun forgetPeer(peerHex: String): Boolean = scope.outliveCaller {
+        if (!canForget(peers.findPeer(peerHex))) return@outliveCaller false
+        val conversationId = conversationIdFor(peerHex)
+        val rows = messages.findIn(conversationId)
+        val ids = rows.map { it.id }
+        // Tombstones first, as in deleteChat, so relays cannot replay the history back in.
+        deletedMessages.rememberAll(ids)
+        router.cancelQueued(
+            rows.filter { it.isOutgoing && it.deliveryState == DeliveryState.PENDING }
+                .map { it.id.hexIdToBytes() },
+        )
+        messages.deleteConversation(conversationId)
+        rows.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
+        peers.forget(peerHex)
+        Log.i(TAG, "Forgot a peer and ${rows.size} message(s)")
+        true
     }
 
     private suspend fun sendText(body: String, recipientHexId: String?, replaces: String?): SendResult {

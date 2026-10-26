@@ -50,6 +50,28 @@ class ForwardQueueRoutingTest {
     }
 
     @Test
+    fun `a cancelled message never goes out when its recipient appears`() = runTest {
+        meshTest {
+            val a = node("A")
+            val c = node("C")
+            settle()
+
+            val packet = testPacket(from = a.id, to = c.id)
+            a.router.originate(packet)
+            settle()
+            assertEquals(1, a.router.cancelQueued(listOf(packet.messageId)))
+
+            link("A", "C")
+            settle()
+            val flushed = flush(from = "A", to = "C")
+            settle()
+
+            assertTrue(flushed.isEmpty(), "nothing should be offered")
+            assertTrue(c.delivered.isEmpty(), "a withdrawn message must not arrive")
+        }
+    }
+
+    @Test
     fun `an expired message is dropped rather than delivered late`() = runTest {
         meshTest {
             val a = node("A")
