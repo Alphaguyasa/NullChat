@@ -15,7 +15,6 @@ network are a wrong clock and leaving the app mid-send.
 |---|---|---|---|---|
 | 31 | **Forget peer** (part 3; delete chat shipped in #41, block sender in #43). Remove a contact's row, key and chat in one step. Careful: `PublicKeyDirectory` is first-wins, so forgetting a key lets the next ANNOUNCE for that id set a new one; needs a design note before code. | P2 | S | |
 | 35 | **`InboundHandler` extraction + JVM tests** for the inbound path (collectIncoming, fragments, offerQueued, releaseHeld). Replaces the tech-debt line. | P2 | M | |
-| 36 | **Message info** on long-press: sent time, received time, state, hops, sender id. | P2 | S | |
 | 37 | **Search in a chat** (LIKE over the body, highlighted). | P2 | M | |
 | 38 | **Share into Null Chat / forward a message** (`SEND text/plain` + peer picker). | P2 | M | No wire change |
 | 39 | **Disappearing messages, part 2**: tell the other phone the timer (new packet type, old builds ignore it). | P2 | M | Wire change |
@@ -76,3 +75,5 @@ change once decided.
 | 2026-10-25 | #31 part 2: Block sender (Room 8→9; dropped before storing, not acknowledged, still relayed) | #43 | see log |
 | 2026-10-25 | #33 App lock hides notification text ("New message" only, sender name too) | #44 | see log |
 | 2026-10-25 | #34 Bundle the fonts (static 400/500 OFL subsets in `res/font`; Play Services font download removed) | #45 | see log |
+| 2026-10-26 | Dependabot #46 re-applied (Tink 1.24.0, Gradle 9.8.2, test-only kotlinx-serialization 1.12.0) | #47 | see log |
+| 2026-10-26 | #36 Message info (long-press → Info: state and hops, sender id, both clocks, timer) | #48 | see log |

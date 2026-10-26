@@ -69,6 +69,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -168,6 +169,16 @@ fun ChatScreen(
             },
             onDismiss = { pendingDelete = null },
         )
+    }
+    // By id, not by row: the dialog follows the live message, so a receipt that
+    // lands while it is open turns "sent" into "delivered" in front of the user.
+    var infoFor by rememberSaveable { mutableStateOf<String?>(null) }
+    infoFor?.let { messageId ->
+        // Deleted or expired while open: nothing left to describe, so the dialog
+        // goes. Ids are tombstoned on delete, so a stale one never matches again.
+        state.messages.firstOrNull { it.id == messageId }?.let { message ->
+            MessageInfoDialog(message = message, onDismiss = { infoFor = null })
+        }
     }
     var isRenaming by rememberSaveable { mutableStateOf(false) }
     if (isRenaming) {
@@ -327,6 +338,7 @@ fun ChatScreen(
                                 },
                                 onDelete = { pendingDelete = message.id },
                                 onReply = { viewModel.onReply(message) },
+                                onInfo = { infoFor = message.id },
                                 // Settled on the row's first composition and kept:
                                 // a bubble scrolled out of view and back is the
                                 // same message, not a second send.
@@ -565,6 +577,7 @@ private fun ChatMessage(
     onCopy: () -> Unit = {},
     onDelete: () -> Unit = {},
     onReply: () -> Unit = {},
+    onInfo: () -> Unit = {},
 ) {
     val outgoing = message.isOutgoing
     val inFlight = transfer != null && transfer.state != TransferState.COMPLETE
@@ -607,10 +620,9 @@ private fun ChatMessage(
         animateSend = animateSend,
         onAction = onResend.takeIf { resendable },
         actionLabel = stringResource(R.string.chat_resend_action),
-        // A queued image has neither text to copy nor a delete it can honour, so
-        // its bubble stays inert rather than opening an empty menu.
-        onLongAction = { menuOpen = true }
-            .takeIf { resendable || copyable || deletable || repliable },
+        // Every message has info, so the menu always has at least that entry;
+        // a queued image is where it matters most, as the one row that says why.
+        onLongAction = { menuOpen = true },
         longActionLabel = stringResource(R.string.chat_actions_label),
         menu = {
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -641,6 +653,13 @@ private fun ChatMessage(
                         },
                     )
                 }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_info_action)) },
+                    onClick = {
+                        menuOpen = false
+                        onInfo()
+                    },
+                )
                 if (deletable) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.chat_delete_action)) },
@@ -679,6 +698,59 @@ private fun DeleteMessageDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         },
     )
 }
+
+/**
+ * Who sent a message, when, and how far it got, as the rows of [messageInfoRows].
+ *
+ * Values are in the mono face, like ids and delivery words everywhere else, and
+ * each row is one semantics node so a screen reader says label and value
+ * together rather than as two unrelated words.
+ */
+@Composable
+private fun MessageInfoDialog(message: MessageEntity, onDismiss: () -> Unit) {
+    val rows = remember(message) { messageInfoRows(message, INFO_TIME_FORMAT::formatTime) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_info_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                rows.forEach { row ->
+                    Column(modifier = Modifier.semantics(mergeDescendants = true) {}) {
+                        Text(
+                            text = stringResource(infoLabel(row.field, message.isOutgoing)),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(text = row.value, style = MonoBody)
+                    }
+                }
+                if (senderClockAhead(message)) {
+                    Text(
+                        text = stringResource(R.string.chat_info_clock_ahead),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_info_close)) }
+        },
+    )
+}
+
+/** An incoming "written" time is the sender's clock, and the label says so. */
+private fun infoLabel(field: MessageInfoField, outgoing: Boolean): Int = when (field) {
+    MessageInfoField.STATE -> R.string.chat_info_state
+    MessageInfoField.FROM -> R.string.chat_info_from
+    MessageInfoField.WRITTEN ->
+        if (outgoing) R.string.chat_info_written else R.string.chat_info_written_theirs
+    MessageInfoField.RECEIVED -> R.string.chat_info_received
+    MessageInfoField.DISAPPEARS -> R.string.chat_info_disappears
+}
+
+/** `SimpleDateFormat` is not thread-safe; this is only touched from composition. */
+private fun SimpleDateFormat.formatTime(millis: Long): String = format(Date(millis))
 
 /**
  * Confirms emptying a thread. Says what stays, so nobody believes it unsent
@@ -1096,6 +1168,10 @@ private fun SendBox(
 
 private const val SHORT_ID_CHARS = 8
 private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+// Seconds and the date: the info dialog exists for the cases where "14:32" is
+// not enough, such as a message carried overnight.
+private val INFO_TIME_FORMAT = SimpleDateFormat("d MMM yyyy, HH:mm:ss", Locale.getDefault())
 
 /** The chrome around the thread: the bar, and what a thread with nothing in it says. */
 @Preview(showBackground = true, backgroundColor = 0xFF0E1A26)
