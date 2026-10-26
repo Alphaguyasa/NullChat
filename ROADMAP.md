@@ -13,7 +13,6 @@ network are a wrong clock and leaving the app mid-send.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 35 | **`InboundHandler` extraction + JVM tests** for the inbound path (collectIncoming, fragments, offerQueued, releaseHeld). Replaces the tech-debt line. | P2 | M | |
 | 37 | **Search in a chat** (LIKE over the body, highlighted). | P2 | M | |
 | 38 | **Share into Null Chat / forward a message** (`SEND text/plain` + peer picker). | P2 | M | No wire change |
 | 39 | **Disappearing messages, part 2**: tell the other phone the timer (new packet type, old builds ignore it). | P2 | M | Wire change |
@@ -34,7 +33,7 @@ change once decided.
 - Stale KDoc: `KeyManager` says the X25519 key is "unused until SessionCipher lands". (`MeshCoordinator`'s `flushPending`/`TESTING.md` references were fixed in #9.)
 - Receiving side still accepts plaintext direct messages from older builds (`openedBody` fallback). Once every phone runs a build with #9, consider rejecting them.
 - Delete `ExampleUnitTest` and `ExampleInstrumentedTest`.
-- `MeshCoordinator` is now about 1250 lines; see roadmap #35.
+- `MeshCoordinator` is about 1000 lines after #35. `offerQueued` and `releaseHeld` (send side) still have no JVM test; an `OutboundSender` split would give them one.
 - `MainActivityPreview` composes `MeshChatScreen`, which needs Hilt ViewModels; replace with a stateless preview.
 
 ## Done
@@ -77,3 +76,4 @@ change once decided.
 | 2026-10-26 | Dependabot #46 re-applied (Tink 1.24.0, Gradle 9.8.2, test-only kotlinx-serialization 1.12.0) | #47 | see log |
 | 2026-10-26 | #36 Message info (long-press → Info: state and hops, sender id, both clocks, timer) | #48 | see log |
 | 2026-10-26 | #31 part 3: Forget contact (thread, row and queued sends removed; keys kept, since the id commits to them; not while blocked) | #49 | see log |
+| 2026-10-26 | #35 `InboundHandler`: the inbound path out of `MeshCoordinator`, behind an `InboundStore`; 18 JVM tests | #50 | see log |
