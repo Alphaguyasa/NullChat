@@ -67,6 +67,16 @@
     <string name="chat_replying_to">replying to</string>
     <string name="chat_reply_cancel">Cancel reply</string>
     <string name="chat_copied">Copied</string>
+    <string name="chat_info_action">Info</string>
+    <string name="chat_info_title">Message info</string>
+    <string name="chat_info_state">Status</string>
+    <string name="chat_info_from">From</string>
+    <string name="chat_info_written">Written</string>
+    <string name="chat_info_written_theirs">Written, by their clock</string>
+    <string name="chat_info_received">Received</string>
+    <string name="chat_info_disappears">Disappears</string>
+    <string name="chat_info_clock_ahead">Their clock is ahead of this phone\'s, so it was written earlier than it says.</string>
+    <string name="chat_info_close">Close</string>
     <string name="chat_delete_action">Delete for me</string>
     <string name="chat_delete_title">Delete this message?</string>
     <string name="chat_delete_body">It is removed from this phone only. Anyone who already received it keeps their copy.</string>
