@@ -133,6 +133,18 @@ class ForwardQueue(
         store.trimToNewest(capacity)
     }
 
+    /**
+     * Drops the entries for [messageIds], whoever they are addressed to.
+     *
+     * For messages the user withdrew before they went (forgetting a contact).
+     * Without it the packet would still go out the next time the recipient
+     * came into range, after its row, and every sign it was ever sent, had gone.
+     *
+     * @return how many entries were dropped.
+     */
+    suspend fun cancel(messageIds: List<ByteArray>): Int =
+        if (messageIds.isEmpty()) 0 else store.remove(messageIds)
+
     /** Number of live entries, after expiring anything stale. */
     suspend fun size(): Int {
         sweepExpired(timeSource())

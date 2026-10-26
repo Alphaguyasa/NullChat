@@ -63,6 +63,21 @@ class ForwardQueueTest {
     }
 
     @Test
+    fun `cancelled packets are dropped and the rest stay queued`() = runTest {
+        val queue = queue()
+        val withdrawn = testPacket(from = alice, to = bob)
+        val kept = testPacket(from = alice, to = bob)
+        queue.enqueue(withdrawn)
+        queue.enqueue(kept)
+
+        assertEquals(1, queue.cancel(listOf(withdrawn.messageId)))
+        assertEquals(0, queue.cancel(emptyList()))
+
+        val taken = queue.takeFor(bob)
+        assertEquals(listOf(kept.messageId.toList()), taken.map { it.packet.messageId.toList() })
+    }
+
+    @Test
     fun `the same packet is not queued twice`() = runTest {
         val queue = queue()
         val packet = testPacket(from = alice, to = bob)

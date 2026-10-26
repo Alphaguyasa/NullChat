@@ -211,6 +211,19 @@ fun ChatScreen(
             onDismiss = { isBlocking = false },
         )
     }
+    var isForgetting by rememberSaveable { mutableStateOf(false) }
+    if (isForgetting) {
+        ForgetDialog(
+            onConfirm = {
+                isForgetting = false
+                viewModel.onForget()
+                // The thread is about to stop existing; staying on it would show
+                // an empty chat with a stranger's id.
+                onBack()
+            },
+            onDismiss = { isForgetting = false },
+        )
+    }
     var isChoosingTimer by rememberSaveable { mutableStateOf(false) }
     if (isChoosingTimer) {
         DisappearingDialog(
@@ -258,6 +271,8 @@ fun ChatScreen(
                     state.isBlocked -> ({ viewModel.onSetBlocked(false) })
                     else -> ({ isBlocking = true })
                 },
+                // Not while blocked: see `canForget`.
+                onForget = if (state.isBroadcast || state.isBlocked) null else ({ isForgetting = true }),
                 isBlocked = state.isBlocked,
             )
         },
@@ -401,6 +416,7 @@ private fun ChatTopBar(
     onDeleteChat: (() -> Unit)? = null,
     onBlock: (() -> Unit)? = null,
     isBlocked: Boolean = false,
+    onForget: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Column {
@@ -445,7 +461,9 @@ private fun ChatTopBar(
                     },
                 )
             }
-            if (onRename != null || onDisappearing != null || onDeleteChat != null || onBlock != null) {
+            if (onRename != null || onDisappearing != null || onDeleteChat != null || onBlock != null ||
+                onForget != null
+            ) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Text(
@@ -497,6 +515,15 @@ private fun ChatTopBar(
                                 onClick = {
                                     menuOpen = false
                                     toggle()
+                                },
+                            )
+                        }
+                        onForget?.let { forget ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_forget_action)) },
+                                onClick = {
+                                    menuOpen = false
+                                    forget()
                                 },
                             )
                         }
@@ -786,6 +813,28 @@ private fun BlockDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.chat_block_confirm), color = Danger)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }
+        },
+    )
+}
+
+/**
+ * Confirms forgetting a contact. Says what comes back: a phone in range
+ * reappears at once, unverified, and someone expecting "forget" to make them
+ * unreachable should know that block is the tool for that.
+ */
+@Composable
+private fun ForgetDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_forget_title)) },
+        text = { Text(stringResource(R.string.chat_forget_body)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.chat_forget_confirm), color = Danger)
             }
         },
         dismissButton = {

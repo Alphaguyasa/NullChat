@@ -298,6 +298,16 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { coordinator.deleteChat(peer) }
     }
 
+    /**
+     * Forgets the open peer; see `MeshCoordinator.forgetPeer` for what goes and
+     * why its keys stay. The screen leaves the thread at once rather than
+     * waiting: the work runs in the mesh scope and finishes either way.
+     */
+    fun onForget() {
+        val peer = peerId.value ?: return
+        viewModelScope.launch { coordinator.forgetPeer(peer) }
+    }
+
     /** Absolute path of a stored attachment, for the bubble to decode. */
     fun attachmentPath(fileName: String): String = attachments.pathFor(fileName)
 

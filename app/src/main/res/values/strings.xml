@@ -91,6 +91,10 @@
     <string name="chat_block_body">New messages from them are dropped on this phone, with no notification. They are not told, but their messages to you stay at sent instead of delivered. Your phone still relays mesh traffic, theirs included. What you already received stays.</string>
     <string name="chat_block_confirm">Block</string>
     <string name="chat_blocked_banner">You blocked this person. Their new messages are not shown.</string>
+    <string name="chat_forget_action">Forget contact</string>
+    <string name="chat_forget_title">Forget this contact?</string>
+    <string name="chat_forget_body">Their chat, name, nickname and verification are removed from this phone, and your messages to them that are still queued are cancelled. If they are in range they show up again as a new, unverified contact. Their phone keeps everything. To stop their messages, block them instead.</string>
+    <string name="chat_forget_confirm">Forget</string>
     <string name="chat_rename_action">Rename</string>
     <string name="chat_rename_title">Rename contact</string>
     <string name="chat_rename_body">Only you see this name. Leave it empty to use the name they chose.</string>

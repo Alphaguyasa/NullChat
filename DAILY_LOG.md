@@ -4,6 +4,52 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-26 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page is unchanged: Opus 5.5
+is still the newest Opus, and Claude Fable 5.1 sits above it. There is still no
+RemoteTrigger tool in the session, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`ff8ad5b`, `v2026-10-25-3`). `gh` REST works with the
+  session's proxy; GraphQL does not (as before).
+- **Dependabot #46** (Monday): Tink 1.23.0→1.24.0, Gradle 9.8.1→9.8.2, and the test-only
+  kotlinx-serialization-core force 1.11.0→1.12.0. All minor or patch, green on #46.
+  Re-applied as **PR #47** (Alphaguyasa commit), green, merged, `v2026-10-26-1`. #46
+  closed with a link to it.
+- **PR #48**, roadmap #36: message info. Every bubble's long-press menu has Info. Your
+  own messages show the bubble's delivery words and hop rule, so queued is never called
+  sent. Incoming messages show the full sender id, the sender's stamp and this phone's
+  arrival time as separate rows, plus a note when the sender's clock is over a minute
+  ahead. The dialog shows the disappearing time when there is one. The rules sit in the
+  pure `messageInfoRows`, with 6 JVM tests. They passed locally in a scratch JVM project
+  (Room annotations stubbed), and the PR was green on the first attempt. Merged.
+- **PR #49**, roadmap #31 part 3: Forget contact. The design note the roadmap asked for:
+  `PublicKeyDirectory` being first-wins does not matter here. A peer id is the hash of its
+  signing key, and an ANNOUNCE is signed by the key it carries, so nobody but the peer
+  can file different keys under that id. Forget therefore **keeps** the keys in memory,
+  because dropping them would only make the peer's relayed packets unverifiable until its
+  next announcement. It removes the thread (tombstoned first), its timer, the attachments
+  and the peer row (name, nickname, verification). It also withdraws our queued messages
+  to the peer from the forward queue, through the new `ForwardQueue.cancel` /
+  `MeshRouter.cancelQueued`, so they do not go out after their rows are gone. It is not
+  offered while the peer is blocked, because the block lives on the row and forgetting
+  would lift it. Router tests pass locally (61, +2 new).
+- Unit tests +9 (MessageInfoTest 6, ForwardQueueTest 1, ForwardQueueRoutingTest 1,
+  DeleteRuleTest 1). No schema change.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | Dependabot bumps (PR #47); #36 message info (PR #48); #31 part 3 forget contact (PR #49) |
+| Merged | #47 yes `v2026-10-26-1`; #48 yes `v2026-10-26-2`; #49 see notification |
+| Failed or blocked | Nothing failed. No local Android build (CI only; JVM pieces tested in scratch projects) |
+| Roadmap | 11 open (#35, #37–#42, #20–#23); no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5m (new), 5l, 5k, 5j, 5i, 5h, 5g, 5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
+| Next | #35 `InboundHandler` extraction + JVM tests, #37 search in a chat, #38 share into Null Chat |
+
+---
+
 ## 2026-10-25 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page is unchanged: Opus 5.5
