@@ -34,7 +34,9 @@ class ArchitectureRulesTest {
     fun `the protocol and router layers stay free of Android`() {
         val pure = sourceFiles().filter { file ->
             val path = file.invariantPath()
-            "/mesh/protocol/" in path || "/mesh/router/" in path
+            // InboundHandler too: it was split out of MeshCoordinator to run
+            // in a JVM test, and one Log call would undo that.
+            "/mesh/protocol/" in path || "/mesh/router/" in path || path.endsWith("/mesh/InboundHandler.kt")
         }
 
         // Guards against the test silently passing because the paths moved.
