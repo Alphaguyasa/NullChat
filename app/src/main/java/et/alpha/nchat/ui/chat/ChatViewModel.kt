@@ -22,6 +22,7 @@ import et.alpha.nchat.mesh.protocol.Quote
 import et.alpha.nchat.mesh.transport.NearbyTransport
 import et.alpha.nchat.service.ForegroundConversation
 import et.alpha.nchat.ui.peers.peerLabel
+import et.alpha.nchat.ui.share.SharedText
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -191,6 +192,11 @@ class ChatViewModel @Inject constructor(
 
     fun onDraftChange(value: String) {
         _draft.value = value
+    }
+
+    /** Puts text shared or forwarded here into the box, under anything already typed. */
+    fun onShared(text: String) {
+        _draft.value = SharedText.intoDraft(_draft.value, text)
     }
 
     /** Starts a reply to [message]; the next send quotes it. */

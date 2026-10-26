@@ -30,6 +30,7 @@ import et.alpha.nchat.ui.lock.LockScreen
 import et.alpha.nchat.ui.lock.SystemUnlock
 import et.alpha.nchat.ui.permissions.PermissionGate
 import et.alpha.nchat.ui.permissions.RadioGate
+import et.alpha.nchat.ui.share.SharedText
 import et.alpha.nchat.ui.theme.NChatTheme
 import javax.inject.Inject
 
@@ -51,6 +52,9 @@ class MainActivity : FragmentActivity() {
      * request has to survive until it is.
      */
     private var openPeerRequest by mutableStateOf<String?>(null)
+
+    /** Text shared in from another app, until the screen host takes it; as above. */
+    private var shareRequest by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,6 +82,8 @@ class MainActivity : FragmentActivity() {
                         AppContent(
                             openPeerRequest = openPeerRequest,
                             onOpenRequestHandled = { openPeerRequest = null },
+                            shareRequest = shareRequest,
+                            onShareRequestHandled = { shareRequest = null },
                         )
                     }
                     if (locked) LockScreen(onUnlock = ::promptUnlock)
@@ -118,6 +124,8 @@ class MainActivity : FragmentActivity() {
     private fun handleOpenRequest(intent: Intent?) {
         MessageNotificationPolicy.peerIdFromExtra(intent?.getStringExtra(EXTRA_PEER_ID))
             ?.let { openPeerRequest = it }
+        SharedText.fromIntent(intent?.action, intent?.type, intent?.getCharSequenceExtra(Intent.EXTRA_TEXT))
+            ?.let { shareRequest = it }
     }
 
     companion object {
@@ -130,6 +138,8 @@ class MainActivity : FragmentActivity() {
 private fun AppContent(
     openPeerRequest: String?,
     onOpenRequestHandled: () -> Unit,
+    shareRequest: String?,
+    onShareRequestHandled: () -> Unit,
 ) {
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         // The service is started from inside the gate, never outside
@@ -144,6 +154,8 @@ private fun AppContent(
                 MeshHost(
                     openPeerRequest = openPeerRequest,
                     onOpenRequestHandled = onOpenRequestHandled,
+                    shareRequest = shareRequest,
+                    onShareRequestHandled = onShareRequestHandled,
                     modifier = Modifier.padding(innerPadding),
                 )
             }
@@ -155,6 +167,8 @@ private fun AppContent(
 private fun MeshHost(
     openPeerRequest: String?,
     onOpenRequestHandled: () -> Unit,
+    shareRequest: String?,
+    onShareRequestHandled: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -163,6 +177,8 @@ private fun MeshHost(
         modifier = modifier,
         openPeerRequest = openPeerRequest,
         onOpenRequestHandled = onOpenRequestHandled,
+        shareRequest = shareRequest,
+        onShareRequestHandled = onShareRequestHandled,
     )
 }
 

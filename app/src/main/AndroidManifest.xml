@@ -94,6 +94,15 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Text from another app's share sheet. It only ever becomes a draft
+                 in the chat the user picks; see SharedText. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <!-- connectedDevice is the type that matches what this actually does;
