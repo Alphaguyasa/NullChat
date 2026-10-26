@@ -3,6 +3,7 @@ package et.alpha.nchat.ui.chat
 import android.content.ClipData
 import android.os.Build
 import android.os.PersistableBundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +32,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -51,6 +54,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -60,16 +64,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -138,9 +148,41 @@ fun ChatScreen(
     val sends = rememberSendAnimations()
 
     val listState = rememberLazyListState()
+
+    // Search lives on the screen, not in the ViewModel: it is a way of looking
+    // at the list already here, and leaving the chat should end it.
+    var isSearching by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    // Position among the hits; -1 until the user moves, meaning the newest.
+    var hitIndex by rememberSaveable { mutableIntStateOf(-1) }
+    val hits = remember(state.messages, query, isSearching) {
+        if (isSearching) ChatSearch.hits(state.messages, query) else emptyList()
+    }
+    val currentHit = when {
+        hits.isEmpty() -> -1
+        hitIndex in hits.indices -> hitIndex
+        // Newest first, as a chat is read from the bottom up.
+        else -> hits.lastIndex
+    }
+    val closeSearch = {
+        isSearching = false
+        query = ""
+        hitIndex = -1
+    }
+    BackHandler(enabled = isSearching, onBack = closeSearch)
+    val currentHitId = hits.getOrNull(currentHit)
+    LaunchedEffect(currentHitId) {
+        val row = currentHitId?.let { id -> state.messages.indexOfFirst { it.id == id } } ?: return@LaunchedEffect
+        if (row < 0) return@LaunchedEffect
+        if (animate) listState.animateScrollToItem(row) else listState.scrollToItem(row)
+    }
+
     // Follow the tail as messages arrive, which is what a chat log should do.
     LaunchedEffect(state.messages.size) {
         if (state.messages.isEmpty()) return@LaunchedEffect
+        // Not while searching: a message arriving would yank the user away from
+        // the match they are reading.
+        if (isSearching) return@LaunchedEffect
         val tail = state.messages.lastIndex
         if (animate) listState.animateScrollToItem(tail) else listState.scrollToItem(tail)
     }
@@ -247,34 +289,50 @@ fun ChatScreen(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            ChatTopBar(
-                title = state.title,
-                subtitle = when {
-                    state.isBroadcast -> "Everyone in range"
-                    state.isPeerOnline -> "In range"
-                    else -> "Out of range"
-                } + state.disappearAfterMillis
-                    ?.let { " · disappears after ${DisappearingTimer.label(it)}" }
-                    .orEmpty(),
-                // A bare peer id is machine text people compare character by
-                // character; a name or the broadcast thread's "Everyone" is a word
-                // and reads as one.
-                isMonoTitle = !state.isBroadcast && !state.isNamed,
-                isOnline = state.isBroadcast || state.isPeerOnline,
-                onBack = onBack,
-                onRename = if (state.isBroadcast) null else ({ isRenaming = true }),
-                onDisappearing = { isChoosingTimer = true },
-                onDeleteChat = { isDeletingChat = true },
-                // Unblocking takes nothing away, so only blocking asks first.
-                onBlock = when {
-                    state.isBroadcast -> null
-                    state.isBlocked -> ({ viewModel.onSetBlocked(false) })
-                    else -> ({ isBlocking = true })
-                },
-                // Not while blocked: see `canForget`.
-                onForget = if (state.isBroadcast || state.isBlocked) null else ({ isForgetting = true }),
-                isBlocked = state.isBlocked,
-            )
+            if (isSearching) {
+                ChatSearchBar(
+                    query = query,
+                    onQueryChange = {
+                        query = it
+                        hitIndex = -1
+                    },
+                    hitCount = hits.size,
+                    current = currentHit,
+                    onOlder = { hitIndex = ChatSearch.step(currentHit, hits.size, -1) },
+                    onNewer = { hitIndex = ChatSearch.step(currentHit, hits.size, 1) },
+                    onClose = closeSearch,
+                )
+            } else {
+                ChatTopBar(
+                    title = state.title,
+                    subtitle = when {
+                        state.isBroadcast -> "Everyone in range"
+                        state.isPeerOnline -> "In range"
+                        else -> "Out of range"
+                    } + state.disappearAfterMillis
+                        ?.let { " · disappears after ${DisappearingTimer.label(it)}" }
+                        .orEmpty(),
+                    // A bare peer id is machine text people compare character by
+                    // character; a name or the broadcast thread's "Everyone" is a word
+                    // and reads as one.
+                    isMonoTitle = !state.isBroadcast && !state.isNamed,
+                    isOnline = state.isBroadcast || state.isPeerOnline,
+                    onBack = onBack,
+                    onSearch = { isSearching = true },
+                    onRename = if (state.isBroadcast) null else ({ isRenaming = true }),
+                    onDisappearing = { isChoosingTimer = true },
+                    onDeleteChat = { isDeletingChat = true },
+                    // Unblocking takes nothing away, so only blocking asks first.
+                    onBlock = when {
+                        state.isBroadcast -> null
+                        state.isBlocked -> ({ viewModel.onSetBlocked(false) })
+                        else -> ({ isBlocking = true })
+                    },
+                    // Not while blocked: see `canForget`.
+                    onForget = if (state.isBroadcast || state.isBlocked) null else ({ isForgetting = true }),
+                    isBlocked = state.isBlocked,
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -331,6 +389,7 @@ fun ChatScreen(
                             ChatMessage(
                                 message = message,
                                 isBroadcast = state.isBroadcast,
+                                searchQuery = query.takeIf { isSearching }.orEmpty(),
                                 transfer = transfers[message.id],
                                 attachmentPath = message.attachmentFile
                                     ?.let(viewModel::attachmentPath),
@@ -411,6 +470,7 @@ private fun ChatTopBar(
     isMonoTitle: Boolean,
     isOnline: Boolean,
     onBack: () -> Unit,
+    onSearch: (() -> Unit)? = null,
     onRename: (() -> Unit)? = null,
     onDisappearing: (() -> Unit)? = null,
     onDeleteChat: (() -> Unit)? = null,
@@ -461,8 +521,8 @@ private fun ChatTopBar(
                     },
                 )
             }
-            if (onRename != null || onDisappearing != null || onDeleteChat != null || onBlock != null ||
-                onForget != null
+            if (onSearch != null || onRename != null || onDisappearing != null || onDeleteChat != null ||
+                onBlock != null || onForget != null
             ) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
@@ -476,6 +536,15 @@ private fun ChatTopBar(
                         )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        onSearch?.let { search ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_search_action)) },
+                                onClick = {
+                                    menuOpen = false
+                                    search()
+                                },
+                            )
+                        }
                         onRename?.let { rename ->
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.chat_rename_action)) },
@@ -533,6 +602,121 @@ private fun ChatTopBar(
         }
         // The design system forbids elevation shadows, so the bar is separated
         // from the thread by the hairline instead.
+        HorizontalDivider()
+    }
+}
+
+/**
+ * The header while searching: the box, where the user is among the hits, and
+ * a way through them.
+ *
+ * Replaces [ChatTopBar] rather than sitting under it, so the thread loses no
+ * height to search on a small phone with the keyboard up. Grows like the bar it
+ * replaces instead of clipping at 200% font scale.
+ *
+ * @param current index of the hit on screen, or -1 when there is none.
+ */
+@Composable
+private fun ChatSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    hitCount: Int,
+    current: Int,
+    onOlder: () -> Unit,
+    onNewer: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val focus = remember { FocusRequester() }
+    // Opening search is asking to type, so the keyboard comes up with it.
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    val focusManager = LocalFocusManager.current
+    val closeLabel = stringResource(R.string.chat_search_close)
+    val olderLabel = stringResource(R.string.chat_search_older)
+    val newerLabel = stringResource(R.string.chat_search_newer)
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onClose) {
+                Text(
+                    text = "×",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.clearAndSetSemantics { contentDescription = closeLabel },
+                )
+            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focus),
+                textStyle = MaterialTheme.typography.bodyLarge,
+                placeholder = {
+                    Text(
+                        text = stringResource(R.string.chat_search_hint),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                // The results are already on screen; the key only puts the
+                // keyboard away so the thread can be read.
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                shape = RoundedCornerShape(18.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = when {
+                    query.isBlank() -> ""
+                    hitCount == 0 -> stringResource(R.string.chat_search_none)
+                    else -> stringResource(R.string.chat_search_position, current + 1, hitCount)
+                },
+                style = MonoSmall,
+                color = if (query.isNotBlank() && hitCount == 0) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                // Announced as it changes, so a TalkBack user hears "no matches"
+                // or "2 of 5" without leaving the box.
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+            IconButton(onClick = onOlder, enabled = hitCount > 1) {
+                Text(
+                    text = "↑",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (hitCount > 1) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.clearAndSetSemantics { contentDescription = olderLabel },
+                )
+            }
+            IconButton(onClick = onNewer, enabled = hitCount > 1) {
+                Text(
+                    text = "↓",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (hitCount > 1) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.clearAndSetSemantics { contentDescription = newerLabel },
+                )
+            }
+        }
         HorizontalDivider()
     }
 }
@@ -597,6 +781,7 @@ private fun ChatMessage(
     message: MessageEntity,
     isBroadcast: Boolean,
     modifier: Modifier = Modifier,
+    searchQuery: String = "",
     transfer: Transfer? = null,
     attachmentPath: String? = null,
     animateSend: Boolean = false,
@@ -618,6 +803,8 @@ private fun ChatMessage(
     val repliable = !outgoing || message.deliveryState == DeliveryState.SENT ||
         message.deliveryState == DeliveryState.DELIVERED
     val parsed = remember(message.body) { Quote.parse(message.body) }
+    val text = parsed?.reply ?: message.body
+    val highlights = remember(text, searchQuery) { ChatSearch.matches(text, searchQuery) }
     var menuOpen by remember { mutableStateOf(false) }
     val extras: @Composable (ColumnScope.() -> Unit)? =
         if (attachmentPath != null || inFlight) {
@@ -632,8 +819,9 @@ private fun ChatMessage(
         }
 
     MessageBubble(
-        text = parsed?.reply ?: message.body,
+        text = text,
         quote = parsed?.quote,
+        highlights = highlights,
         isOutgoing = outgoing,
         modifier = modifier,
         // In the broadcast thread anyone can be talking, so incoming bubbles are
