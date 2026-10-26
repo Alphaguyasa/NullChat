@@ -4,6 +4,53 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-26 — second run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page is unchanged since this
+morning: Opus 5.5 is the newest Opus, and Claude Fable 5.1 is the tier above it. The run
+still cannot switch models, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- The routine fired again on the same day. Main CI was green at the start (`28d3d14`,
+  `v2026-10-26-3`). No PRs were open.
+- **PR #50**, roadmap #35: `InboundHandler`. Everything `collectIncoming` did now lives in
+  its own class: messages, fragments and reassembly, receipts, announcements, profiles,
+  hop observations and arrivals. Storage goes through an `InboundStore` interface, and
+  logging through `InboundLog`, because `android.util.Log` throws on the JVM. The
+  coordinator implements both over the repositories, so behaviour is unchanged.
+  `MeshCoordinator` goes from 1394 to 997 lines. 18 JVM tests cover blocked,
+  deleted, our own echo, duplicates, receipts only from the addressee, impossible hop
+  counts, keys and names, image reassembly and stragglers, oversized images, blocking
+  mid-transfer and the hop-freshness rule. Two deliberate mutations (dropping the
+  block check, acknowledging duplicates) were caught. `ArchitectureRulesTest` keeps the
+  file free of Android. The PR was green on the first attempt. Merged, `v2026-10-26-4`.
+- **PR #51**, roadmap #37: search in a chat. ⋮ → Search swaps the header for a box,
+  an `n of m` count (a polite live region) and older/newer buttons that wrap. The
+  newest hit scrolls into view. Following the tail is paused while searching. Matches
+  are tinted **and** semi-bold. It runs in memory, not as SQL `LIKE`, because SQLite folds
+  case for ASCII only. Quoted lines are not searched. 7 JVM tests and 1 instrumented test.
+- **PR #52**, roadmap #38: share into Null Chat and forward. Another app's `SEND
+  text/plain` (and the new Forward item on text messages) turns the peer list into a
+  picker, with a banner and Cancel. The picked chat opens with the text **in its box**.
+  Nothing is sent until the user presses Send, and text already typed is kept above it.
+  Shared text is capped at 4000 characters so it fits saved state. Images are not
+  forwarded (a full re-send is a different feature). 7 JVM tests.
+- The JVM tests ran locally in a scratch Gradle project (Room annotations and the
+  Ed25519 verifier stubbed; dl.google.com is still blocked). CI is the real build.
+- Roadmap: 8 open (#39–#42, #20–#23), so no replan was needed.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #35 `InboundHandler` + 18 JVM tests (PR #50); #37 search in a chat (PR #51); #38 share in / forward (PR #52) |
+| Merged | #50 yes `v2026-10-26-4`; #51 and #52 see notification |
+| Failed or blocked | Nothing failed. No local Android build (CI only) |
+| Roadmap | 8 open (#39 disappearing part 2, #40 carry others' mail, #20, #21, #22, #23, #42, #41); no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5n (new), 5m, 5l, 5k, 5j, 5i, 5h, 5g, 5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
+| Next | #39 disappearing messages part 2 (wire change, new packet type), #40 carry others' mail, #20 tablet layout |
+
+---
+
 ## 2026-10-26 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page is unchanged: Opus 5.5

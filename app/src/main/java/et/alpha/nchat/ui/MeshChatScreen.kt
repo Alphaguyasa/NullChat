@@ -39,12 +39,17 @@ private enum class Destination { PEERS, CHAT, PAIR, SETTINGS }
  * @param openPeerRequest a direct thread to jump to, from a notification tap.
  *   Reported back through [onOpenRequestHandled] once taken, so that a second
  *   tap for the same peer is a new request rather than an unchanged value.
+ * @param shareRequest text another app shared in, taken the same way through
+ *   [onShareRequestHandled]. The peer list then asks which chat it is for, and
+ *   that chat opens with the text in its box; see `SharedText`.
  */
 @Composable
 fun MeshChatScreen(
     modifier: Modifier = Modifier,
     openPeerRequest: String? = null,
     onOpenRequestHandled: () -> Unit = {},
+    shareRequest: String? = null,
+    onShareRequestHandled: () -> Unit = {},
 ) {
     var destination by rememberSaveable { mutableStateOf(Destination.PEERS) }
 
@@ -52,16 +57,32 @@ fun MeshChatScreen(
     // it is the broadcast thread, not "no thread open".
     var openPeerId by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // Text waiting for the user to pick a chat, shared in or forwarded. Saveable
+    // like the rest, and bounded by `SharedText.MAX_CHARS` for that reason.
+    var pendingShare by rememberSaveable { mutableStateOf<String?>(null) }
+    // Picked: on its way into the chat's box, until the chat takes it.
+    var draftToFill by rememberSaveable { mutableStateOf<String?>(null) }
+
     // Outside the crossfade: for the length of a fade both the outgoing and the
     // incoming screen are composed, and two enabled handlers would race over
     // which one a back press reached.
     BackHandler(enabled = destination != Destination.PEERS) { destination = Destination.PEERS }
+    // Back out of the picker drops the share, which is what leaving a share
+    // sheet without choosing does everywhere else.
+    BackHandler(enabled = destination == Destination.PEERS && pendingShare != null) { pendingShare = null }
 
     LaunchedEffect(openPeerRequest) {
         val peerId = openPeerRequest ?: return@LaunchedEffect
         openPeerId = peerId
         destination = Destination.CHAT
         onOpenRequestHandled()
+    }
+
+    LaunchedEffect(shareRequest) {
+        val text = shareRequest ?: return@LaunchedEffect
+        pendingShare = text
+        destination = Destination.PEERS
+        onShareRequestHandled()
     }
 
     Crossfade(
@@ -75,6 +96,12 @@ fun MeshChatScreen(
                 peerId = openPeerId,
                 onBack = { destination = Destination.PEERS },
                 onPair = { destination = Destination.PAIR },
+                onForward = { text ->
+                    pendingShare = text
+                    destination = Destination.PEERS
+                },
+                draftToFill = draftToFill,
+                onDraftFilled = { draftToFill = null },
             )
 
             Destination.PAIR -> QrPairScreen(onBack = { destination = Destination.PEERS })
@@ -84,8 +111,12 @@ fun MeshChatScreen(
             Destination.PEERS -> PeerListScreen(
                 onOpenConversation = { peerId ->
                     openPeerId = peerId
+                    draftToFill = pendingShare
+                    pendingShare = null
                     destination = Destination.CHAT
                 },
+                isPickingForShare = pendingShare != null,
+                onCancelShare = { pendingShare = null },
                 onOpenPairing = { destination = Destination.PAIR },
                 onOpenSettings = { destination = Destination.SETTINGS },
             )

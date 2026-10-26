@@ -74,6 +74,8 @@ fun PeerListScreen(
     onOpenPairing: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenSettings: () -> Unit = {},
+    isPickingForShare: Boolean = false,
+    onCancelShare: () -> Unit = {},
     viewModel: PeerListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -100,6 +102,10 @@ fun PeerListScreen(
             onOpenSettings = onOpenSettings,
         )
         HorizontalDivider()
+        if (isPickingForShare) {
+            SharePickerBanner(onCancel = onCancelShare)
+            HorizontalDivider()
+        }
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             item(key = RADAR_KEY) {
@@ -147,6 +153,33 @@ fun PeerListScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Says the list is, for now, a chooser for text that is waiting to be sent.
+ *
+ * Accent rather than a warning colour: nothing is wrong, the user is midway
+ * through something they started. Cancel is spelled out beside it, because
+ * Back is not the only way people expect to leave a share.
+ */
+@Composable
+private fun SharePickerBanner(onCancel: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.share_pick_chat),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+        TextButton(onClick = onCancel) { Text(text = stringResource(R.string.share_cancel)) }
     }
 }
 

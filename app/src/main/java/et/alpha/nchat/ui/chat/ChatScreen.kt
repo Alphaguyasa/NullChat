@@ -118,6 +118,9 @@ import kotlinx.coroutines.withContext
  * owns none of the message chrome.
  *
  * @param peerId the peer to talk to, or null for the mesh-wide broadcast thread.
+ * @param onForward takes a message's words to the chat picker; see `SharedText`.
+ * @param draftToFill text shared or forwarded into this chat, put in the box
+ *   once and reported taken through [onDraftFilled]. Never sent from here.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,9 +129,20 @@ fun ChatScreen(
     onBack: () -> Unit,
     onPair: () -> Unit,
     modifier: Modifier = Modifier,
+    onForward: (String) -> Unit = {},
+    draftToFill: String? = null,
+    onDraftFilled: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(peerId) { viewModel.bind(peerId) }
+    // One effect, so the shared text lands after `bind` has cleared the box of
+    // whatever the previous thread left in it, never before.
+    LaunchedEffect(peerId, draftToFill) {
+        viewModel.bind(peerId)
+        draftToFill?.let {
+            viewModel.onShared(it)
+            onDraftFilled()
+        }
+    }
     // Keyed on peerId so switching threads leaves the old one before entering
     // the new; resumed-only so a backgrounded app still gets notified.
     LifecycleResumeEffect(peerId) {
@@ -412,6 +426,8 @@ fun ChatScreen(
                                 },
                                 onDelete = { pendingDelete = message.id },
                                 onReply = { viewModel.onReply(message) },
+                                // The sender's own words, as Copy takes them.
+                                onForward = { onForward(Quote.replyText(message.body)) },
                                 onInfo = { infoFor = message.id },
                                 // Settled on the row's first composition and kept:
                                 // a bubble scrolled out of view and back is the
@@ -789,6 +805,7 @@ private fun ChatMessage(
     onCopy: () -> Unit = {},
     onDelete: () -> Unit = {},
     onReply: () -> Unit = {},
+    onForward: () -> Unit = {},
     onInfo: () -> Unit = {},
 ) {
     val outgoing = message.isOutgoing
@@ -865,6 +882,15 @@ private fun ChatMessage(
                         onClick = {
                             menuOpen = false
                             onCopy()
+                        },
+                    )
+                    // Text only: an image would have to be re-sent in full,
+                    // which is a different feature with a different cost.
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_forward_action)) },
+                        onClick = {
+                            menuOpen = false
+                            onForward()
                         },
                     )
                 }

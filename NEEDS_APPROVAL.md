@@ -5,6 +5,20 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5n. One-phone checks for search and share (2026-10-26, second run)
+*Search (#51):* open a chat with history, ⋮ → Search, type a word from an older
+message. The newest message containing it scrolls into view, with the word tinted
+and bold, and `1 of 3` (for example) beside the box. ↑ goes to older matches, ↓ to
+newer, and both wrap. A word that appears only in a quoted line is not found. Back
+or × closes search, and new messages then follow the bottom again.
+*Share and forward (#52):* in a browser, Share → Null Chat. The peer list opens
+with "Choose a chat…" and Cancel. Pick a contact: their chat opens with the link in
+the message box, **not sent**. Press Send to send it. In any chat, long-press a
+text message → Forward, then pick another chat: the words are in its box. Text you
+had already typed there stays above the forwarded text. Back on the picker cancels.
+*Inbound refactor (#50):* nothing new to see. Messages, images, receipts and names
+must arrive exactly as before.
+
 ### 5m. Phone checks for message info and forget contact (2026-10-26)
 *Message info (#48), one phone:* long-press one of your own messages and choose
 Info. A queued one says `queued`, a delivered one `delivered · N hops`, with the
