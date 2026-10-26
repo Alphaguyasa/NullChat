@@ -13,7 +13,6 @@ network are a wrong clock and leaving the app mid-send.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 37 | **Search in a chat** (LIKE over the body, highlighted). | P2 | M | |
 | 38 | **Share into Null Chat / forward a message** (`SEND text/plain` + peer picker). | P2 | M | No wire change |
 | 39 | **Disappearing messages, part 2**: tell the other phone the timer (new packet type, old builds ignore it). | P2 | M | Wire change |
 | 40 | **Carry others' mail**: offer queued unicast to any new neighbour (capped), not only to the recipient, so a chain of phones can deliver. | P2 | M | Needs two-phone check |
@@ -77,3 +76,4 @@ change once decided.
 | 2026-10-26 | #36 Message info (long-press → Info: state and hops, sender id, both clocks, timer) | #48 | see log |
 | 2026-10-26 | #31 part 3: Forget contact (thread, row and queued sends removed; keys kept, since the id commits to them; not while blocked) | #49 | see log |
 | 2026-10-26 | #35 `InboundHandler`: the inbound path out of `MeshCoordinator`, behind an `InboundStore`; 18 JVM tests | #50 | see log |
+| 2026-10-26 | #37 Search in a chat (⋮ → Search; in memory, not `LIKE`, so case folds in every script; matches tinted and bold; ↑/↓ wrap) | #51 | see log |

@@ -27,11 +27,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -48,6 +53,23 @@ private val TailCorner = 4.dp
 
 /** Where a sent bubble starts before it settles at full size. */
 private const val SEND_SCALE = 0.96f
+
+/**
+ * Strength of a search match's tint. Low enough that body text keeps its
+ * contrast on top of it in both themes; the weight change carries the rest.
+ */
+private const val HIGHLIGHT_ALPHA = 0.3f
+
+/** [text] with each of [ranges] tinted and set heavier. Ranges outside the text are skipped. */
+private fun highlighted(text: String, ranges: List<IntRange>, tint: Color): AnnotatedString =
+    buildAnnotatedString {
+        append(text)
+        ranges
+            .filter { it.first >= 0 && it.last < text.length && !it.isEmpty() }
+            .forEach { range ->
+                addStyle(SpanStyle(background = tint, fontWeight = FontWeight.SemiBold), range.first, range.last + 1)
+            }
+    }
 
 /**
  * One message in a thread.
@@ -87,6 +109,8 @@ private const val SEND_SCALE = 0.96f
  *   the tap when there is no [onAction]. Both null leaves the bubble inert.
  * @param menu drawn over the bubble, for a dropdown that should anchor to it.
  * @param failedHint passed through to [DeliveryStateLabel].
+ * @param highlights character ranges of [text] to mark, for a search. Marked
+ *   with a tint *and* a heavier weight, so the match does not rest on colour alone.
  */
 @Composable
 fun MessageBubble(
@@ -94,6 +118,7 @@ fun MessageBubble(
     isOutgoing: Boolean,
     modifier: Modifier = Modifier,
     quote: String? = null,
+    highlights: List<IntRange> = emptyList(),
     senderId: String? = null,
     timestamp: String? = null,
     deliveryState: DeliveryState? = null,
@@ -217,8 +242,9 @@ fun MessageBubble(
                 // Skipped rather than rendered empty: a blank Text still occupies a
                 // line, which would leave a gap under an uncaptioned picture.
                 if (text.isNotEmpty()) {
+                    val tint = MaterialTheme.colorScheme.primary.copy(alpha = HIGHLIGHT_ALPHA)
                     Text(
-                        text = text,
+                        text = if (highlights.isEmpty()) AnnotatedString(text) else highlighted(text, highlights, tint),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
