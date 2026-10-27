@@ -2,13 +2,30 @@ package et.alpha.nchat.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import et.alpha.nchat.R
 import et.alpha.nchat.ui.chat.ChatScreen
 import et.alpha.nchat.ui.pair.QrPairScreen
 import et.alpha.nchat.ui.peers.PeerListScreen
@@ -31,6 +48,11 @@ private enum class Destination { PEERS, CHAT, PAIR, SETTINGS }
  *
  * The destination and open conversation are [rememberSaveable] so a rotation
  * does not throw the user back to the peer list mid-conversation.
+ *
+ * On a wide window ([usesTwoPanes]) the list and the open chat sit side by
+ * side, with the same destinations: PEERS is the list with no chat picked, and
+ * back from a chat closes it. Pairing and settings still take the whole window;
+ * they are tasks of their own, not something to glance at beside a thread.
  *
  * Screens cross-fade rather than slide. A slide claims the destinations sit in
  * some spatial order — that chat is "to the right of" the peer list — and with a
@@ -85,40 +107,86 @@ fun MeshChatScreen(
         onShareRequestHandled()
     }
 
-    Crossfade(
-        targetState = destination,
-        modifier = modifier,
-        animationSpec = motionSpec(rememberAnimationsEnabled()),
-        label = "destination",
-    ) { current ->
-        when (current) {
-            Destination.CHAT -> ChatScreen(
-                peerId = openPeerId,
-                onBack = { destination = Destination.PEERS },
-                onPair = { destination = Destination.PAIR },
-                onForward = { text ->
-                    pendingShare = text
-                    destination = Destination.PEERS
-                },
-                draftToFill = draftToFill,
-                onDraftFilled = { draftToFill = null },
-            )
+    // A chat and the list share these, in one pane or two.
+    val chat: @Composable (Modifier) -> Unit = { paneModifier ->
+        ChatScreen(
+            peerId = openPeerId,
+            onBack = { destination = Destination.PEERS },
+            onPair = { destination = Destination.PAIR },
+            modifier = paneModifier,
+            onForward = { text ->
+                pendingShare = text
+                destination = Destination.PEERS
+            },
+            draftToFill = draftToFill,
+            onDraftFilled = { draftToFill = null },
+        )
+    }
+    val peerList: @Composable (Modifier) -> Unit = { paneModifier ->
+        PeerListScreen(
+            onOpenConversation = { peerId ->
+                openPeerId = peerId
+                draftToFill = pendingShare
+                pendingShare = null
+                destination = Destination.CHAT
+            },
+            onOpenPairing = { destination = Destination.PAIR },
+            modifier = paneModifier,
+            onOpenSettings = { destination = Destination.SETTINGS },
+            isPickingForShare = pendingShare != null,
+            onCancelShare = { pendingShare = null },
+        )
+    }
 
-            Destination.PAIR -> QrPairScreen(onBack = { destination = Destination.PEERS })
+    // The window's width, not the screen's: in split screen a tablet is a phone.
+    BoxWithConstraints(modifier = modifier) {
+        val twoPanes = usesTwoPanes(maxWidth.value.toInt()) &&
+            (destination == Destination.PEERS || destination == Destination.CHAT)
+        if (twoPanes) {
+            Row(Modifier.fillMaxSize()) {
+                peerList(Modifier.width(listPaneWidthDp(maxWidth.value.toInt()).dp).fillMaxHeight())
+                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    if (destination == Destination.CHAT) {
+                        // Keyed on the thread so search, dialogs and scroll from
+                        // the previous chat do not carry over into the next one;
+                        // in one pane the cross-fade does that by recomposing.
+                        key(openPeerId) { chat(Modifier.fillMaxSize()) }
+                    } else {
+                        NoChatOpen()
+                    }
+                }
+            }
+        } else {
+            Crossfade(
+                targetState = destination,
+                animationSpec = motionSpec(rememberAnimationsEnabled()),
+                label = "destination",
+            ) { current ->
+                when (current) {
+                    Destination.CHAT -> chat(Modifier)
+                    Destination.PAIR -> QrPairScreen(onBack = { destination = Destination.PEERS })
+                    Destination.SETTINGS -> SettingsScreen(onBack = { destination = Destination.PEERS })
+                    Destination.PEERS -> peerList(Modifier)
+                }
+            }
+        }
+    }
+}
 
-            Destination.SETTINGS -> SettingsScreen(onBack = { destination = Destination.PEERS })
-
-            Destination.PEERS -> PeerListScreen(
-                onOpenConversation = { peerId ->
-                    openPeerId = peerId
-                    draftToFill = pendingShare
-                    pendingShare = null
-                    destination = Destination.CHAT
-                },
-                isPickingForShare = pendingShare != null,
-                onCancelShare = { pendingShare = null },
-                onOpenPairing = { destination = Destination.PAIR },
-                onOpenSettings = { destination = Destination.SETTINGS },
+/**
+ * The chat pane before a chat is picked. Says what to do rather than leaving
+ * half the screen blank, which reads as something failing to load.
+ */
+@Composable
+private fun NoChatOpen() {
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(24.dp)) {
+            Text(
+                text = stringResource(R.string.two_pane_no_chat),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
     }
