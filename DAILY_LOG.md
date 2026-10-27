@@ -13,8 +13,9 @@ open (NEEDS_APPROVAL #7).
 
 - Main CI was green at the start (`6c3c695`, `v2026-10-26-6`). No PRs were open.
 - No local build. There is no Android SDK in the cloud box, and Maven Central answered
-  HTTP 429 to the scratch JVM project, so CI was the only build. All three PRs were green
-  on the first attempt.
+  HTTP 429 to the scratch JVM project, so CI was the only build. #53 and #54 were green on
+  the first attempt. #55 failed once: `maxWidth` was read inside `Row`'s scope, which the
+  layout DSL forbids. It was fixed on the branch and was green on the second attempt.
 - **PR #53**, roadmap #39: disappearing messages, part 2. This adds a new packet type,
   **TIMER (7)**. Its payload is a format byte plus u32 seconds, with 0 meaning off.
   - The packet is sealed like a direct message and is store-and-forwarded.
@@ -54,8 +55,8 @@ open (NEEDS_APPROVAL #7).
 | Field | Content |
 |---|---|
 | Done | #39 shared disappearing timer (PR #53); #40 carry others' mail (PR #54); #20 two-pane layout (PR #55) |
-| Merged | #53 yes `v2026-10-27-1`; #54 yes; #55 see notification |
-| Failed or blocked | Nothing failed. No local build (no SDK; Maven Central 429), so CI only |
+| Merged | #53 yes `v2026-10-27-1`; #54 yes `v2026-10-27-2`; #55 see notification |
+| Failed or blocked | #55 failed CI once (compile error), fixed on attempt 2. No local build (no SDK; Maven Central 429), so CI only |
 | Roadmap | 5 open (#21 groups, #22 voice notes, #23 route strip, #42 link challenge, #41 export); no replan needed yet |
 | Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
 | Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5q, 5p, 5o (new), 5n…5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
