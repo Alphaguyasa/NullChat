@@ -33,6 +33,9 @@ interface ForwardQueueStore {
     /** Entries addressed to any of [recipientIds], oldest first. */
     suspend fun forRecipients(recipientIds: List<ByteArray>): List<QueuedPacket>
 
+    /** The [limit] most recently queued entries, whoever they are for, newest first. */
+    suspend fun newest(limit: Int): List<QueuedPacket>
+
     suspend fun remove(messageIds: List<ByteArray>): Int
 
     /** Drops entries queued at or before [cutoff]. @return rows deleted. */
@@ -116,6 +119,41 @@ class ForwardQueue(
     }
 
     /**
+     * Entries [neighbour] could carry towards someone else, newest first, at most
+     * [limit]. They stay queued: handing a copy to a passer-by is not delivery,
+     * and the recipient may still turn up here first.
+     *
+     * Leaves out what the neighbour cannot help with. Its own mail and
+     * broadcasts go through [takeFor] instead; what it sent itself it already
+     * has; and a packet with one hop left would be dropped by the neighbour,
+     * which may not relay it any further. [alreadyCarried] says which entries
+     * this neighbour was handed before, so a phone that reconnects every scan
+     * cycle is not given the same packets each time.
+     *
+     * Newest first because the cap has to choose, and an old packet has had
+     * longer to find its way already.
+     */
+    suspend fun carriableBy(
+        neighbour: ByteArray,
+        limit: Int,
+        alreadyCarried: (QueuedPacket) -> Boolean,
+    ): List<QueuedPacket> {
+        sweepExpired(timeSource())
+        return store.newest(CARRY_SCAN)
+            .asSequence()
+            .filter { entry ->
+                val packet = entry.packet
+                !packet.isBroadcast &&
+                    !packet.recipientId.contentEquals(neighbour) &&
+                    !packet.senderId.contentEquals(neighbour) &&
+                    packet.ttl > 1 &&
+                    !alreadyCarried(entry)
+            }
+            .take(limit)
+            .toList()
+    }
+
+    /**
      * Puts back entries a flush could not deliver, keeping their original
      * [QueuedPacket.queuedAt].
      *
@@ -163,6 +201,14 @@ class ForwardQueue(
 
     companion object {
         const val DEFAULT_CAPACITY: Int = 500
+
+        /**
+         * How far down the queue [carriableBy] looks. The whole queue at the
+         * default capacity: decoding 500 small packets on a connection is cheap,
+         * and a shorter scan would stop finding anything new for a neighbour
+         * once it had been handed the newest few.
+         */
+        const val CARRY_SCAN: Int = DEFAULT_CAPACITY
         const val DEFAULT_EXPIRY_MILLIS: Long = 24 * 60 * 60 * 1000L
     }
 }

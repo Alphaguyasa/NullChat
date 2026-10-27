@@ -34,6 +34,9 @@ class RoomForwardQueueStore @Inject constructor(
     override suspend fun forRecipients(recipientIds: List<ByteArray>): List<QueuedPacket> =
         dao.findFor(recipientIds.map { it.toHexId() }).mapNotNull(::toQueuedPacket)
 
+    override suspend fun newest(limit: Int): List<QueuedPacket> =
+        dao.findNewest(limit).mapNotNull(::toQueuedPacket)
+
     override suspend fun remove(messageIds: List<ByteArray>): Int =
         dao.deleteByIds(messageIds.map { it.toHexId() })
 

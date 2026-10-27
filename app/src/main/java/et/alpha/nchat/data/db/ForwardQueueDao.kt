@@ -27,6 +27,13 @@ interface ForwardQueueDao {
     )
     suspend fun findFor(recipientIds: List<String>): List<ForwardQueueEntity>
 
+    /**
+     * The [limit] newest entries, newest first, with the same `messageId`
+     * tiebreak as [trimToNewest] so both agree on what "newest" means.
+     */
+    @Query("SELECT * FROM forward_queue ORDER BY queuedAt DESC, messageId DESC LIMIT :limit")
+    suspend fun findNewest(limit: Int): List<ForwardQueueEntity>
+
     @Query("SELECT * FROM forward_queue ORDER BY queuedAt ASC, messageId ASC")
     suspend fun findAll(): List<ForwardQueueEntity>
 

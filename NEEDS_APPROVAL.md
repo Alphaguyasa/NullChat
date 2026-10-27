@@ -5,6 +5,15 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5p. Three-phone check for carried mail (2026-10-27)
+*Carry others' mail (#54), phones A, B and C:* keep A and C far apart, out of
+range of each other. On A, with nobody in range, send C a direct message: it says
+`queued`. Bring B next to A for a minute: A's message turns `sent`. Take B to C
+(A stays away): C gets the message, and on A it turns `delivered · 2 hops` once
+C's receipt comes back the same way (via B, or when B returns to A). B never shows
+the message. If A's message stays `queued` while B is next to A, this change is
+failing; say so.
+
 ### 5o. Two-phone check for the shared disappearing timer (2026-10-27)
 *Timer reaches the other phone (#53), two phones A and B that have paired:* on A,
 open B's chat, ⋮ → Disappearing messages → 1 hour. Within a few seconds B's chat

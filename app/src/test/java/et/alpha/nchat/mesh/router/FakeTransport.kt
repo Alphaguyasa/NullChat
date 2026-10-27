@@ -287,6 +287,11 @@ class MeshTestbed(
         network.link(a, b)
     }
 
+    /** Severs a link, as when a phone walks out of range. */
+    fun unlink(a: String, b: String) {
+        network.unlink(a, b)
+    }
+
     /** Wires the named nodes into a line: A—B—C—… */
     fun chain(vararg names: String): List<TestNode> {
         names.toList().zipWithNext { a, b -> link(a, b) }
