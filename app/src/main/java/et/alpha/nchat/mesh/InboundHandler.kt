@@ -20,6 +20,7 @@ import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.protocol.Profile
 import et.alpha.nchat.mesh.protocol.ReassembledMessage
+import et.alpha.nchat.mesh.protocol.TimerSetting
 import et.alpha.nchat.mesh.protocol.acknowledgementPacket
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -136,6 +137,12 @@ internal interface InboundStore {
 
     /** The stored file's name, or null when it could not be written. */
     suspend fun writeImage(messageId: String, jpeg: ByteArray): String?
+
+    /** The last timer change accepted from [peerHex]; see [acceptsPeerTimer]. */
+    suspend fun peerTimer(peerHex: String): PeerTimerStamp?
+
+    /** Sets the direct chat's timer to [millis] (null = off) and remembers [stamp]. */
+    suspend fun applyPeerTimer(peerHex: String, millis: Long?, stamp: PeerTimerStamp)
 }
 
 /**
@@ -210,6 +217,7 @@ internal class InboundHandler(
             PacketType.ACK -> recordAcknowledgement(packet)
             PacketType.PROFILE -> recordProfile(packet)
             PacketType.MESSAGE -> recordMessage(packet)
+            PacketType.TIMER -> recordTimer(packet)
             else -> Unit
         }
     }
@@ -537,6 +545,32 @@ internal class InboundHandler(
         val profile = Profile.parse(packet.payload) ?: return
         store.recordSeen(senderHex, displayName = profile.displayName)
         log.debug("profile from ${Packet.tag(packet.senderId)}")
+    }
+
+    /**
+     * Takes the disappearing timer a contact set on our chat with them.
+     *
+     * Last change wins, from either side, as it would if both people shared one
+     * settings screen: the alternative, two phones on different timers, means
+     * each user believes something about the other's copies that is not true.
+     * Only from the peer the chat is with, only addressed to us, and only sealed:
+     * a TIMER the cipher cannot open could have been written by anyone who knows
+     * both ids, and would let a stranger switch a chat's timer off.
+     */
+    private suspend fun recordTimer(packet: Packet) {
+        val senderHex = packet.senderId.toHexId()
+        if (senderHex == selfId || packet.isBroadcast) return
+        if (store.isBlocked(senderHex)) return
+        val plaintext = decrypt(packet.senderId, packet.messageId, packet.payload) ?: return
+        val setting = TimerSetting.parse(plaintext) ?: return
+
+        val now = clock()
+        if (!acceptsPeerTimer(store.peerTimer(senderHex), packet.timestamp, now)) {
+            log.debug("older timer from ${Packet.tag(packet.senderId)} ignored")
+            return
+        }
+        store.applyPeerTimer(senderHex, setting.disappearAfterMillis, PeerTimerStamp(packet.timestamp, now))
+        log.debug("timer from ${Packet.tag(packet.senderId)} applied")
     }
 
     private companion object {

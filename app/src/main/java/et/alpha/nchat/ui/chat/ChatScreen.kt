@@ -284,6 +284,7 @@ fun ChatScreen(
     if (isChoosingTimer) {
         DisappearingDialog(
             current = state.disappearAfterMillis,
+            isBroadcast = state.isBroadcast,
             onChoose = {
                 viewModel.onSetDisappearing(it)
                 isChoosingTimer = false
@@ -1099,19 +1100,29 @@ private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: (
 /**
  * Picks this thread's disappearing timer.
  *
- * The body is the part that matters: the timer is this phone's alone and only
- * reaches messages from now on. Someone who believed it also cleared the other
- * phone, or the history already here, would be trusting a deletion that never
- * happens.
+ * The body is the part that matters: the timer only reaches messages from now
+ * on, and the other phone follows it only if its build knows how. Someone who
+ * believed it also cleared the history already here, or a phone that never
+ * got the update, would be trusting a deletion that never happens. In the
+ * broadcast thread nobody is told at all.
  */
 @Composable
-private fun DisappearingDialog(current: Long?, onChoose: (Long?) -> Unit, onDismiss: () -> Unit) {
+private fun DisappearingDialog(
+    current: Long?,
+    isBroadcast: Boolean,
+    onChoose: (Long?) -> Unit,
+    onDismiss: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.chat_disappearing_title)) },
         text = {
             Column(modifier = Modifier.selectableGroup()) {
-                Text(stringResource(R.string.chat_disappearing_body))
+                Text(
+                    stringResource(
+                        if (isBroadcast) R.string.chat_disappearing_body else R.string.chat_disappearing_body_direct,
+                    ),
+                )
                 Spacer(Modifier.height(8.dp))
                 DisappearingTimer.OPTIONS.forEach { option ->
                     Row(

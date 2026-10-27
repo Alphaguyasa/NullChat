@@ -35,8 +35,10 @@ class ArchitectureRulesTest {
         val pure = sourceFiles().filter { file ->
             val path = file.invariantPath()
             // InboundHandler too: it was split out of MeshCoordinator to run
-            // in a JVM test, and one Log call would undo that.
-            "/mesh/protocol/" in path || "/mesh/router/" in path || path.endsWith("/mesh/InboundHandler.kt")
+            // in a JVM test, and one Log call would undo that. PeerTimer is
+            // the rule InboundHandler applies, so it is held to the same.
+            "/mesh/protocol/" in path || "/mesh/router/" in path ||
+                path.endsWith("/mesh/InboundHandler.kt") || path.endsWith("/mesh/PeerTimer.kt")
         }
 
         // Guards against the test silently passing because the paths moved.

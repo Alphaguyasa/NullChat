@@ -219,7 +219,7 @@ class PacketCodecTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = [0, 7, 99, 255])
+    @ValueSource(ints = [0, 8, 99, 255])
     fun `rejects an unknown packet type`(type: Int) {
         val bytes = PacketCodec.encode(samplePacket(PacketType.MESSAGE))
         bytes[1] = type.toByte()

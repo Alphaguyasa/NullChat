@@ -147,6 +147,9 @@ enum class PacketType(val wire: Int) {
 
     /** The sender's chosen display name. Builds before it drop the packet unread. */
     PROFILE(6),
+
+    /** A direct chat's disappearing timer, sealed. Builds before it drop the packet unread. */
+    TIMER(7),
     ;
 
     companion object {

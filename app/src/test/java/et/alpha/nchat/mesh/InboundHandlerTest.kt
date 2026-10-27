@@ -18,9 +18,11 @@ import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.protocol.Profile
+import et.alpha.nchat.mesh.protocol.TimerSetting
 import et.alpha.nchat.mesh.protocol.acknowledgementPacket
 import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.profilePacket
+import et.alpha.nchat.mesh.protocol.timerPacket
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -406,9 +408,75 @@ class InboundHandlerTest {
             images[messageId] = jpeg
             return "$messageId.jpg"
         }
+
+        val timers = mutableMapOf<String, Long?>()
+        val timerStamps = mutableMapOf<String, PeerTimerStamp>()
+
+        override suspend fun peerTimer(peerHex: String): PeerTimerStamp? = timerStamps[peerHex]
+
+        override suspend fun applyPeerTimer(peerHex: String, millis: Long?, stamp: PeerTimerStamp) {
+            timers[peerHex] = millis
+            timerStamps[peerHex] = stamp
+        }
+    }
+
+    private fun timer(
+        millis: Long?,
+        sentAt: Long,
+        from: ByteArray = alice,
+        to: ByteArray = self.peerId,
+        sealed: Boolean = true,
+    ): Packet = timerPacket(
+        messageId = newMessageId().hexIdToBytes(),
+        senderId = from,
+        recipientId = to,
+        setting = TimerSetting.of(millis)!!,
+        timestamp = sentAt,
+    ).let { if (sealed) it.copy(payload = byteArrayOf(SEALED) + it.payload) else it }
+
+    @Test
+    fun `a contact's timer is applied to our chat with them`() = runTest {
+        handler().handle(timer(HOUR, sentAt = 10L))
+
+        assertEquals(HOUR, store.timers.getValue(aliceHex))
+        assertEquals(PeerTimerStamp(sentAt = 10L, appliedAt = now), store.timerStamps[aliceHex])
+        // Nothing to acknowledge: a timer is not a message.
+        assertTrue(originated.isEmpty())
+    }
+
+    @Test
+    fun `turning the timer off reaches us too`() = runTest {
+        val handler = handler()
+        handler.handle(timer(HOUR, sentAt = 10L))
+        handler.handle(timer(null, sentAt = 20L))
+
+        assertTrue(store.timers.containsKey(aliceHex))
+        assertNull(store.timers.getValue(aliceHex))
+    }
+
+    @Test
+    fun `an older change arriving late does not undo a newer one`() = runTest {
+        val handler = handler()
+        handler.handle(timer(null, sentAt = 20L))
+        handler.handle(timer(HOUR, sentAt = 10L))
+
+        assertNull(store.timers.getValue(aliceHex))
+    }
+
+    @Test
+    fun `an unsealed, broadcast or blocked timer is ignored`() = runTest {
+        val handler = handler()
+        handler.handle(timer(HOUR, sentAt = 10L, sealed = false))
+        handler.handle(timer(HOUR, sentAt = 11L, to = Packet.BROADCAST_ID))
+        store.blocked += mallory.toHexId()
+        handler.handle(timer(HOUR, sentAt = 12L, from = mallory))
+        handler.handle(timer(HOUR, sentAt = 13L, from = self.peerId))
+
+        assertTrue(store.timers.isEmpty())
     }
 
     private companion object {
+        const val HOUR: Long = 60 * 60 * 1000L
         const val SEALED: Byte = 0x7F
     }
 }

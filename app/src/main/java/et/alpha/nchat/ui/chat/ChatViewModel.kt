@@ -348,7 +348,7 @@ class ChatViewModel @Inject constructor(
     /** Sets this thread's disappearing timer; null turns it off. */
     fun onSetDisappearing(millis: Long?) {
         val peer = peerId.value
-        viewModelScope.launch { messages.setDisappearAfter(conversationIdFor(peer), peer, millis) }
+        viewModelScope.launch { coordinator.setDisappearing(peer, millis) }
     }
 
     private fun conversationIdFor(peer: String?): String =

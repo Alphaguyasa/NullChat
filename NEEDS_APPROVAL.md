@@ -5,6 +5,13 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5o. Two-phone check for the shared disappearing timer (2026-10-27)
+*Timer reaches the other phone (#53), two phones A and B that have paired:* on A,
+open B's chat, ⋮ → Disappearing messages → 1 hour. Within a few seconds B's chat
+subtitle also says `disappears after 1 hour`. On B, set it to Off: A's subtitle
+loses the timer. With B **out of range**, set 1 day on A, then bring B back: B
+picks up 1 day once they connect. A phone on an **older build** keeps its own
+timer and shows nothing new. The broadcast thread's timer stays on one phone only.
 ### 5n. One-phone checks for search and share (2026-10-26, second run)
 *Search (#51):* open a chat with history, ⋮ → Search, type a word from an older
 message. The newest message containing it scrolls into view, with the word tinted
