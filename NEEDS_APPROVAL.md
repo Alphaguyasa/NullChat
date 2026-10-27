@@ -5,6 +5,15 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5q. One-device check for the two-pane layout (2026-10-27)
+*Tablet / landscape (#55):* on a tablet, or a phone turned on its side (most are
+840dp wide or more that way), the peer list sits on the left. On the right is
+"Pick a chat from the list" until you tap one. Tapping another contact swaps the
+chat without leaving the list. The chat's back arrow closes it. Settings and
+pairing still fill the screen. In split screen, or with the phone upright, it is
+one screen at a time as before. Also check at 200% font size that the list's
+labels still fit.
+
 ### 5p. Three-phone check for carried mail (2026-10-27)
 *Carry others' mail (#54), phones A, B and C:* keep A and C far apart, out of
 range of each other. On A, with nobody in range, send C a direct message: it says

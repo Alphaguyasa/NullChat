@@ -4,6 +4,66 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-27 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page is unchanged: Opus 5.5
+is the newest Opus, and Claude Fable 5.1 is the tier above it. The run still cannot
+switch models (no RemoteTrigger tool in the session), so the ACTION FOR ALPHA stays
+open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`6c3c695`, `v2026-10-26-6`). No PRs were open.
+- No local build. There is no Android SDK in the cloud box, and Maven Central answered
+  HTTP 429 to the scratch JVM project, so CI was the only build. #53 and #54 were green on
+  the first attempt. #55 failed once: `maxWidth` was read inside `Row`'s scope, which the
+  layout DSL forbids. It was fixed on the branch and was green on the second attempt.
+- **PR #53**, roadmap #39: disappearing messages, part 2. This adds a new packet type,
+  **TIMER (7)**. Its payload is a format byte plus u32 seconds, with 0 meaning off.
+  - The packet is sealed like a direct message and is store-and-forwarded.
+  - Builds before this one fail to decode type 7 and drop it, so they keep their own
+    timer.
+  - The receiver applies a timer only if it is sealed, addressed to us, from the chat's
+    peer, and that peer is not blocked.
+  - The last change wins, ordered by the *sender's* clock, so an old change replayed by
+    a relay cannot undo a newer one.
+  - The stamp lives in preferences (`PeerTimerStore`), so there is no schema change. It
+    is kept when a contact is forgotten.
+  - After a 7-day window, a sender whose clock went back is heard again.
+  - The timer is not sent while we lack the peer's agreement key. The dialog says that
+    an older phone keeps its copies.
+  - Merged, `v2026-10-27-1`.
+- **PR #54**, roadmap #40: carry others' mail. On each new connection, the neighbour is
+  also handed up to 32 queued packets addressed to someone else.
+  - These are copies, sent newest first, and they stay queued here.
+  - A neighbour is never handed the same packet twice within the queue's lifetime
+    (in-memory carry log), so duty-cycled reconnects do not resend.
+  - Packets the neighbour sent itself, and packets with ttl 1, are not offered.
+  - Our own carried message turns `sent`, as when flooding hands it to a relay.
+  - Needs a three-phone check (5p). Merged.
+- **PR #55**, roadmap #20: two-pane layout from 840dp window width. The list takes a
+  third of the window (320–420dp), with the chat or "Pick a chat from the list" beside
+  it. Pairing and settings stay full-window. The chat is keyed on the thread, so search
+  and dialog state do not leak between chats. No new dependency (`BoxWithConstraints`).
+  There is no selected-row highlight in the list yet.
+- Tests added:
+  - JVM: TimerSettingTest 7, PeerTimerTest 4, InboundHandlerTest +4,
+    ForwardQueueRoutingTest +5, AdaptiveLayoutTest 3.
+  - Instrumented: ForwardQueueDaoTest +1.
+- Roadmap: 5 open (#21, #22, #23, #42, #41). That is not fewer than 5, so no replan
+  yet. The next run will replan as soon as one more item closes.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #39 shared disappearing timer (PR #53); #40 carry others' mail (PR #54); #20 two-pane layout (PR #55) |
+| Merged | #53 yes `v2026-10-27-1`; #54 yes `v2026-10-27-2`; #55 see notification |
+| Failed or blocked | #55 failed CI once (compile error), fixed on attempt 2. No local build (no SDK; Maven Central 429), so CI only |
+| Roadmap | 5 open (#21 groups, #22 voice notes, #23 route strip, #42 link challenge, #41 export); no replan needed yet |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5q, 5p, 5o (new), 5n…5f, #22, #17/#19, #15, #9; Dependabot authorship; release APK unrun; signing; route strip |
+| Next | #42 link challenge (P3, wire change), #41 export a chat, then replan (roadmap will drop under 5) |
+
+---
+
 ## 2026-10-26 — second run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page is unchanged since this
