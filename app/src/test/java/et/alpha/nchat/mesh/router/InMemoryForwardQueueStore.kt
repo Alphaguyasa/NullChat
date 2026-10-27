@@ -45,6 +45,12 @@ class InMemoryForwardQueueStore : ForwardQueueStore {
             .sortedWith(compareBy({ it.queuedAt }, { it.packet.messageId.hex() }))
     }
 
+    override suspend fun newest(limit: Int): List<QueuedPacket> =
+        entries.values
+            .sortedWith(compareByDescending<QueuedPacket> { it.queuedAt }
+                .thenByDescending { it.packet.messageId.hex() })
+            .take(limit)
+
     override suspend fun remove(messageIds: List<ByteArray>): Int {
         val keys = messageIds.map { it.hex() }
         return keys.count { entries.remove(it) != null }

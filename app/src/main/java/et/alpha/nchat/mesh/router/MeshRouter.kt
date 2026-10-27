@@ -43,6 +43,17 @@ class MeshRouter(
     private val localId: ByteArray,
     private val scope: CoroutineScope,
     private val seenCache: SeenCache = SeenCache(),
+    /**
+     * Which queued packets each neighbour was already handed to carry, keyed by
+     * neighbour id plus message id. A [SeenCache] with the queue's own lifetime:
+     * nothing in it can outlive the packet it describes. In memory only, so a
+     * restart may hand a neighbour the same mail once more, which it drops as a
+     * duplicate.
+     */
+    private val carryLog: SeenCache = SeenCache(
+        capacity = CARRY_LOG_CAPACITY,
+        expiryMillis = ForwardQueue.DEFAULT_EXPIRY_MILLIS,
+    ),
     private val forwardQueue: ForwardQueue? = null,
     private val signer: PacketSigner? = null,
     private val verifier: PacketVerifier = PacketVerifier.AcceptAll,
@@ -187,7 +198,8 @@ class MeshRouter(
 
     /**
      * Hands a peer everything the queue was holding for it, plus anything queued
-     * for broadcast.
+     * for broadcast, plus up to [CARRY_LIMIT] packets it could carry towards
+     * someone else.
      *
      * Called when a peer connects — routing rule "on each new peer connection,
      * offer queued messages addressed to that peer". The two ids are different
@@ -196,15 +208,22 @@ class MeshRouter(
      * Resolving one to the other is `NearbyTransport`'s job, not the router's,
      * which is why the caller passes both.
      *
+     * The carried packets are why a chain of phones can deliver. Without them,
+     * mail composed with nobody in range waits for its recipient in person, and
+     * a friend who walks from here to where the recipient is cannot take it
+     * along. They are copies: each stays queued here until its recipient turns
+     * up or it expires. The neighbour treats one like any relayed packet, so it
+     * pays a hop and is queued there in turn; ttl bounds the chain.
+     *
      * @return the packets the peer actually took. The caller needs the identity
      *   of each one, not just a count, to advance the matching database rows.
+     *   Carried packets are included: one of our own leaving this phone in a
+     *   neighbour's hands is `sent`, as when flooding hands it to a relay.
      */
     suspend fun offerQueued(recipientId: ByteArray, endpointId: String): List<Packet> {
         val queue = forwardQueue ?: return emptyList()
 
         val entries = queue.takeFor(recipientId)
-        if (entries.isEmpty()) return emptyList()
-
         val delivered = ArrayList<Packet>()
         val undelivered = ArrayList<QueuedPacket>()
         for (entry in entries) {
@@ -216,10 +235,23 @@ class MeshRouter(
                 undelivered.add(entry)
             }
         }
-
         queue.restore(undelivered)
+
+        val carriable = queue.carriableBy(recipientId, CARRY_LIMIT) { entry ->
+            carryLog.contains(carryKey(recipientId, entry.packet))
+        }
+        for (entry in carriable) {
+            if (transport.send(endpointId, PacketCodec.encode(entry.packet))) {
+                carryLog.markSeen(carryKey(recipientId, entry.packet))
+                delivered.add(entry.packet)
+            } else {
+                _failedForwards.incrementAndGet()
+            }
+        }
         return delivered
     }
+
+    private fun carryKey(neighbour: ByteArray, packet: Packet): ByteArray = neighbour + packet.messageId
 
     /**
      * Withdraws queued packets the user no longer wants sent; see
@@ -381,6 +413,17 @@ class MeshRouter(
     companion object {
         /** Packet types the forward queue holds when nobody is in range. */
         private val STORE_AND_FORWARD_TYPES = setOf(PacketType.MESSAGE, PacketType.ACK, PacketType.TIMER)
+
+        /**
+         * Most packets handed to one neighbour to carry per connection. Each is
+         * at most 180 bytes, so this is a few kilobytes of radio time: enough to
+         * matter for a small group, too little to flood a phone that only
+         * walked past.
+         */
+        const val CARRY_LIMIT: Int = 32
+
+        /** Neighbour-and-packet pairs remembered; [CARRY_LIMIT] each for many neighbours. */
+        private const val CARRY_LOG_CAPACITY: Int = 2000
 
         /** Rule 5's jitter window, in milliseconds. */
         const val MIN_JITTER_MILLIS: Long = 50

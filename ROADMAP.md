@@ -13,7 +13,6 @@ network are a wrong clock and leaving the app mid-send.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 40 | **Carry others' mail**: offer queued unicast to any new neighbour (capped), not only to the recipient, so a chain of phones can deliver. | P2 | M | Needs two-phone check |
 | 20 | **Tablet / landscape layout**: list + chat side by side on wide screens. | P2 | M | |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
@@ -77,3 +76,4 @@ change once decided.
 | 2026-10-26 | #37 Search in a chat (⋮ → Search; in memory, not `LIKE`, so case folds in every script; matches tinted and bold; ↑/↓ wrap) | #51 | see log |
 | 2026-10-26 | #38 Share into Null Chat (`SEND text/plain`) and Forward (text): the peer list picks the chat, the text lands in its box, never sent unseen | #52 | see log |
 | 2026-10-27 | #39 Disappearing messages, part 2: TIMER packet (type 7, sealed, store-and-forwarded); last change wins, ordered by the sender's clock with a 7-day replay window | #53 | see log |
+| 2026-10-27 | #40 Carry others' mail: each new neighbour is handed up to 32 queued packets for other recipients (copies; newest first; never twice to the same neighbour) | #54 | see log |

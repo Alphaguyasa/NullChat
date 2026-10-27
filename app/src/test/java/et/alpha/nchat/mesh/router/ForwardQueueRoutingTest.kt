@@ -236,4 +236,109 @@ class ForwardQueueRoutingTest {
             assertEquals(0, a.queue.size(), "a stale introduction says something untrue about the mesh")
         }
     }
+
+    @Test
+    fun `a passer-by carries queued mail along a chain to its recipient`() = runTest {
+        meshTest {
+            val a = node("A")
+            val b = node("B")
+            val c = node("C")
+            settle()
+
+            // Composed with nobody in range: only A holds it.
+            val packet = testPacket(from = a.id, to = c.id)
+            a.router.originate(packet)
+            settle()
+
+            // B walks past A, then on to where C is. A and C never meet.
+            link("A", "B")
+            settle()
+            val handed = flush(from = "A", to = "B")
+            settle()
+            unlink("A", "B")
+            settle()
+
+            assertEquals(1, handed.size, "B should be handed A's mail for C")
+            assertEquals(1, a.queue.size(), "A keeps its copy: B is not the recipient")
+            assertEquals(1, b.queue.size(), "B has nowhere to send it yet, so holds it")
+            assertTrue(b.delivered.isEmpty(), "mail for C is not B's to read")
+
+            link("B", "C")
+            settle()
+            flush(from = "B", to = "C")
+            settle()
+
+            assertEquals(packet.messageId.toList(), c.delivered.single().messageId.toList())
+            // One hop for the trip through B.
+            assertEquals(packet.ttl - 1, c.delivered.single().ttl)
+        }
+    }
+
+    @Test
+    fun `a neighbour is not handed the same mail twice`() = runTest {
+        meshTest {
+            val a = node("A")
+            val b = node("B")
+            val c = node("C")
+            settle()
+
+            a.router.originate(testPacket(from = a.id, to = c.id))
+            settle()
+            link("A", "B")
+            settle()
+
+            assertEquals(1, flush(from = "A", to = "B").size)
+            settle()
+            // Duty-cycled scanning reconnects the same pair over and over.
+            assertTrue(flush(from = "A", to = "B").isEmpty(), "a reconnect must not resend carried mail")
+        }
+    }
+
+    @Test
+    fun `carrying is capped per connection, newest first`() = runTest {
+        meshTest {
+            val a = node("A")
+            val b = node("B")
+            val c = node("C")
+            settle()
+
+            val packets = (0 until MeshRouter.CARRY_LIMIT + 5).map { testPacket(from = a.id, to = c.id) }
+            for (packet in packets) {
+                a.router.originate(packet)
+                clock.advance(1)
+            }
+            settle()
+            link("A", "B")
+            settle()
+
+            val handed = flush(from = "A", to = "B")
+
+            assertEquals(MeshRouter.CARRY_LIMIT, handed.size)
+            assertEquals(
+                packets.takeLast(MeshRouter.CARRY_LIMIT).map { it.messageId.toList() }.toSet(),
+                handed.map { it.messageId.toList() }.toSet(),
+            )
+        }
+    }
+
+    @Test
+    fun `nothing is carried that the neighbour cannot pass on`() = runTest {
+        meshTest {
+            val a = node("A")
+            val b = node("B")
+            val c = node("C")
+            settle()
+
+            // One hop left: B would have to drop it.
+            a.router.originate(testPacket(from = a.id, to = c.id, ttl = 1))
+            // B's own message, waiting here for C: B already has it.
+            a.queue.enqueue(testPacket(from = b.id, to = c.id))
+            settle()
+            link("A", "B")
+            settle()
+
+            assertTrue(flush(from = "A", to = "B").isEmpty())
+            assertEquals(2, a.queue.size())
+        }
+    }
 }

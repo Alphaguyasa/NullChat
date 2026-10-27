@@ -71,6 +71,15 @@ class ForwardQueueDaoTest {
     }
 
     @Test
+    fun findNewestReturnsNewestFirstAcrossRecipientsUpToTheLimit() = runTest {
+        queue.insert(forwardQueueEntry(messageId = "old", recipientId = PEER_A, queuedAt = T0))
+        queue.insert(forwardQueueEntry(messageId = "mid", recipientId = PEER_B, queuedAt = T0 + 1))
+        queue.insert(forwardQueueEntry(messageId = "new", recipientId = BROADCAST, queuedAt = T0 + 2))
+
+        assertEquals(listOf("new", "mid"), queue.findNewest(2).map { it.messageId })
+    }
+
+    @Test
     fun findForPicksUpBroadcastsAlongsideDirectEntries() = runTest {
         queue.insert(forwardQueueEntry(messageId = "direct", recipientId = PEER_A, queuedAt = T0))
         queue.insert(forwardQueueEntry(messageId = "everyone", recipientId = BROADCAST, queuedAt = T0 + 1))
