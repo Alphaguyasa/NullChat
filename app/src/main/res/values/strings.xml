@@ -112,7 +112,8 @@
     <string name="chat_rename_save">Save</string>
     <string name="chat_disappearing_action">Disappearing messages</string>
     <string name="chat_disappearing_title">Disappearing messages</string>
-    <string name="chat_disappearing_body">New messages in this chat are deleted from this phone after the time you pick. Messages already here stay. The other phone keeps its own copies.</string>
+    <string name="chat_disappearing_body">New messages in this chat are deleted from this phone after the time you pick. Messages already here stay. Other phones keep their own copies.</string>
+    <string name="chat_disappearing_body_direct">New messages in this chat are deleted after the time you pick. The other phone is told and does the same if it runs this version or later; an older one keeps its copies. Messages already here stay.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_open">Settings</string>
     <string name="settings_name_title">Your name</string>

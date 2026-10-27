@@ -204,6 +204,27 @@ class ForwardQueueRoutingTest {
     }
 
     @Test
+    fun `a timer change for an absent contact is held and delivered later`() = runTest {
+        meshTest {
+            val a = node("A")
+            val c = node("C")
+            settle()
+
+            val timer = testPacket(from = a.id, to = c.id, type = PacketType.TIMER)
+            assertFalse(a.router.originate(timer))
+            settle()
+            assertEquals(1, a.queue.size(), "a timer the user chose must survive the contact being away")
+
+            link("A", "C")
+            settle()
+            flush(from = "A", to = "C")
+            settle()
+
+            assertEquals(PacketType.TIMER, c.delivered.single().type)
+        }
+    }
+
+    @Test
     fun `an announcement with nobody in range is not held`() = runTest {
         meshTest {
             val a = node("A")

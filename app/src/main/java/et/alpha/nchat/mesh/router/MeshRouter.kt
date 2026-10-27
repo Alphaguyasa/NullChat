@@ -234,7 +234,8 @@ class MeshRouter(
     /**
      * Queues a packet that found no route.
      *
-     * Only MESSAGE and ACK packets are worth holding. An ANNOUNCE or a
+     * Only MESSAGE, ACK and TIMER packets are worth holding; a TIMER carries a
+     * choice the user made, as lasting as a message. An ANNOUNCE or a
      * KEY_EXCHANGE is only meaningful in the moment it is sent, and replaying a
      * stale one hours later says something untrue about the mesh's current shape.
      *
@@ -379,7 +380,7 @@ class MeshRouter(
 
     companion object {
         /** Packet types the forward queue holds when nobody is in range. */
-        private val STORE_AND_FORWARD_TYPES = setOf(PacketType.MESSAGE, PacketType.ACK)
+        private val STORE_AND_FORWARD_TYPES = setOf(PacketType.MESSAGE, PacketType.ACK, PacketType.TIMER)
 
         /** Rule 5's jitter window, in milliseconds. */
         const val MIN_JITTER_MILLIS: Long = 50

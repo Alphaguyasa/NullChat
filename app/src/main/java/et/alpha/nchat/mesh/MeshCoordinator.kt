@@ -16,6 +16,7 @@ import et.alpha.nchat.data.repo.DeletedMessageStore
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.data.settings.DisplayNameStore
+import et.alpha.nchat.data.settings.PeerTimerStore
 import et.alpha.nchat.di.MeshScope
 import et.alpha.nchat.mesh.crypto.LocalIdentity
 import et.alpha.nchat.mesh.crypto.PublicKeyDirectory
@@ -26,7 +27,9 @@ import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.Profile
+import et.alpha.nchat.mesh.protocol.TimerSetting
 import et.alpha.nchat.mesh.protocol.profilePacket
+import et.alpha.nchat.mesh.protocol.timerPacket
 import et.alpha.nchat.mesh.router.ForwardQueue
 import et.alpha.nchat.mesh.router.LinkBindings
 import et.alpha.nchat.mesh.router.MeshRouter
@@ -170,6 +173,7 @@ private class RepositoryInboundStore(
     private val peers: PeerRepository,
     private val deletedMessages: DeletedMessageStore,
     private val attachments: AttachmentStore,
+    private val peerTimers: PeerTimerStore,
 ) : InboundStore {
     override fun isDeleted(messageId: String): Boolean = deletedMessages.isDeleted(messageId)
 
@@ -214,6 +218,13 @@ private class RepositoryInboundStore(
 
     override suspend fun writeImage(messageId: String, jpeg: ByteArray): String? =
         attachments.write(messageId, jpeg)
+
+    override suspend fun peerTimer(peerHex: String): PeerTimerStamp? = peerTimers.get(peerHex)
+
+    override suspend fun applyPeerTimer(peerHex: String, millis: Long?, stamp: PeerTimerStamp) {
+        messages.setDisappearAfter(directConversationId(peerHex), peerHex, millis)
+        peerTimers.put(peerHex, stamp)
+    }
 }
 
 /** The inbound path's diagnostics, under the coordinator's tag as before the split. */
@@ -254,6 +265,7 @@ class MeshCoordinator @Inject constructor(
     private val transfers: TransferTracker,
     private val displayNames: DisplayNameStore,
     private val deletedMessages: DeletedMessageStore,
+    private val peerTimers: PeerTimerStore,
     @MeshScope private val scope: CoroutineScope,
 ) {
 
@@ -271,7 +283,7 @@ class MeshCoordinator @Inject constructor(
      */
     private val inbound = InboundHandler(
         identity = identity,
-        store = RepositoryInboundStore(messages, peers, deletedMessages, attachments),
+        store = RepositoryInboundStore(messages, peers, deletedMessages, attachments, peerTimers),
         keyDirectory = keyDirectory,
         decrypt = cipher::decrypt,
         transfers = transfers,
@@ -474,6 +486,40 @@ class MeshCoordinator @Inject constructor(
             // receiver rather than shown twice.
             if (transmit(row.id, row.body, peerHex, row.timestamp)) messages.markSent(row.id)
         }
+    }
+
+    /**
+     * Sets a thread's disappearing timer (null = off) and, in a direct chat,
+     * tells the other phone.
+     *
+     * The local change comes first and stands on its own: the TIMER is a
+     * request, honoured by a phone on this build or later and ignored by an
+     * older one. It is sealed, so it is not sent at all while we lack the
+     * peer's agreement key; the other phone then keeps its own timer, and the
+     * next change made after the keys arrive reaches it. Queued like a message
+     * when the peer is out of range. The broadcast thread has nobody to tell.
+     */
+    suspend fun setDisappearing(recipientHexId: String?, millis: Long?) = scope.outliveCaller {
+        messages.setDisappearAfter(conversationIdFor(recipientHexId), recipientHexId, millis)
+        if (recipientHexId != null) tellTimer(recipientHexId, millis)
+    }
+
+    private suspend fun tellTimer(peerHex: String, millis: Long?) {
+        val setting = TimerSetting.of(millis) ?: return
+        val packet = timerPacket(
+            messageId = newMessageId().hexIdToBytes(),
+            senderId = identity.peerId,
+            recipientId = peerHex.hexIdToBytes(),
+            setting = setting,
+            timestamp = System.currentTimeMillis(),
+        )
+        val sealed = sealOrHold(packet) { cipher.encrypt(it.recipientId, it.messageId, it.payload) }
+        if (sealed == null) {
+            Log.i(TAG, "no key for ${Packet.tag(packet.recipientId)} yet, timer kept on this phone only")
+            return
+        }
+        runCatching { router.originate(sealed) }
+            .onFailure { Log.w(TAG, "failed to send timer: ${it.message}") }
     }
 
     /**

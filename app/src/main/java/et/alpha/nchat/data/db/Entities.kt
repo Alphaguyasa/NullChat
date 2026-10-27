@@ -133,8 +133,9 @@ data class ConversationEntity(
     val lastReadAt: Long = 0L,
     /**
      * How long a new message in this thread stays on this phone, in millis, or
-     * null to keep messages. Local only: nothing tells the other phone, so it
-     * keeps its own copies on its own terms.
+     * null to keep messages. In a direct chat a change is also sent to the
+     * other phone as a TIMER packet, and one it sends is applied here; see
+     * `MeshCoordinator.setDisappearing`. A phone on an older build ignores it.
      */
     val disappearAfterMillis: Long? = null,
 )
