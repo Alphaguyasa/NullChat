@@ -140,11 +140,13 @@ fun MeshChatScreen(
 
     // The window's width, not the screen's: in split screen a tablet is a phone.
     BoxWithConstraints(modifier = modifier) {
-        val twoPanes = usesTwoPanes(maxWidth.value.toInt()) &&
+        // Read here: inside Row's scope the layout DSL hides this receiver.
+        val widthDp = maxWidth.value.toInt()
+        val twoPanes = usesTwoPanes(widthDp) &&
             (destination == Destination.PEERS || destination == Destination.CHAT)
         if (twoPanes) {
             Row(Modifier.fillMaxSize()) {
-                peerList(Modifier.width(listPaneWidthDp(maxWidth.value.toInt()).dp).fillMaxHeight())
+                peerList(Modifier.width(listPaneWidthDp(widthDp).dp).fillMaxHeight())
                 VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     if (destination == Destination.CHAT) {
