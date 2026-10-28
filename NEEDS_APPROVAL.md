@@ -5,6 +5,14 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5t. Two-phone check for "online" (2026-10-28, second run)
+*Online from proven links (#61):* phones A and B are paired. Bring them together.
+B's row on A turns online and shows "1 hop" a second or two after they connect,
+once B's announcement arrives (before this change it showed at connect).
+B's chat subtitle on A says the same. Take B away: it goes offline as before. The header's
+"N devices in range" still counts every phone nearby. If a paired contact next to
+you never shows online, this change is failing; say so.
+
 ### 5s. Two- or three-phone check for queue verification (2026-10-28)
 *Unverified packets are not stored (#58):* relays still forward everything live,
 but a phone keeps a packet for later only if it could check the sender's signature.

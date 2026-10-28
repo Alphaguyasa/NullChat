@@ -4,6 +4,51 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-28 — second run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models docs were unreachable again (proxy 403 on
+docs.anthropic.com), and the run has no tool to switch the routine's model, so the
+ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`9bf08fc`, `v2026-10-28-3` for #58). No PRs were open.
+- No local build: Gradle could not resolve its plugins from the cloud box. CI was the only
+  build. All three PRs were green on the first attempt.
+- **PR #59**, roadmap #44b: evicted means failed.
+  - `ForwardQueueStore.trimToNewest` returns the ids it dropped. The DAO does the select
+    and delete in one transaction, so a flush in between cannot be reported as an
+    eviction.
+  - `ForwardQueue.evictions` (bounded, drop-oldest) goes to the coordinator, which fails
+    our own PENDING rows among the ids. Carried mail and `sent` rows are untouched.
+  - Tests: ForwardQueueTest +2, MessageDaoTest +1, ForwardQueueDaoTest updated.
+- **PR #60**, roadmap #45: held messages always leave.
+  - Pending rows are now looked up per chat, with no limit. Before, the lookup took the
+    100 oldest pending rows across all chats.
+  - Key signals are subscribed only after the directory is warmed. One pass then
+    releases every chat whose peer has a key, so restored keys past the 64-slot signal
+    buffer are no longer stranded.
+  - A failed warm-up still starts both.
+  - Tests: HoldUntilKeyedTest +1, MessageDaoTest +1, MessageRepositoryTest updated.
+- **PR #61**, roadmap #46: online and "1 hop" from bound links only.
+  - The coordinator publishes `boundPeers` from `LinkBindings`.
+  - The chat subtitle and peer rows use it. "Devices in range" still counts every link.
+  - LinkBindingsTest +1. Needs a two-phone check (5t).
+- Branch note: the designated branch is reused for each PR. Rather than force-push it
+  after a squash-merge (alpha's rule), each new PR merges the old branch head in with no
+  diff.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #44b evicted means failed (PR #59); #45 held messages always leave (PR #60); #46 online from bound links (PR #61) |
+| Merged | #59 yes; #60 yes; #61 see notification. Tags from `release-tag.yml` |
+| Failed or blocked | Nothing failed. No local Android build (CI only); models docs unreachable |
+| Roadmap | 12 open (#47–#54, #42, #21–#23); no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3); phone checks 5t (new), 5s…5f; Dependabot authorship; signing; route strip |
+| Next | #47 fragment bounds, #48 TransferTracker forgets, #49 bound the stranger list |
+
+---
+
 ## 2026-10-28 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page could not be fetched
