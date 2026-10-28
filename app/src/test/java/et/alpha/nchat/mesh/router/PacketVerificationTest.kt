@@ -113,6 +113,25 @@ class PacketVerificationTest {
     }
 
     @Test
+    fun `a packet from an unknown sender is not held at a dead end`() = runTest {
+        meshTest {
+            verifier = ScriptedVerifier(Verification.UNKNOWN_SENDER)
+            // A—B only: B has nowhere to send something addressed to C.
+            val (a, b) = chain("A", "B")
+            val c = node("C")
+            settle()
+
+            a.router.originate(testPacket(from = a.id, to = c.id))
+            settle()
+
+            // Held, it could evict genuine entries from B's bounded queue and be
+            // carried to everyone B meets; see ForwardQueueRoutingTest for the
+            // verified case, which is still held.
+            assertEquals(0, b.queue.size(), "B must not store what it could not verify")
+        }
+    }
+
+    @Test
     fun `a broadcast from an unknown sender still floods`() = runTest {
         meshTest {
             verifier = ScriptedVerifier(Verification.UNKNOWN_SENDER)

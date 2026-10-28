@@ -361,13 +361,22 @@ class MeshRouter(
         // Rule 4: spend a hop. Null means the budget ran out and this is the last stop.
         val relayed = packet.decrementTtl() ?: return
 
+        // Relayed live for anyone, as above, but held for later only when the
+        // signature checked out. Signing needs no registration, so without this
+        // one modified phone could send ~500 packets from made-up senders, push
+        // every genuine entry out of the bounded queue (our own queued messages
+        // included), and have the junk carried to each neighbour we meet. A
+        // relay that has met the sender, which is the store-and-forward path the
+        // queue exists for, has its announcement and verifies it.
+        val holdIfStuck = verification == Verification.VALID
+
         // Rule 5: jitter before relaying, so neighbours who received the same
         // packet in the same instant do not all transmit on top of each other.
         // Each relay gets its own coroutine; otherwise one packet's jitter would
         // stall every packet queued behind it in the collector.
         scope.launch {
             delay(jitter())
-            forward(relayed, arrivedFrom = inbound.fromPeer)
+            forward(relayed, arrivedFrom = inbound.fromPeer, holdIfStuck = holdIfStuck)
         }
     }
 
@@ -378,13 +387,13 @@ class MeshRouter(
      * broadcast has no way to express the exclusion, and echoing a packet back
      * down the link it arrived on is the cheapest loop in the mesh.
      */
-    private suspend fun forward(packet: Packet, arrivedFrom: String) {
+    private suspend fun forward(packet: Packet, arrivedFrom: String, holdIfStuck: Boolean) {
         val targets = synchronized(peers) { peers.filterTo(ArrayList()) { it != arrivedFrom } }
         if (targets.isEmpty()) {
             // A dead end: we are the only device this packet reached. Holding it
             // is what turns a chain of phones that are never all in range at once
             // into a delivery path.
-            enqueueForLater(packet)
+            if (holdIfStuck) enqueueForLater(packet)
             return
         }
 
@@ -407,7 +416,7 @@ class MeshRouter(
         // Queued only when every target failed. One peer taking it is enough for
         // flooding to carry it onward, and queuing then would duplicate a packet
         // that is already travelling.
-        if (delivered == 0) enqueueForLater(packet)
+        if (delivered == 0 && holdIfStuck) enqueueForLater(packet)
     }
 
     companion object {

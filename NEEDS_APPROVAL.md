@@ -5,6 +5,14 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5s. Two- or three-phone check for queue verification (2026-10-28)
+*Unverified packets are not stored (#58):* relays still forward everything live,
+but a phone keeps a packet for later only if it could check the sender's signature.
+Repeat check 5p (A → B → C, carried mail): B has met A, so it verifies A's message
+and carries it as before. If A's message now stays `queued` on A while B is next to
+A, or never reaches C via B, this change is failing; say so and it will be reverted.
+*Crash guard (#57):* nothing to see; the app should simply never crash-loop.
+
 ### 5r. One-phone check for export (2026-10-28)
 *Export a chat (#41):* open a chat with a few messages, an image and one of your
 messages still `queued`. ⋮ → Export chat. A dialog says the file is not encrypted
