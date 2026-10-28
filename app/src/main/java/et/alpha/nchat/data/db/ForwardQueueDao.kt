@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 
 @Dao
 interface ForwardQueueDao {
@@ -53,27 +54,40 @@ interface ForwardQueueDao {
     suspend fun deleteQueuedAtOrBefore(cutoff: Long): Int
 
     /**
-     * Keeps the [capacity] newest entries and drops the rest — oldest-first
-     * eviction, per the CLAUDE.md store-and-forward rules.
+     * The ids [trimToNewest] drops: everything past the [capacity] newest
+     * entries.
      *
      * `LIMIT -1 OFFSET :capacity` is SQLite for "everything past the first
-     * [capacity]". The subquery orders newest first, so the offset skips the
-     * survivors and the delete takes what is left. The `messageId` tiebreak
-     * keeps the choice deterministic when several packets share a timestamp,
-     * which is routine — a flush queues a burst within the same millisecond.
-     *
-     * @return rows deleted.
+     * [capacity]". The query orders newest first, so the offset skips the
+     * survivors and what is left is to go. The `messageId` tiebreak keeps the
+     * choice deterministic when several packets share a timestamp, which is
+     * routine — a flush queues a burst within the same millisecond.
      */
     @Query(
         """
-        DELETE FROM forward_queue WHERE messageId IN (
-            SELECT messageId FROM forward_queue
-            ORDER BY queuedAt DESC, messageId DESC
-            LIMIT -1 OFFSET :capacity
-        )
+        SELECT messageId FROM forward_queue
+        ORDER BY queuedAt DESC, messageId DESC
+        LIMIT -1 OFFSET :capacity
         """,
     )
-    suspend fun trimToNewest(capacity: Int): Int
+    suspend fun findBeyondNewest(capacity: Int): List<String>
+
+    /**
+     * Keeps the [capacity] newest entries and drops the rest — oldest-first
+     * eviction, per the CLAUDE.md store-and-forward rules.
+     *
+     * One transaction, so the ids returned are exactly the rows deleted. A
+     * flush taking an entry between the read and the delete would otherwise be
+     * reported as evicted, and its message failed while it was going out.
+     *
+     * @return the messageIds deleted.
+     */
+    @Transaction
+    suspend fun trimToNewest(capacity: Int): List<String> {
+        val doomed = findBeyondNewest(capacity)
+        if (doomed.isNotEmpty()) deleteByIds(doomed)
+        return doomed
+    }
 
     @Query("SELECT COUNT(*) FROM forward_queue")
     suspend fun count(): Int

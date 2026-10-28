@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -102,6 +103,12 @@ class MeshRouter(
      * sender.
      */
     val linkProofs: Flow<LinkProof> = proofs.receiveAsFlow()
+
+    /**
+     * Message ids the forward queue's cap pushed out; see [ForwardQueue.evictions].
+     * Empty when there is no queue.
+     */
+    val queueEvictions: Flow<ByteArray> = forwardQueue?.evictions ?: emptyFlow()
 
     /**
      * Deliberately the opposite contract to [deliveries], field for field.

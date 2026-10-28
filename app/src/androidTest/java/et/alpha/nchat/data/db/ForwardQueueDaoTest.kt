@@ -109,7 +109,7 @@ class ForwardQueueDaoTest {
 
         val evicted = queue.trimToNewest(3)
 
-        assertEquals(2, evicted)
+        assertEquals(listOf("m1", "m0"), evicted)
         assertEquals(listOf("m2", "m3", "m4"), queue.findAll().map { it.messageId })
     }
 
@@ -117,7 +117,7 @@ class ForwardQueueDaoTest {
     fun trimToNewestLeavesAQueueUnderCapAlone() = runTest {
         repeat(3) { i -> queue.insert(forwardQueueEntry(messageId = "m$i", queuedAt = T0 + i)) }
 
-        assertEquals(0, queue.trimToNewest(500))
+        assertEquals(emptyList<String>(), queue.trimToNewest(500))
         assertEquals(3, queue.count())
     }
 

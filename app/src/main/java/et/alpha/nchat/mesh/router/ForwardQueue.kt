@@ -1,6 +1,10 @@
 package et.alpha.nchat.mesh.router
 
 import et.alpha.nchat.mesh.protocol.Packet
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
  * A packet waiting for its recipient to come back into range, with the instant
@@ -41,8 +45,13 @@ interface ForwardQueueStore {
     /** Drops entries queued at or before [cutoff]. @return rows deleted. */
     suspend fun removeQueuedAtOrBefore(cutoff: Long): Int
 
-    /** Keeps the [capacity] newest entries, dropping the rest. @return rows deleted. */
-    suspend fun trimToNewest(capacity: Int): Int
+    /**
+     * Keeps the [capacity] newest entries, dropping the rest.
+     *
+     * @return the messageIds dropped, so the queue can say whose mail it gave up
+     *   on; an implementation must report exactly what it deleted.
+     */
+    suspend fun trimToNewest(capacity: Int): List<ByteArray>
 
     suspend fun count(): Int
 
@@ -68,6 +77,21 @@ class ForwardQueue(
     private val timeSource: () -> Long = System::currentTimeMillis,
 ) {
 
+    /**
+     * Ids pushed out by the cap, as opposed to expired or taken.
+     *
+     * A channel rather than a callback so the queue need not know who cares:
+     * the coordinator fails our own rows among them, which would otherwise read
+     * `queued` for up to 24 hours after the packet had gone. Bounded, dropping
+     * the oldest, because a flood of carried mail evicts one entry per packet;
+     * a note lost that way only means the row waits for the 24 hour expiry
+     * sweep, as it did before evictions were reported at all.
+     */
+    private val evicted = Channel<ByteArray>(EVICTION_BUFFER, BufferOverflow.DROP_OLDEST)
+
+    /** See [evicted]. Meant for a single collector. */
+    val evictions: Flow<ByteArray> = evicted.receiveAsFlow()
+
     init {
         require(capacity > 0) { "capacity must be positive, was $capacity" }
         require(expiryMillis > 0) { "expiry must be positive, was $expiryMillis" }
@@ -87,7 +111,7 @@ class ForwardQueue(
         val now = timeSource()
         sweepExpired(now)
         val stored = store.add(QueuedPacket(packet, now))
-        if (stored) store.trimToNewest(capacity)
+        if (stored) trim()
         return stored
     }
 
@@ -168,7 +192,7 @@ class ForwardQueue(
         sweepExpired(now)
         // An entry that expired while the flush was in flight is not resurrected.
         entries.filter { now - it.queuedAt < expiryMillis }.forEach { store.add(it) }
-        store.trimToNewest(capacity)
+        trim()
     }
 
     /**
@@ -191,6 +215,10 @@ class ForwardQueue(
 
     suspend fun clear() = store.clear()
 
+    private suspend fun trim() {
+        store.trimToNewest(capacity).forEach { evicted.trySend(it) }
+    }
+
     /**
      * An entry queued exactly [expiryMillis] ago is expired, matching
      * [SeenCache.sweepExpired]'s `now - queuedAt >= expiryMillis`.
@@ -210,5 +238,8 @@ class ForwardQueue(
          */
         const val CARRY_SCAN: Int = DEFAULT_CAPACITY
         const val DEFAULT_EXPIRY_MILLIS: Long = 24 * 60 * 60 * 1000L
+
+        /** Unread eviction notes kept; one queue's worth covers any single restore. */
+        const val EVICTION_BUFFER: Int = DEFAULT_CAPACITY
     }
 }

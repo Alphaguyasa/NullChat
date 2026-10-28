@@ -62,15 +62,15 @@ class InMemoryForwardQueueStore : ForwardQueueStore {
         return doomed.size
     }
 
-    override suspend fun trimToNewest(capacity: Int): Int {
-        if (entries.size <= capacity) return 0
+    override suspend fun trimToNewest(capacity: Int): List<ByteArray> {
+        if (entries.size <= capacity) return emptyList()
         val doomed = entries.values
             .sortedWith(compareByDescending<QueuedPacket> { it.queuedAt }
                 .thenByDescending { it.packet.messageId.hex() })
             .drop(capacity)
-            .map { it.packet.messageId.hex() }
-        doomed.forEach { entries.remove(it) }
-        return doomed.size
+            .map { it.packet.messageId }
+        doomed.forEach { entries.remove(it.hex()) }
+        return doomed
     }
 
     override suspend fun count(): Int = entries.size

@@ -127,6 +127,24 @@ interface MessageDao {
     )
     suspend fun expireOutgoing(cutoff: Long, from: DeliveryState, to: DeliveryState): Int
 
+    /**
+     * Moves those of [ids] that are our own messages from [from] to [to].
+     *
+     * The forward queue reports every packet it evicts, most of them carried
+     * for other people; the `isOutgoing` filter is what picks ours out. Guarded
+     * on [from] like [expireOutgoing]: a message that reached a relay before
+     * its queued copy was dropped stays `sent`.
+     *
+     * @return rows affected.
+     */
+    @Query(
+        """
+        UPDATE messages SET deliveryState = :to
+        WHERE isOutgoing = 1 AND deliveryState = :from AND id IN (:ids)
+        """,
+    )
+    suspend fun moveOutgoing(ids: List<String>, from: DeliveryState, to: DeliveryState): Int
+
     @Query(
         """
         SELECT COUNT(*) FROM messages

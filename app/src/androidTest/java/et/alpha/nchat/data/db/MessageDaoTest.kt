@@ -258,6 +258,27 @@ class MessageDaoTest {
     }
 
     @Test
+    fun moveOutgoingFailsOnlyOurPendingRowsAmongTheIds() = runTest {
+        messages.insert(message(id = "evicted", isOutgoing = true, deliveryState = DeliveryState.PENDING))
+        // Reached a relay before its queued copy was dropped: it did go out.
+        messages.insert(message(id = "relayed", isOutgoing = true, deliveryState = DeliveryState.SENT))
+        messages.insert(message(id = "theirs", isOutgoing = false, deliveryState = DeliveryState.PENDING))
+        messages.insert(message(id = "other", isOutgoing = true, deliveryState = DeliveryState.PENDING))
+
+        val failed = messages.moveOutgoing(
+            listOf("evicted", "relayed", "theirs", "carried-for-someone"),
+            DeliveryState.PENDING,
+            DeliveryState.FAILED,
+        )
+
+        assertEquals(1, failed)
+        assertEquals(DeliveryState.FAILED, messages.findById("evicted")?.deliveryState)
+        assertEquals(DeliveryState.SENT, messages.findById("relayed")?.deliveryState)
+        assertEquals(DeliveryState.PENDING, messages.findById("theirs")?.deliveryState)
+        assertEquals(DeliveryState.PENDING, messages.findById("other")?.deliveryState)
+    }
+
+    @Test
     fun honoursTheLimitOnPendingLookups() = runTest {
         repeat(5) {
             messages.insert(
