@@ -152,19 +152,23 @@ class PeerListViewModel @Inject constructor(
      * That method takes `now` as a parameter, evaluated once when the flow is
      * built — a long-lived subscription would freeze its freshness window and
      * keep showing peers as present long after they walked away. So the database
-     * supplies the roster and the transport supplies who is actually reachable.
+     * supplies the roster and the coordinator's bound links who is actually
+     * reachable.
      */
     val state: StateFlow<PeerListState> = combine(
         peers.observePeers(),
         messages.observeConversations(),
-        transport.connectedPeers,
+        transport.connectedPeers.combine(coordinator.boundPeers, ::Pair),
         coordinator.observedHops,
         relayActivity,
-    ) { knownPeers, conversations, endpoints, observedHops, relayedAt ->
-        val online = endpoints.mapNotNullTo(mutableSetOf()) { transport.peerIdFor(it)?.toHexId() }
+    ) { knownPeers, conversations, (endpoints, online), observedHops, relayedAt ->
+        // Any named link counts for the broadcast thread, since a stranger
+        // relays broadcasts as well as anyone. A contact is online, and one hop
+        // away, only on a link that proved it: `boundPeers`.
+        val nearby = endpoints.count { transport.peerIdFor(it) != null }
         val byConversation = conversations.associateBy { it.conversation.id }
 
-        val broadcastRow = byConversation[BROADCAST_CONVERSATION_ID].toBroadcastRow(online.size)
+        val broadcastRow = byConversation[BROADCAST_CONVERSATION_ID].toBroadcastRow(nearby)
         val peerRows = knownPeers.map { peer ->
             val summary = byConversation[directConversationId(peer.id)]
             PeerRow(
@@ -186,7 +190,7 @@ class PeerListViewModel @Inject constructor(
 
         PeerListState(
             rows = listOf(broadcastRow) + peerRows,
-            onlineCount = online.size,
+            onlineCount = nearby,
             selfId = selfId,
         )
     }.combine(displayNames.displayName) { list, name -> list.copy(selfName = name) }

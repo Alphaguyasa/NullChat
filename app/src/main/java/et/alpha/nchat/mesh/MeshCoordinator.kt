@@ -43,9 +43,11 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -286,6 +288,15 @@ class MeshCoordinator @Inject constructor(
 
     /** Which connected endpoints have proved the peer id they advertise. */
     private val links = LinkBindings()
+
+    private val _boundPeers = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Hex ids of peers on a link that proved who it is; see
+     * [LinkBindings.boundPeers]. The only honest source for "online" and
+     * "1 hop": a connected endpoint's name is just a claim.
+     */
+    val boundPeers: StateFlow<Set<String>> = _boundPeers.asStateFlow()
 
     /**
      * The part of this class that faces the mesh: packets the router delivered
@@ -1026,6 +1037,7 @@ class MeshCoordinator @Inject constructor(
             // First, so an endpoint that left and came back must prove itself
             // again on its new link.
             links.retain(endpoints)
+            _boundPeers.value = links.boundPeers()
             endpoints.forEach { endpointId ->
                 val peerId = transport.peerIdFor(endpointId) ?: return@forEach
 
@@ -1039,7 +1051,10 @@ class MeshCoordinator @Inject constructor(
                     // After the announcement, so the peer holds our key by the
                     // time the signed name arrives and can verify it.
                     broadcastProfile()
-                    if (links.claim(endpointId, peerId)) offerQueued(peerId, endpointId)
+                    if (links.claim(endpointId, peerId)) {
+                        _boundPeers.value = links.boundPeers()
+                        offerQueued(peerId, endpointId)
+                    }
                 }
             }
 
@@ -1052,7 +1067,10 @@ class MeshCoordinator @Inject constructor(
     /** A link that proves the id it claimed gets that id's queued packets. */
     private fun collectLinkProofs() = scope.launch {
         router.linkProofs.collect { proof ->
-            if (links.prove(proof)) offerQueued(proof.peerId, proof.endpointId)
+            if (links.prove(proof)) {
+                _boundPeers.value = links.boundPeers()
+                offerQueued(proof.peerId, proof.endpointId)
+            }
         }
     }
 

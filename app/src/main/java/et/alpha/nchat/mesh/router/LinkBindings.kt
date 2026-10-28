@@ -77,6 +77,17 @@ class LinkBindings {
     fun isBound(endpointId: String): Boolean = synchronized(lock) { endpointId in bound }
 
     /**
+     * Hex ids of the peers on a bound link: who is provably next to us.
+     *
+     * What "online" and "1 hop" must be drawn from. The endpoint's advertised
+     * name is not enough, because a stranger naming itself after a contact
+     * would make that contact look like it was standing next to us.
+     */
+    fun boundPeers(): Set<String> = synchronized(lock) {
+        bound.mapNotNullTo(mutableSetOf()) { claims[it] }
+    }
+
+    /**
      * Forgets every endpoint not in [connected], so a peer that comes back must
      * prove itself again on its new link.
      */

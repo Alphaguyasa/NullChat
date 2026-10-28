@@ -10,7 +10,6 @@ import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.preferredName
-import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.media.AttachmentStore
 import et.alpha.nchat.data.media.ImageScaler
 import et.alpha.nchat.data.repo.MessageRepository
@@ -21,7 +20,6 @@ import et.alpha.nchat.mesh.Transfer
 import et.alpha.nchat.mesh.TransferTracker
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.protocol.Quote
-import et.alpha.nchat.mesh.transport.NearbyTransport
 import et.alpha.nchat.service.ForegroundConversation
 import et.alpha.nchat.ui.peers.peerLabel
 import et.alpha.nchat.ui.share.SharedText
@@ -81,7 +79,6 @@ class ChatViewModel @Inject constructor(
     private val messages: MessageRepository,
     private val peers: PeerRepository,
     private val coordinator: MeshCoordinator,
-    private val transport: NearbyTransport,
     private val imageScaler: ImageScaler,
     private val attachments: AttachmentStore,
     private val foregroundConversation: ForegroundConversation,
@@ -125,9 +122,9 @@ class ChatViewModel @Inject constructor(
     val state: StateFlow<ChatState> = peerId.flatMapLatest { peer ->
         combine(
             messages.observeMessages(conversationIdFor(peer)),
-            transport.connectedPeers.map { endpoints ->
-                peer == null || endpoints.any { transport.peerIdFor(it)?.toHexId() == peer }
-            },
+            // Bound links only: a stranger advertising this peer's id must not
+            // make it look like the peer is next to us.
+            coordinator.boundPeers.map { bound -> peer == null || peer in bound },
             // A peer row may not exist yet for someone we have never heard from,
             // which reads as unverified — correctly.
             if (peer == null) flowOf(null) else peers.observePeer(peer),
