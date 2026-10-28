@@ -22,6 +22,7 @@ import et.alpha.nchat.mesh.protocol.Profile
 import et.alpha.nchat.mesh.protocol.ReassembledMessage
 import et.alpha.nchat.mesh.protocol.TimerSetting
 import et.alpha.nchat.mesh.protocol.acknowledgementPacket
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -203,8 +204,27 @@ internal class InboundHandler(
     /** Latest distance reading per hex peer id; see `MeshCoordinator.observedHops`. */
     val hopObservations: StateFlow<Map<String, HopObservation>> = _hopObservations.asStateFlow()
 
-    /** One packet off `MeshRouter.delivered`. */
+    /**
+     * Stores whatever one packet off `MeshRouter.delivered` carries. Never throws, except to cancel.
+     *
+     * Called from the one collector all inbound traffic goes through. An
+     * exception escaping it would end that collector, and with it every later
+     * packet, or (in the mesh scope) crash the process, which the sticky service
+     * then restarts into the same failure. A full disk making Room throw is
+     * enough. So a packet that cannot be stored is dropped and logged by type
+     * and tag only, and the next one is handled as usual.
+     */
     suspend fun handle(packet: Packet) {
+        try {
+            dispatch(packet)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.warn("dropped ${packet.type} ${Packet.tag(packet.messageId)}: ${e::class.simpleName}")
+        }
+    }
+
+    private suspend fun dispatch(packet: Packet) {
         // Before the type switch, so ANNOUNCE, FRAGMENT and MESSAGE all
         // contribute: this is the one point every live packet with an intact
         // ttl passes through, and an announcement is often the only thing we

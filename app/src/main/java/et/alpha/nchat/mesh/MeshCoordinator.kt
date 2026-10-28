@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
@@ -431,13 +432,22 @@ class MeshCoordinator @Inject constructor(
      */
     private fun sweepDisappearing() = scope.launch {
         while (true) {
-            val expired = messages.findExpired()
-            if (expired.isNotEmpty()) {
-                val ids = expired.map { it.id }
-                deletedMessages.rememberAll(ids)
-                messages.deleteMessages(ids)
-                expired.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
-                Log.i(TAG, "${expired.size} disappearing message(s) deleted")
+            // A failed pass (Room refusing a write on a full disk) is retried on
+            // the next tick rather than ending the sweep for the rest of the
+            // process: a message that should have gone must not stay for good.
+            try {
+                val expired = messages.findExpired()
+                if (expired.isNotEmpty()) {
+                    val ids = expired.map { it.id }
+                    deletedMessages.rememberAll(ids)
+                    messages.deleteMessages(ids)
+                    expired.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
+                    Log.i(TAG, "${expired.size} disappearing message(s) deleted")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "disappearing sweep failed: ${e::class.simpleName}")
             }
             delay(DISAPPEAR_SWEEP_MILLIS)
         }
@@ -473,7 +483,17 @@ class MeshCoordinator @Inject constructor(
      * the app last closed.
      */
     private fun collectLearnedKeys() = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-        keyDirectory.agreementKeyLearned.collect { peerHex -> releaseHeld(peerHex) }
+        keyDirectory.agreementKeyLearned.collect { peerHex ->
+            // Caught per key, as in `InboundHandler.handle`: one failure must not
+            // end the collector and strand every later peer's held messages.
+            try {
+                releaseHeld(peerHex)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "releasing held messages failed: ${e::class.simpleName}")
+            }
+        }
     }
 
     private suspend fun releaseHeld(peerHex: String) {

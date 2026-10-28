@@ -23,6 +23,7 @@ import et.alpha.nchat.mesh.protocol.acknowledgementPacket
 import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.profilePacket
 import et.alpha.nchat.mesh.protocol.timerPacket
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -131,6 +132,32 @@ class InboundHandlerTest {
 
         assertEquals(BROADCAST_CONVERSATION_ID, store.rows.getValue(packet.messageId.toHexId()).conversationId)
         assertTrue(originated.isEmpty())
+    }
+
+    @Test
+    fun `a store that throws drops that packet only, and the next one is stored`() = runTest {
+        val handler = handler()
+        val first = broadcast("lost")
+        val second = broadcast("kept")
+        store.failNextWrite = true
+
+        // Without the guard this throws, which in the app ends the inbound
+        // collector or crashes the process.
+        handler.handle(first)
+        handler.handle(second)
+
+        assertNull(store.rows[first.messageId.toHexId()])
+        assertEquals("kept", store.rows.getValue(second.messageId.toHexId()).body)
+    }
+
+    @Test
+    fun `cancellation is not swallowed`() = runTest {
+        val handler = handler()
+        store.throwOnWrite = CancellationException("stopped")
+
+        val thrown = runCatching { handler.handle(broadcast("x")) }.exceptionOrNull()
+
+        assertTrue(thrown is CancellationException)
     }
 
     @Test
@@ -343,6 +370,10 @@ class InboundHandlerTest {
         val deleted = mutableSetOf<String>()
         val blocked = mutableSetOf<String>()
 
+        /** Makes the next [recordIncoming] fail the way Room does on a full disk. */
+        var failNextWrite = false
+        var throwOnWrite: Exception? = null
+
         /** One of our own direct messages, already on the air. */
         fun outgoing(to: String): String {
             val id = newMessageId()
@@ -386,6 +417,11 @@ class InboundHandlerTest {
             timestamp: Long,
             attachmentFile: String?,
         ): Boolean {
+            throwOnWrite?.let { throw it }
+            if (failNextWrite) {
+                failNextWrite = false
+                throw IllegalStateException("database or disk is full")
+            }
             if (messageId in rows) return false
             rows[messageId] = MessageEntity(
                 id = messageId,
