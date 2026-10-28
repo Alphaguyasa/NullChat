@@ -112,6 +112,15 @@ internal fun heldFor(peerHex: String, pending: List<MessageEntity>): List<Messag
     }
 
 /**
+ * Peers with held messages that can be released now: the direct threads among
+ * [conversationIds] whose peer [hasKey]. Used once after the key directory is
+ * warmed, so a restart releases everything without relying on one signal per
+ * restored key.
+ */
+internal fun releasablePeers(conversationIds: List<String>, hasKey: (String) -> Boolean): List<String> =
+    conversationIds.mapNotNull(::peerIdOfDirect).filter(hasKey)
+
+/**
  * Where a resend of [message] goes, or null when it is not ours to resend.
  *
  * Only our own FAILED rows. A PENDING one is still on its way (queued, or held
@@ -349,7 +358,6 @@ class MeshCoordinator @Inject constructor(
         if (!started.compareAndSet(false, true)) return
         Log.i(TAG, "starting mesh coordinator as ${Packet.tag(identity.peerId)}")
 
-        collectLearnedKeys()
         warmKeyDirectory()
         router.start()
         collectIncoming()
@@ -487,39 +495,67 @@ class MeshCoordinator @Inject constructor(
      * a restart can be sealed without waiting for the peer to announce again.
      * Peers stored before version 4 of the database have no agreement key yet
      * and stay verify-only until their next ANNOUNCE.
+     *
+     * What was held when the app last closed is released once, over every
+     * thread, after the directory is full. It used to ride on the
+     * `agreementKeyLearned` signal of each restored key, whose 64 slots
+     * overflowed with more stored contacts than that, stranding the rest until
+     * a key that first-wins never lets arrive twice. The live collector
+     * subscribes before that pass, so a key announced meanwhile is covered by
+     * one or the other. A failed restore still starts both: peers that announce
+     * later must not have their held messages stranded too.
      */
     private fun warmKeyDirectory() = scope.launch {
-        keyDirectory.record(identity.announcement)
-        peers.observePeers().first().forEach { peer ->
-            peer.publicKey?.let { keyDirectory.restore(it, peer.agreementKey) }
+        try {
+            keyDirectory.record(identity.announcement)
+            peers.observePeers().first().forEach { peer ->
+                peer.publicKey?.let { keyDirectory.restore(it, peer.agreementKey) }
+            }
+            Log.i(TAG, "key directory warmed with ${keyDirectory.size} key(s)")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "warming the key directory failed: ${e::class.simpleName}")
         }
-        Log.i(TAG, "key directory warmed with ${keyDirectory.size} key(s)")
+        collectLearnedKeys()
+        releaseAllHeld()
+    }
+
+    private suspend fun releaseAllHeld() {
+        val ready = releasablePeers(messages.conversationsWithPendingOutgoing()) { peerHex ->
+            keyDirectory.agreementKeyFor(peerHex.hexIdToBytes()) != null
+        }
+        ready.forEach { peerHex -> releaseCaught(peerHex) }
     }
 
     /**
      * Sends direct messages that were held until their recipient's agreement key
-     * turned up.
+     * turned up over the radio or from a QR scan.
      *
-     * Subscribed undispatched, before [warmKeyDirectory] runs, so a key restored
-     * from the database at start also releases what was held for that peer when
-     * the app last closed.
+     * Subscribed undispatched, from [warmKeyDirectory] before its release pass,
+     * so no key learned after the directory was warmed goes unheard.
      */
     private fun collectLearnedKeys() = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-        keyDirectory.agreementKeyLearned.collect { peerHex ->
-            // Caught per key, as in `InboundHandler.handle`: one failure must not
-            // end the collector and strand every later peer's held messages.
-            try {
-                releaseHeld(peerHex)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "releasing held messages failed: ${e::class.simpleName}")
-            }
+        keyDirectory.agreementKeyLearned.collect { peerHex -> releaseCaught(peerHex) }
+    }
+
+    /**
+     * Caught per peer, as in `InboundHandler.handle`: one failure must not end
+     * the collector or the start-up pass and strand every later peer's held
+     * messages.
+     */
+    private suspend fun releaseCaught(peerHex: String) {
+        try {
+            releaseHeld(peerHex)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "releasing held messages failed: ${e::class.simpleName}")
         }
     }
 
     private suspend fun releaseHeld(peerHex: String) {
-        val held = heldFor(peerHex, messages.pendingOutgoing())
+        val held = heldFor(peerHex, messages.pendingOutgoingIn(directConversationId(peerHex)))
         if (held.isEmpty()) return
         Log.i(TAG, "key for ${Packet.tag(peerHex.hexIdToBytes())} arrived, sending ${held.size} held message(s)")
         for (row in held) {

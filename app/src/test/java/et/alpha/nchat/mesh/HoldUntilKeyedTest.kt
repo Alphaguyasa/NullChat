@@ -79,4 +79,18 @@ class HoldUntilKeyedTest {
 
         assertEquals(listOf("held"), heldFor(maya, rows).map { it.id })
     }
+
+    @Test
+    fun `the start-up pass releases every keyed direct thread, however many`() {
+        // More than the 64 signals the key directory buffers, which is where
+        // restored contacts past the 64th used to be stranded.
+        val keyed = (0 until 100).map { "%016x".format(it) }
+        val threads = keyed.map(::directConversationId) +
+            directConversationId(sam) +
+            BROADCAST_CONVERSATION_ID
+
+        val ready = releasablePeers(threads) { it != sam }
+
+        assertEquals(keyed, ready)
+    }
 }

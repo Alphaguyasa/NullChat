@@ -166,7 +166,8 @@ class MessageRepositoryTest {
         repo.markSent(sent.id)
         repo.recordIncoming("in", convoId, PEER_A, "inbound", T0 + 2)
 
-        assertEquals(listOf(pending.id), repo.pendingOutgoing().map { it.id })
+        assertEquals(listOf(pending.id), repo.pendingOutgoingIn(convoId).map { it.id })
+        assertEquals(listOf(convoId), repo.conversationsWithPendingOutgoing())
     }
 
     @Test

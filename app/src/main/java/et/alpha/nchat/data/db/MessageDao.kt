@@ -73,6 +73,26 @@ interface MessageDao {
     )
     suspend fun findOutgoingByState(state: DeliveryState, limit: Int = 100): List<MessageEntity>
 
+    /**
+     * Our messages in one thread in [state], oldest first, with no limit.
+     *
+     * Per thread rather than [findOutgoingByState] filtered afterwards: that
+     * scans only the oldest rows across every chat, so a peer whose held
+     * messages sat behind a hundred others' would never have them released.
+     */
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :conversationId AND deliveryState = :state AND isOutgoing = 1
+        ORDER BY timestamp ASC
+        """,
+    )
+    suspend fun findOutgoingInConversation(conversationId: String, state: DeliveryState): List<MessageEntity>
+
+    /** Threads holding any of our messages in [state]. */
+    @Query("SELECT DISTINCT conversationId FROM messages WHERE deliveryState = :state AND isOutgoing = 1")
+    suspend fun conversationsWithOutgoing(state: DeliveryState): List<String>
+
     /** @return rows affected: 0 when no such message is stored. */
     @Query("UPDATE messages SET deliveryState = :state WHERE id = :id")
     suspend fun updateDeliveryState(id: String, state: DeliveryState): Int

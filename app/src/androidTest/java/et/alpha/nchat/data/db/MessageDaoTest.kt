@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteConstraintException
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.cash.turbine.test
 import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_A
+import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_B
 import et.alpha.nchat.data.db.DatabaseTestFixtures.SELF
 import et.alpha.nchat.data.db.DatabaseTestFixtures.T0
 import et.alpha.nchat.data.db.DatabaseTestFixtures.conversation
@@ -276,6 +277,36 @@ class MessageDaoTest {
         assertEquals(DeliveryState.SENT, messages.findById("relayed")?.deliveryState)
         assertEquals(DeliveryState.PENDING, messages.findById("theirs")?.deliveryState)
         assertEquals(DeliveryState.PENDING, messages.findById("other")?.deliveryState)
+    }
+
+    @Test
+    fun pendingInOneThreadIsFoundBehindAHundredOlderElsewhere() = runTest {
+        // The cross-thread lookup returns only the oldest 100, so a thread whose
+        // held message is newer than all of these was never released.
+        conversations.insert(conversation(id = "direct:$PEER_B", peerId = PEER_B))
+        repeat(120) { i ->
+            messages.insert(
+                message(
+                    id = "old$i",
+                    conversationId = "direct:$PEER_B",
+                    isOutgoing = true,
+                    deliveryState = DeliveryState.PENDING,
+                    timestamp = T0 + i,
+                ),
+            )
+        }
+        messages.insert(
+            message(id = "held", isOutgoing = true, deliveryState = DeliveryState.PENDING, timestamp = T0 + 500),
+        )
+        messages.insert(message(id = "gone", isOutgoing = true, deliveryState = DeliveryState.SENT))
+
+        val pending = messages.findOutgoingInConversation("direct:$PEER_A", DeliveryState.PENDING)
+
+        assertEquals(listOf("held"), pending.map { it.id })
+        assertEquals(
+            setOf("direct:$PEER_A", "direct:$PEER_B"),
+            messages.conversationsWithOutgoing(DeliveryState.PENDING).toSet(),
+        )
     }
 
     @Test
