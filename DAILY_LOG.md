@@ -4,6 +4,68 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-28 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page could not be fetched
+this run, because docs.anthropic.com is outside the session's allowed network. The
+session's own model list still shows Claude Fable 5.1 as the tier above Opus 5.5, and
+the run cannot switch models itself. The ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`c65ef30`, `v2026-10-27-3`). No PRs were open.
+- No local build. Maven Central answered HTTP 429 and dl.google.com is blocked, so CI
+  was the only build. Every PR was green on the first attempt.
+- **PR #56**, roadmap #41: export a chat.
+  - ⋮ → Export chat opens a warning first: the file is not encrypted, the app lock does
+    not cover it, and neither panic wipe nor disappearing timers remove it. Then the
+    system `CreateDocument` picker opens. The app gets no storage permission.
+  - The pure `ChatExport` writes:
+    - the bubble's times (`shownAt`);
+    - our messages with the bubble's delivery words, so queued is never written as sent;
+    - `[image]` markers in place of images;
+    - indented continuation lines, so a body line starting with `[` cannot pass for a
+      new message.
+  - The thread is passed explicitly, so a picker result delivered after process death
+    cannot export the wrong chat.
+  - 7 JVM tests. Merged, `v2026-10-28-1`.
+- **Replan** (the roadmap had dropped to 4 open items). A third audit covered bugs,
+  abuse resistance, leaks and tests, with each finding checked against the code. The
+  new items are #43–#54; the evidence for each is in its ROADMAP row. Main themes:
+  - a hostile or crowded mesh can evict our queued mail (#44), grow the peer list
+    without bound (#49) and inflate reassembly buffers (#47);
+  - an uncaught coroutine exception crashed the app in a loop (#43);
+  - held messages can be stranded past 100 pending rows or 64 restored keys (#45);
+  - "online" still trusts the advertised endpoint name (#46);
+  - `TransferTracker` never forgets (#48).
+  - Features added: mute a chat (#50) and a full-screen image (#51).
+  - #42 gets a better design note. A nonce cannot stop a live relay; signing Nearby's
+    per-connection raw auth token can.
+- **PR #57**, roadmap #43, together with the replan:
+  - Both coroutine scopes log uncaught failures, by exception class only.
+  - Inbound handling, held-message release, the disappearing sweep and arrival
+    notifications catch failures per item, so one bad packet or a full disk cannot end
+    the collector or crash-loop the service. Cancellation is rethrown.
+  - InboundHandlerTest +2; the throwing-store test fails without the fix.
+  - Merged, `v2026-10-28-2`.
+- **PR #58**, roadmap #44 part 1: the router still relays packets from unknown senders
+  live, but holds only *verified* packets in the forward queue. This stops ~500 junk
+  packets from evicting our own queued messages and being carried to every neighbour.
+  The store-and-forward path (a relay that met the sender) is unaffected. The "evicted
+  means failed" part is split out as #44b. PacketVerificationTest +1. Needs a phone
+  check (5s).
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #41 export a chat (PR #56); replan + #43 crash guard (PR #57); #44 part 1 unverified packets not queued (PR #58) |
+| Merged | #56 yes `v2026-10-28-1`; #57 yes `v2026-10-28-2`; #58 see notification |
+| Failed or blocked | Nothing failed. No local Android build (CI only); models docs page unreachable from the cloud session |
+| Roadmap | Replanned: 15 open (#44b, #45–#54, #42, #21–#23) |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model; backup (#3, recommended: exclude history); phone checks 5s, 5r (new), 5q…5f; Dependabot authorship; release APK unrun; signing; route strip |
+| Next | #44b evicted means failed, #45 held messages stranded, #46 online from bound links |
+
+---
+
 ## 2026-10-27 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Anthropic's models page is unchanged: Opus 5.5
