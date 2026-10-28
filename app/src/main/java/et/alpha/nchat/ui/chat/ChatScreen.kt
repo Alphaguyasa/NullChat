@@ -280,6 +280,21 @@ fun ChatScreen(
             onDismiss = { isForgetting = false },
         )
     }
+    // CreateDocument rather than writing to Downloads: the system picker is the
+    // user choosing the place, and it needs no storage permission.
+    val exporter = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(ChatExport.MIME_TYPE),
+    ) { uri -> uri?.let { viewModel.onExport(it, peerId) } }
+    var isExporting by rememberSaveable { mutableStateOf(false) }
+    if (isExporting) {
+        ExportDialog(
+            onConfirm = {
+                isExporting = false
+                exporter.launch(viewModel.exportFileName())
+            },
+            onDismiss = { isExporting = false },
+        )
+    }
     var isChoosingTimer by rememberSaveable { mutableStateOf(false) }
     if (isChoosingTimer) {
         DisappearingDialog(
@@ -337,6 +352,7 @@ fun ChatScreen(
                     onRename = if (state.isBroadcast) null else ({ isRenaming = true }),
                     onDisappearing = { isChoosingTimer = true },
                     onDeleteChat = { isDeletingChat = true },
+                    onExport = { isExporting = true },
                     // Unblocking takes nothing away, so only blocking asks first.
                     onBlock = when {
                         state.isBroadcast -> null
@@ -491,6 +507,7 @@ private fun ChatTopBar(
     onRename: (() -> Unit)? = null,
     onDisappearing: (() -> Unit)? = null,
     onDeleteChat: (() -> Unit)? = null,
+    onExport: (() -> Unit)? = null,
     onBlock: (() -> Unit)? = null,
     isBlocked: Boolean = false,
     onForget: (() -> Unit)? = null,
@@ -539,7 +556,7 @@ private fun ChatTopBar(
                 )
             }
             if (onSearch != null || onRename != null || onDisappearing != null || onDeleteChat != null ||
-                onBlock != null || onForget != null
+                onExport != null || onBlock != null || onForget != null
             ) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
@@ -577,6 +594,15 @@ private fun ChatTopBar(
                                 onClick = {
                                     menuOpen = false
                                     choose()
+                                },
+                            )
+                        }
+                        onExport?.let { export ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.chat_export_action)) },
+                                onClick = {
+                                    menuOpen = false
+                                    export()
                                 },
                             )
                         }
@@ -1008,6 +1034,26 @@ private fun DeleteChatDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.chat_delete_confirm), color = Danger)
             }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }
+        },
+    )
+}
+
+/**
+ * Says what an export gives away before the picker opens. The file is the one
+ * copy of a chat that this app cannot protect: not encrypted, outside the app
+ * lock, and untouched by panic wipe and disappearing timers.
+ */
+@Composable
+private fun ExportDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_export_title)) },
+        text = { Text(stringResource(R.string.chat_export_body)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(R.string.chat_export_confirm)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_delete_cancel)) }

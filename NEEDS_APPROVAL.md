@@ -5,6 +5,15 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5r. One-phone check for export (2026-10-28)
+*Export a chat (#41):* open a chat with a few messages, an image and one of your
+messages still `queued`. ⋮ → Export chat. A dialog says the file is not encrypted
+and is not removed by panic wipe or disappearing messages. Choose where to save:
+the system file picker opens with a name like `nullchat-Maya-a4f2-2026-10-28.txt`.
+Save, and "Chat saved." shows. Open the file in any text app: one line per message,
+oldest first, `You (queued): …` for the queued one (never `sent`), `[image]` for the
+image. Cancel in the picker saves nothing and shows nothing.
+
 ### 5q. One-device check for the two-pane layout (2026-10-27)
 *Tablet / landscape (#55):* on a tablet, or a phone turned on its side (most are
 840dp wide or more that way), the peer list sits on the left. On the right is
