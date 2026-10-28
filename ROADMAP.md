@@ -13,7 +13,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 44b | **Evicted means failed**: when our own entry is pushed out of the full forward queue (500 of our own packets, or eviction for any other reason), its row still says `queued` until the 24 h expiry. Mark it `failed` at eviction. (Part 1, unverified packets kept out of the queue, is done.) | P2 | S | |
 | 45 | **Held messages that never leave**: `releaseHeld` scans only the 100 oldest pending rows across all chats (`pendingOutgoing()`), and `agreementKeyLearned` drops emissions past 64 during start-up warm-up (`tryEmit`). Query pending rows by conversation; release once over everything after warm-up. | P2 | S | Test with >100 rows and >64 peers |
 | 46 | **Online and "1 hop" from bound links only**: `ChatViewModel.isPeerOnline` and the peer list's online set still trust the advertised endpoint name, so a stranger naming itself as a contact makes the contact look next to you. Expose bound peers from the coordinator (`LinkBindings`) and use that. | P2 | S | Proximity honesty |
 | 47 | **Fragment bounds**: a first fragment with `total = 65535` and a 1-byte chunk passes the 64 KiB check and allocates 65 535 slots; 32 partials ≈ 8–16 MB. Cap `total` at ceil(64 KiB / chunk) and require full-size non-final chunks. | P2 | S | Round-trip + hostile-input tests |
@@ -90,3 +89,4 @@ change once decided.
 | 2026-10-28 | #41 Export a chat (⋮ → Export chat → warning → system file picker; plain text, images as `[image]`, bubble times and delivery words) | #56 | see log |
 | 2026-10-28 | #43 A failure in the mesh never crashes the app (scope handlers; inbound, key release, sweep and notifications caught per item) | #57 | see log |
 | 2026-10-28 | #44 part 1: a packet whose sender we could not verify is relayed live but never held in the forward queue | #58 | see log |
+| 2026-10-28 | #44b Evicted means failed: the full forward queue reports what its cap drops, and our own still-queued rows among them turn `failed` at once | #59 | see log |

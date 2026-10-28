@@ -356,6 +356,7 @@ class MeshCoordinator @Inject constructor(
         collectPeers()
         collectLinkProofs()
         expireStalePending()
+        collectQueueEvictions()
         pullBackFutureThreads()
         sweepDisappearing()
         collectNameChanges()
@@ -413,6 +414,27 @@ class MeshCoordinator @Inject constructor(
             val expired = messages.expirePendingOutgoing(pendingExpiryCutoff(System.currentTimeMillis()))
             if (expired > 0) Log.i(TAG, "$expired queued message(s) expired undelivered")
             delay(EXPIRY_SWEEP_MILLIS)
+        }
+    }
+
+    /**
+     * Fails our own rows whose queued packet the full forward queue evicted,
+     * rather than leaving them `queued` until the 24 hour sweep above.
+     *
+     * One update per id: evictions come one at a time from [ForwardQueue.enqueue],
+     * and most are other people's carried mail, which the update simply misses.
+     */
+    private fun collectQueueEvictions() = scope.launch {
+        router.queueEvictions.collect { messageId ->
+            try {
+                if (messages.failEvictedOutgoing(listOf(messageId.toHexId())) > 0) {
+                    Log.i(TAG, "queued message ${Packet.tag(messageId)} evicted undelivered")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "failing an evicted message failed: ${e::class.simpleName}")
+            }
         }
     }
 

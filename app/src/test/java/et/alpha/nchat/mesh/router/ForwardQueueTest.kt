@@ -1,5 +1,6 @@
 package et.alpha.nchat.mesh.router
 
+import app.cash.turbine.test
 import et.alpha.nchat.mesh.protocol.Packet
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -138,6 +139,41 @@ class ForwardQueueTest {
         assertEquals(capacity, queue.size(), "the queue must not exceed its cap")
         assertFalse(store.holds(packets.first().messageId), "the oldest packet should be evicted")
         assertTrue(store.holds(packets.last().messageId), "the newest packet should survive")
+    }
+
+    @Test
+    fun `the cap reports what it evicted, and only that`() = runTest {
+        val clock = FakeClock()
+        val queue = queue(clock = clock, capacity = 2)
+
+        val packets = (0..2).map {
+            testPacket(from = alice, to = bob).also {
+                queue.enqueue(it)
+                clock.advance(1)
+            }
+        }
+
+        queue.evictions.test {
+            // Without the report the sender's row would read `queued` for a day
+            // after its packet was gone.
+            assertEquals(packets.first().messageId.toList(), awaitItem().toList())
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `expiry and taking are not reported as evictions`() = runTest {
+        val clock = FakeClock()
+        val queue = queue(clock = clock)
+        queue.enqueue(testPacket(from = alice, to = bob))
+        queue.enqueue(testPacket(from = alice, to = peerId("carol")))
+
+        queue.takeFor(bob)
+        clock.advance(ForwardQueue.DEFAULT_EXPIRY_MILLIS)
+        assertEquals(0, queue.size())
+
+        // Expiry has its own sweep on the rows, and a taken packet is on its way.
+        queue.evictions.test { expectNoEvents() }
     }
 
     @Test

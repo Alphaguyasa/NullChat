@@ -43,7 +43,8 @@ class RoomForwardQueueStore @Inject constructor(
     override suspend fun removeQueuedAtOrBefore(cutoff: Long): Int =
         dao.deleteQueuedAtOrBefore(cutoff)
 
-    override suspend fun trimToNewest(capacity: Int): Int = dao.trimToNewest(capacity)
+    override suspend fun trimToNewest(capacity: Int): List<ByteArray> =
+        dao.trimToNewest(capacity).map { it.hexIdToBytes() }
 
     override suspend fun count(): Int = dao.count()
 

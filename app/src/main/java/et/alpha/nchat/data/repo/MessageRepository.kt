@@ -160,6 +160,17 @@ class MessageRepository @Inject constructor(
     suspend fun expirePendingOutgoing(cutoff: Long): Int =
         messageDao.expireOutgoing(cutoff, DeliveryState.PENDING, DeliveryState.FAILED)
 
+    /**
+     * Fails those of our messages still PENDING whose queued packet, one of
+     * [messageIds], was evicted from the full forward queue. The packet is gone,
+     * so `queued` would be a promise nothing is keeping.
+     *
+     * @return how many rows were failed.
+     */
+    suspend fun failEvictedOutgoing(messageIds: List<String>): Int =
+        if (messageIds.isEmpty()) 0
+        else messageDao.moveOutgoing(messageIds, DeliveryState.PENDING, DeliveryState.FAILED)
+
     /** Marks everything received up to [at] as read. */
     /** See [ConversationDao.pullBackFutureActivity]. @return threads repaired. */
     suspend fun pullBackFutureActivity(now: Long = System.currentTimeMillis()): Int =
