@@ -1,5 +1,6 @@
 package et.alpha.nchat.mesh.router
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -88,4 +89,20 @@ class LinkBindingsTest {
         assertFalse(links.claim("e1", alice))
         assertTrue(links.prove(LinkProof("e1", alice)))
     }
+
+    @Test
+    fun `only proven links count as peers next to us`() {
+        val links = LinkBindings()
+        // A stranger advertising a contact's id, and the contact itself.
+        links.claim("stranger", alice)
+        links.claim("e1", mallory)
+        links.prove(LinkProof("e1", mallory))
+
+        assertEquals(setOf(mallory.hex()), links.boundPeers())
+
+        links.retain(emptySet())
+        assertEquals(emptySet<String>(), links.boundPeers(), "a link that left is nobody's")
+    }
+
+    private fun ByteArray.hex(): String = joinToString("") { "%02x".format(it) }
 }
