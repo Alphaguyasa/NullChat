@@ -1,6 +1,7 @@
 package et.alpha.nchat.di
 
 import android.content.Context
+import android.util.Log
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,6 +22,7 @@ import et.alpha.nchat.mesh.transport.RadioMonitor
 import et.alpha.nchat.mesh.transport.Transport
 import javax.inject.Qualifier
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,12 +50,17 @@ object MeshModule {
      * survives the screen that sent it going away mid-flight.
      *
      * [SupervisorJob] so one failed collector cannot take the whole mesh down.
+     * The handler is the last resort under that: without one, an exception in a
+     * child of a supervisor goes to the thread's uncaught handler and kills the
+     * process, and the sticky service restarts it into the same failure. The
+     * long-lived loops catch per item themselves, so what lands here is a single
+     * relay or send. Logged by class only, since a message could carry content.
      */
     @Provides
     @Singleton
     @MeshScope
     fun provideMeshScope(): CoroutineScope =
-        CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        CoroutineScope(SupervisorJob() + Dispatchers.Default + logUncaught("MeshScope"))
 
     @Provides
     @Singleton
@@ -126,3 +133,7 @@ object MeshModule {
     fun provideRadioMonitor(@ApplicationContext context: Context): RadioMonitor =
         RadioMonitor(context)
 }
+
+/** Logs a coroutine failure that nothing else caught, instead of crashing; see `provideMeshScope`. */
+internal fun logUncaught(tag: String): CoroutineExceptionHandler =
+    CoroutineExceptionHandler { _, e -> Log.e(tag, "uncaught ${e::class.simpleName}") }

@@ -14,6 +14,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import et.alpha.nchat.MainActivity
 import et.alpha.nchat.R
 import et.alpha.nchat.data.db.preferredName
+import et.alpha.nchat.di.logUncaught
 import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.BatteryModeStore
 import et.alpha.nchat.data.repo.PeerRepository
@@ -27,6 +28,7 @@ import et.alpha.nchat.mesh.transport.RadioMonitor
 import et.alpha.nchat.mesh.transport.RadioState
 import et.alpha.nchat.mesh.transport.Transport
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -73,7 +75,7 @@ class MeshForegroundService : Service() {
 
     @Inject lateinit var powerSave: PowerSaveMonitor
 
-    private val scope = CoroutineScope(SupervisorJob())
+    private val scope = CoroutineScope(SupervisorJob() + logUncaught(TAG))
 
     private lateinit var radio: StateFlow<RadioState>
 
@@ -153,16 +155,24 @@ class MeshForegroundService : Service() {
     private fun notifyArrivals() {
         scope.launch {
             coordinator.arrivals.collect { arrival ->
-                // Read per arrival rather than captured once, so turning the
-                // lock on takes effect from the very next message.
-                val hideContent = appLock.enabled.value
-                val senderName = if (hideContent) null else peerRepository.findPeer(arrival.senderId)?.preferredName
-                messageNotifier.onArrival(
-                    arrival,
-                    foregroundConversation.current.value,
-                    senderName,
-                    hideContent,
-                )
+                // Caught per arrival: one failed lookup or notification must not
+                // end this collector and silence every later message.
+                try {
+                    // Read per arrival rather than captured once, so turning the
+                    // lock on takes effect from the very next message.
+                    val hideContent = appLock.enabled.value
+                    val senderName = if (hideContent) null else peerRepository.findPeer(arrival.senderId)?.preferredName
+                    messageNotifier.onArrival(
+                        arrival,
+                        foregroundConversation.current.value,
+                        senderName,
+                        hideContent,
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "arrival notification failed: ${e::class.simpleName}")
+                }
             }
         }
         scope.launch {
