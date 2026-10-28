@@ -124,9 +124,13 @@ class MessageRepository @Inject constructor(
         isNew
     }
 
-    /** Outgoing messages that no transport has taken yet. */
-    suspend fun pendingOutgoing(limit: Int = 100): List<MessageEntity> =
-        messageDao.findOutgoingByState(DeliveryState.PENDING, limit)
+    /** Our messages in [conversationId] that no transport has taken yet, oldest first. */
+    suspend fun pendingOutgoingIn(conversationId: String): List<MessageEntity> =
+        messageDao.findOutgoingInConversation(conversationId, DeliveryState.PENDING)
+
+    /** Threads with any of our messages not yet taken by a transport. */
+    suspend fun conversationsWithPendingOutgoing(): List<String> =
+        messageDao.conversationsWithOutgoing(DeliveryState.PENDING)
 
     /**
      * Marks a message as handed to a transport.
