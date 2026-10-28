@@ -17,7 +17,6 @@ network are a wrong clock and leaving the app mid-send.
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
 | 23 | **Route strip**: show relay chain on tap. Privacy trade-off — see NEEDS_APPROVAL. | P3 | M | |
 | 42 | **Link challenge**: a stranger in range of a contact can still relay the contact's live ANNOUNCE onto its own link and be bound (see `LinkBindings`). Close it with a nonce the link must sign (new packet type). | P3 | M | Wire change, needs two-phone check |
-| 41 | **Export a chat to a file** (system file picker, text, never automatic). | P3 | M | |
 
 **Waiting for alpha:** keeping chat history out of Google backup (NEEDS_APPROVAL #3).
 The audit found it also undoes panic wipe and disappearing messages. It is an S-sized
@@ -77,3 +76,4 @@ change once decided.
 | 2026-10-27 | #39 Disappearing messages, part 2: TIMER packet (type 7, sealed, store-and-forwarded); last change wins, ordered by the sender's clock with a 7-day replay window | #53 | see log |
 | 2026-10-27 | #40 Carry others' mail: each new neighbour is handed up to 32 queued packets for other recipients (copies; newest first; never twice to the same neighbour) | #54 | see log |
 | 2026-10-27 | #20 Two panes from 840dp window width (list a third, 320–420dp; chat or "Pick a chat" beside it; pairing and settings stay full-window) | #55 | see log |
+| 2026-10-28 | #41 Export a chat (⋮ → Export chat → warning → system file picker; plain text, images as `[image]`, bubble times and delivery words) | #56 | see log |

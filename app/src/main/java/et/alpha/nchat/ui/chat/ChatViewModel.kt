@@ -1,9 +1,11 @@
 package et.alpha.nchat.ui.chat
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
@@ -23,18 +25,25 @@ import et.alpha.nchat.mesh.transport.NearbyTransport
 import et.alpha.nchat.service.ForegroundConversation
 import et.alpha.nchat.ui.peers.peerLabel
 import et.alpha.nchat.ui.share.SharedText
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ChatState(
     val messages: List<MessageEntity> = emptyList(),
@@ -76,6 +85,7 @@ class ChatViewModel @Inject constructor(
     private val imageScaler: ImageScaler,
     private val attachments: AttachmentStore,
     private val foregroundConversation: ForegroundConversation,
+    @ApplicationContext private val context: Context,
     transferTracker: TransferTracker,
 ) : ViewModel() {
 
@@ -108,7 +118,7 @@ class ChatViewModel @Inject constructor(
     private val _isPreparingImage = MutableStateFlow(false)
     val isPreparingImage: StateFlow<Boolean> = _isPreparingImage.asStateFlow()
 
-    /** One-shot user-facing failures — an unreadable pick, an empty mesh. */
+    /** One-shot snackbar text: failures (an unreadable pick, an empty mesh), and an export's outcome. */
     private val _errors = MutableStateFlow<String?>(null)
     val errors: StateFlow<String?> = _errors.asStateFlow()
 
@@ -314,6 +324,67 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { coordinator.forgetPeer(peer) }
     }
 
+    /** The name the save dialog suggests for this chat's export. */
+    fun exportFileName(): String =
+        ChatExport.fileName(state.value.title, SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date()))
+
+    /**
+     * Writes the open thread as text to [uri], a document the user just created
+     * in the system file picker.
+     *
+     * Read from the database at the moment of export rather than from [state],
+     * which can lag a message that landed while the picker was open. Only ever
+     * called from that picker's result, so nothing is written anywhere the user
+     * did not choose; the app holds no storage permission for this.
+     *
+     * Takes the thread explicitly, like [onVisible]: if the process died while
+     * the picker was open, the result arrives before [bind] has re-pointed this
+     * ViewModel, and reading the bound thread would save the broadcast thread
+     * under the contact's file name. The title is looked up for the same reason.
+     */
+    fun onExport(uri: Uri, peer: String?) {
+        viewModelScope.launch {
+            val title = when (peer) {
+                null -> EVERYONE
+                else -> peers.findPeer(peer)?.preferredName?.let { peerLabel(it, peer) } ?: peer
+            }
+            val rows = messages.observeMessages(conversationIdFor(peer)).first()
+            // A direct thread has one other sender, already named by the title;
+            // the broadcast thread labels each sender as its bubbles do.
+            val names = if (peer == null) {
+                peers.observePeers().first().associate { it.id to it.preferredName }
+            } else {
+                emptyMap()
+            }
+            val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+            val text = ChatExport.render(
+                title = title,
+                exportedAt = timeFormat.format(Date()),
+                messages = rows,
+                senderLabel = { id -> if (peer != null) title else peerLabel(names[id], id) },
+                formatTime = { timeFormat.format(Date(it)) },
+            )
+            val saved = withContext(Dispatchers.IO) {
+                try {
+                    // "wt" truncates: picking an existing, longer file must not
+                    // leave its old tail after the new text.
+                    context.contentResolver.openOutputStream(uri, "wt")?.use {
+                        it.write(text.toByteArray(Charsets.UTF_8))
+                        true
+                    } ?: false
+                } catch (e: IOException) {
+                    false
+                } catch (e: SecurityException) {
+                    false
+                } catch (e: IllegalArgumentException) {
+                    // A provider that does not support the "wt" mode.
+                    false
+                }
+            }
+            _errors.value = if (saved) EXPORT_SAVED else EXPORT_FAILED
+        }
+    }
+
     /** Absolute path of a stored attachment, for the bubble to decode. */
     fun attachmentPath(fileName: String): String = attachments.pathFor(fileName)
 
@@ -356,6 +427,8 @@ class ChatViewModel @Inject constructor(
 
     private companion object {
         const val EVERYONE = "Everyone"
+        const val EXPORT_SAVED = "Chat saved."
+        const val EXPORT_FAILED = "The chat could not be saved."
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }
