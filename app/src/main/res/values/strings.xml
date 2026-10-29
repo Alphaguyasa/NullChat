@@ -63,6 +63,7 @@
     <string name="chat_resend_action">Resend</string>
     <string name="chat_resend_hint">tap to resend</string>
     <string name="chat_actions_label">Message options</string>
+    <string name="chat_view_image">View image</string>
     <string name="chat_copy_action">Copy</string>
     <string name="chat_forward_action">Forward</string>
     <string name="share_pick_chat">Choose a chat. The text goes into its message box for you to check and send.</string>

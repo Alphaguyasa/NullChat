@@ -5,6 +5,19 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5u. Phone checks for mute, full-screen images and the shorter list (2026-10-29, second run)
+*Mute (#66), two phones A and B:* on A, open B's chat, ⋮ → Mute notifications. The
+subtitle ends `· muted`. Leave the chat; B sends a message: it arrives on A (unread
+badge as usual) with **no** notification. ⋮ → Unmute notifications; B's next message
+notifies. The Everyone thread has no mute entry (it never notifies).
+*Full-screen image (#67), one phone:* tap a received or sent image. It fills the
+screen; pinch zooms up to 4x, drag pans only while zoomed, double tap goes back to
+1x, back or × closes. A long press on the image still opens the message menu. A
+placeholder (`…` or `!`) does nothing on tap.
+*Peer list (#65):* paired contacts, nicknamed or blocked peers and anyone you have
+a chat with always show. A stranger you never talked to drops off the list about an
+hour after it was last heard (it comes back when it is near again).
+
 ### 5t. Two-phone check for "online" (2026-10-28, second run)
 *Online from proven links (#61):* phones A and B are paired. Bring them together.
 B's row on A turns online and shows "1 hop" a second or two after they connect,
@@ -196,7 +209,7 @@ B's peer list should show `name · <A's id>` within a few seconds if in range,
 otherwise the next time they connect. A phone on an older build must still see
 A by id and still exchange messages (it ignores the new PROFILE packet).
 
-### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-29)
+### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-29, second run)
 Re-checked 2026-10-29: platform.claude.com's models page is reachable again and still
 lists Claude Fable 5.1 above Opus 5.5. Opus 5.5 is still the newest Opus.
 Anthropic's model docs now list **Claude Fable 5.1** (`claude-fable-5-1`) above

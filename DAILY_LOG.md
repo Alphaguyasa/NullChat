@@ -4,6 +4,60 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-29 — second run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists
+Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. The run has no
+tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`cb76c85`, `v2026-10-29-3`). No PRs were open.
+- No local Android build (no SDK in the cloud box). CI was the only build. #65 and #66
+  were green on the first attempt. #67 failed once in unit tests, and the second attempt
+  was green (see below).
+- **Room schema hashes are back.** The earlier script was not in the repo, so it was
+  rebuilt: MD5 over `?:?`-joined keys, per table and then over the sorted tables. It
+  reproduces all nine committed hashes and produced `10.json`.
+- **PR #65**, roadmap #49 part 2: bound the stranger list.
+  - `PublicKeyDirectory` pins self, QR-scanned peers, and peers restored at start that
+    the user keeps (verified, nicknamed, blocked, or with a thread).
+  - Strangers' keys go in an access-ordered LRU of at most 1024. An evicted stranger is
+    re-learned, and re-signalled, from its next ANNOUNCE.
+  - The peer list shows kept peers, peers on a proven link, and strangers heard within
+    the last hour.
+  - `PeerEntity.isKept` is the shared rule.
+  - Tests: PublicKeyDirectoryTest +4, PeerListFilterTest 4.
+  - Merged, `v2026-10-29-4`.
+- **PR #66**, roadmap #50: mute a chat.
+  - New column `conversations.isMuted` (Room 9→10, NOT NULL DEFAULT 0, no rows
+    rewritten). Migration test added.
+  - ⋮ → Mute / Unmute notifications in direct chats, and `· muted` in the subtitle.
+  - The service reads the mute per arrival. Local only, nothing on the wire.
+  - MessageNotificationPolicyTest +1.
+- **PR #67**, roadmap #51: tap an image for full screen.
+  - `ImageViewer` dialog: pinch zoom 1–4x, pan bounded by the overhang, double tap
+    resets, back or × closes.
+  - The bubble image keeps the long-press menu.
+  - The viewer closes if its message is deleted or expires.
+  - ImageZoomTest 3.
+  - The first CI run failed `ImageZoomTest`. At 1x, `coerceIn(-0f, 0f)` returned `-0f`
+    for a negative drag, and `Offset` compares its packed bits, so that was not
+    `Offset.Zero`. `clampOffset` now returns `Offset.Zero` outright at 1x. Green on the
+    second attempt.
+- Phone checks for all three are in NEEDS_APPROVAL 5u.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #49 part 2 stranger bounds (PR #65); #50 mute a chat (PR #66); #51 full-screen image (PR #67) |
+| Merged | #65 yes, `v2026-10-29-4`; #66 yes; #67 see notification. Tags from `release-tag.yml` |
+| Failed or blocked | #67 failed CI once (signed zero in `ImageZoom`), fixed on the same branch. No local Android build (CI only) |
+| Roadmap | 7 open (#52–#54, #42, #21–#23) plus tech debt; no replan needed yet (replan when under 5) |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model (#7); backup (#3); phone checks 5u…5f; Dependabot authorship; signing; route strip |
+| Next | #52 timer change race, #53 peer list order, #54 Doze (needs phone evidence) |
+
+---
+
 ## 2026-10-29 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page was reachable
