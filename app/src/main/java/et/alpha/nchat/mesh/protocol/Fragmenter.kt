@@ -272,12 +272,19 @@ data class ReassembledMessage(
  * [capacity] caps how many part-finished messages we hold at once,
  * [maxMessageBytes] caps how large any one of them may grow, and the timeout
  * caps how long a message nobody is going to finish occupies a slot.
+ *
+ * Bytes alone are not enough. The slot array is sized from the declared `total`,
+ * so a first fragment claiming 65 535 pieces of one byte each passed a byte check
+ * and cost half a megabyte of empty slots, times [capacity]. Every piece but the
+ * last must therefore be exactly [chunkSize] bytes, as [Fragmenter.fragment]
+ * makes them, and `total` may not exceed what [maxMessageBytes] needs at that size.
  */
 class FragmentReassembler(
     private val capacity: Int = DEFAULT_CAPACITY,
     private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
     private val maxMessageBytes: Int = DEFAULT_MAX_MESSAGE_BYTES,
     private val timeSource: () -> Long = System::currentTimeMillis,
+    private val chunkSize: Int = Fragmenter.DEFAULT_CHUNK_SIZE,
 ) {
 
     init {
@@ -286,7 +293,11 @@ class FragmentReassembler(
         require(maxMessageBytes > 0) {
             "maxMessageBytes must be positive, was $maxMessageBytes"
         }
+        require(chunkSize > 0) { "chunkSize must be positive, was $chunkSize" }
     }
+
+    /** The most pieces a message within [maxMessageBytes] can need at [chunkSize]. */
+    private val maxFragments: Int = (maxMessageBytes + chunkSize - 1) / chunkSize
 
     /**
      * Insertion-ordered, and never re-ordered on access — the same trick
@@ -347,6 +358,20 @@ class FragmentReassembler(
             return null
         }
 
+        // Checked before the partial is looked up or created, so a hostile
+        // `total` never sizes an array: the slot count is bounded by
+        // [maxFragments] and each slot stands for a full chunk.
+        val isLast = fragment.index == fragment.total - 1
+        val chunkFits = if (isLast) {
+            fragment.chunk.size <= chunkSize
+        } else {
+            fragment.chunk.size == chunkSize
+        }
+        if (fragment.total > maxFragments || !chunkFits) {
+            _droppedFragments++
+            return null
+        }
+
         // Keyed by sender as well as message id, so one peer cannot occupy or
         // corrupt the buffer another peer's message is assembling into by
         // claiming the same id.
@@ -361,13 +386,6 @@ class FragmentReassembler(
                 timestamp = packet.timestamp,
                 deadline = now + timeoutMillis,
             )
-            // Checked against the declared total before a single slot is
-            // allocated, so a hostile `total` cannot make us size an array from
-            // an attacker-chosen number.
-            if (started.declaredSize(fragment.chunk.size) > maxMessageBytes) {
-                _droppedFragments++
-                return null
-            }
             partials[key] = started
             started
         } else {
@@ -450,16 +468,6 @@ class FragmentReassembler(
         val chunks = arrayOfNulls<ByteArray>(total)
         var filled: Int = 0
         var bytes: Int = 0
-
-        /**
-         * The largest this message could become, from its own declared total.
-         *
-         * Uses the first chunk's size as the per-fragment ceiling, which is what
-         * the sender's own chunking implies: only the final piece may be shorter.
-         * `Long` because `total * chunkSize` overflows `Int` at the top of the
-         * u16 range.
-         */
-        fun declaredSize(chunkSize: Int): Long = total.toLong() * chunkSize.toLong()
 
         fun join(): ByteArray {
             val out = ByteArray(bytes)
