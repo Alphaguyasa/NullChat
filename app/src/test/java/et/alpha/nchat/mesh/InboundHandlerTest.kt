@@ -32,6 +32,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -274,7 +275,9 @@ class InboundHandlerTest {
         val row = store.rows.getValue(messageId)
         assertEquals("$messageId.jpg", row.attachmentFile)
         assertEquals(500, store.images.getValue(messageId).size)
-        assertEquals(TransferState.COMPLETE, transfers.transfers.value.getValue(messageId).state)
+        // Complete means gone from the live map, but remembered for stragglers.
+        assertFalse(messageId in transfers.transfers.value)
+        assertTrue(transfers.isRecentlyCompleted(messageId))
         assertEquals(1, originated.size)
         assertTrue(arrivals.single().isImage)
     }

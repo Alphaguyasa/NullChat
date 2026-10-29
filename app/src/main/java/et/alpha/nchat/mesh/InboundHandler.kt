@@ -408,7 +408,7 @@ internal class InboundHandler(
         // session; the message row catches it across a restart, when the tracker
         // is empty but the history is not. A message the user deleted is refused
         // here too, before a progress bar or an image file exists for it.
-        if (transfers.transfers.value[messageId]?.state == TransferState.COMPLETE) return
+        if (transfers.isRecentlyCompleted(messageId)) return
         if (store.findMessage(messageId) != null) return
         if (store.isDeleted(messageId)) return
         // Checked on every piece, not only the first, so a block set partway
