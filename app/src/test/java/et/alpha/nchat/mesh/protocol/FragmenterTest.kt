@@ -518,6 +518,90 @@ class FragmenterTest {
         assertEquals(1L, reassembler.droppedFragments)
     }
 
+    /**
+     * A FRAGMENT packet built by hand, as a modified phone could send it: any
+     * index, any total, any chunk length.
+     */
+    private fun craftedFragment(index: Int, total: Int, chunkSize: Int): Packet {
+        val body = java.nio.ByteBuffer
+            .allocate(Fragmenter.FRAGMENT_HEADER_SIZE + chunkSize)
+            .put(messageId)
+            .putShort(index.toShort())
+            .putShort(total.toShort())
+            .put(ByteArray(chunkSize) { 0x55 })
+            .array()
+        return Packet(
+            type = PacketType.FRAGMENT,
+            messageId = Fragmenter.fragmentId(messageId, index),
+            senderId = senderId,
+            recipientId = recipientId,
+            ttl = Packet.DEFAULT_TTL,
+            timestamp = timestamp,
+            payload = body,
+            signature = ByteArray(Packet.SIGNATURE_SIZE),
+        )
+    }
+
+    @Test
+    fun `refuses 65535 one-byte fragments before allocating their slots`() {
+        val reassembler = FragmentReassembler()
+
+        // 65 535 bytes declared: under the 64 KiB ceiling, so a byte check alone
+        // let it through and allocated 65 535 slots for it.
+        assertNull(reassembler.offer(craftedFragment(index = 0, total = 0xFFFF, chunkSize = 1)))
+
+        assertEquals(0, reassembler.pendingCount)
+        assertEquals(1L, reassembler.droppedFragments)
+    }
+
+    @Test
+    fun `refuses a total beyond what the ceiling needs at full chunks`() {
+        val reassembler = FragmentReassembler()
+        val cap = Fragmenter.fragmentCount(FragmentReassembler.DEFAULT_MAX_MESSAGE_BYTES)
+
+        val packet = craftedFragment(
+            index = 0,
+            total = cap + 1,
+            chunkSize = Fragmenter.DEFAULT_CHUNK_SIZE,
+        )
+
+        assertNull(reassembler.offer(packet))
+        assertEquals(0, reassembler.pendingCount)
+    }
+
+    @Test
+    fun `refuses a short chunk anywhere but the last piece`() {
+        val reassembler = FragmentReassembler()
+
+        assertNull(reassembler.offer(craftedFragment(index = 1, total = 3, chunkSize = 10)))
+
+        assertEquals(0, reassembler.pendingCount)
+        assertEquals(1L, reassembler.droppedFragments)
+    }
+
+    @Test
+    fun `a short last piece arriving first still starts the message`() {
+        val reassembler = FragmentReassembler()
+        val pieces = fragment(payload(120))
+
+        assertNull(reassembler.offer(pieces.last()))
+        val result = pieces.dropLast(1).map { reassembler.offer(it) }.last()
+
+        assertArrayEquals(payload(120), assertPresent(result).payload)
+        assertEquals(0L, reassembler.droppedFragments)
+    }
+
+    @Test
+    fun `a message at the 64 KiB ceiling still reassembles`() {
+        val reassembler = FragmentReassembler()
+        val original = payload(FragmentReassembler.DEFAULT_MAX_MESSAGE_BYTES)
+
+        val result = fragment(original).map { reassembler.offer(it) }.last()
+
+        assertArrayEquals(original, assertPresent(result).payload)
+        assertEquals(0L, reassembler.droppedFragments)
+    }
+
     @Test
     fun `clear drops everything in flight`() {
         val reassembler = FragmentReassembler()
