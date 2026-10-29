@@ -8,7 +8,6 @@ import et.alpha.nchat.mesh.protocol.PacketType
 import et.alpha.nchat.mesh.protocol.PacketVerifier
 import et.alpha.nchat.mesh.protocol.Verification
 import et.alpha.nchat.mesh.protocol.peerIdFor
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -28,7 +27,10 @@ import javax.inject.Singleton
  * updated as ANNOUNCE packets arrive.
  */
 @Singleton
-class PublicKeyDirectory @Inject constructor() {
+class PublicKeyDirectory(
+    private val maxTransient: Int,
+) {
+    @Inject constructor() : this(MAX_TRANSIENT_KEYS)
 
     /**
      * The signing key is fixed once known; the agreement key can arrive later.
@@ -44,7 +46,32 @@ class PublicKeyDirectory @Inject constructor() {
         @Volatile var agreementKey: ByteArray? = null,
     )
 
-    private val entries = ConcurrentHashMap<String, Entry>()
+    /**
+     * Keys this device has a reason to keep for the whole session: its own,
+     * contacts restored at start and anyone scanned by QR. Never evicted.
+     */
+    private val pinned = HashMap<String, Entry>()
+
+    /**
+     * Everyone else, learned off the air, least recently used first.
+     *
+     * Every self-signed ANNOUNCE within six hops lands here, and keys cost a
+     * modified phone nothing to mint, so without a cap the map grows until the
+     * next restart. Access order means a stranger the user is chatting with
+     * stays: every packet verified from them and every message sealed to them
+     * touches the entry. An evicted peer is not lost, only forgotten until its
+     * next ANNOUNCE, which re-files it (and re-signals its agreement key, which
+     * releases anything held for it). Its Room row keeps its keys either way.
+     */
+    private val transient = object : LinkedHashMap<String, Entry>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>) =
+            size > maxTransient
+    }
+
+    /** Guards both maps; reads mutate [transient]'s access order. */
+    private val lock = Any()
+
+    private fun entry(hex: String): Entry? = synchronized(lock) { pinned[hex] ?: transient[hex] }
 
     private val _agreementKeyLearned = MutableSharedFlow<String>(extraBufferCapacity = 64)
 
@@ -74,9 +101,21 @@ class PublicKeyDirectory @Inject constructor() {
      *
      * @return the peer id this key was filed under.
      */
-    fun recordSigningKey(signingKey: ByteArray): ByteArray {
+    fun recordSigningKey(signingKey: ByteArray): ByteArray = file(signingKey, pin = false)
+
+    /**
+     * Files [signingKey] first-wins, and with [pin] moves an existing transient
+     * entry into [pinned] so it survives any number of strangers after it.
+     */
+    private fun file(signingKey: ByteArray, pin: Boolean): ByteArray {
         val peerId = peerIdFor(signingKey)
-        entries.putIfAbsent(peerId.toHexId(), Entry(signingKey.copyOf()))
+        val hex = peerId.toHexId()
+        synchronized(lock) {
+            if (hex in pinned) return peerId
+            val existing = if (pin) transient.remove(hex) else transient[hex]
+            val entry = existing ?: Entry(signingKey.copyOf())
+            if (pin) pinned[hex] = entry else if (existing == null) transient[hex] = entry
+        }
         return peerId
     }
 
@@ -88,10 +127,10 @@ class PublicKeyDirectory @Inject constructor() {
      * key only — becomes encryptable once it announces. An existing agreement
      * key is *not* replaced, for the same reason the signing key is not.
      */
-    fun record(announcement: Announcement): ByteArray {
-        val peerId = recordSigningKey(announcement.signingKey)
+    fun record(announcement: Announcement, pin: Boolean = false): ByteArray {
+        val peerId = file(announcement.signingKey, pin)
         val hex = peerId.toHexId()
-        val learned = entries[hex]?.let { entry ->
+        val learned = entry(hex)?.let { entry ->
             synchronized(entry) {
                 if (entry.agreementKey == null) {
                     entry.agreementKey = announcement.agreementKey.copyOf()
@@ -119,23 +158,36 @@ class PublicKeyDirectory @Inject constructor() {
      * corrupt row) is dropped rather than thrown, so one bad row cannot stop
      * the rest of the directory from warming; the peer simply stays
      * unencryptable until it announces.
+     *
+     * [pin] is for peers the user has a reason to keep (see [pinned]); a
+     * stranger restored unpinned competes for the transient slots like one
+     * heard on the air, so a crowded week cannot fill the pinned map.
      */
-    fun restore(signingKey: ByteArray, agreementKey: ByteArray?) {
+    fun restore(signingKey: ByteArray, agreementKey: ByteArray?, pin: Boolean = false) {
         if (agreementKey != null && agreementKey.size == Announcement.KEY_SIZE) {
-            record(Announcement(signingKey, agreementKey))
+            record(Announcement(signingKey, agreementKey), pin)
         } else {
-            recordSigningKey(signingKey)
+            file(signingKey, pin)
         }
     }
 
-    fun signingKeyFor(peerId: ByteArray): ByteArray? = entries[peerId.toHexId()]?.signingKey
+    fun signingKeyFor(peerId: ByteArray): ByteArray? = entry(peerId.toHexId())?.signingKey
 
     /** The X25519 key needed to derive a message key, or null if not yet known. */
-    fun agreementKeyFor(peerId: ByteArray): ByteArray? = entries[peerId.toHexId()]?.agreementKey
+    fun agreementKeyFor(peerId: ByteArray): ByteArray? = entry(peerId.toHexId())?.agreementKey
 
-    fun knows(peerId: ByteArray): Boolean = entries.containsKey(peerId.toHexId())
+    fun knows(peerId: ByteArray): Boolean = entry(peerId.toHexId()) != null
 
-    val size: Int get() = entries.size
+    val size: Int get() = synchronized(lock) { pinned.size + transient.size }
+
+    companion object {
+        /**
+         * Strangers' keys held at once. About 100 bytes each, so the cap is
+         * tens of kilobytes; far more peers than a phone meets in a day, and few
+         * enough that minting keys cannot grow the heap.
+         */
+        const val MAX_TRANSIENT_KEYS = 1024
+    }
 }
 
 /**

@@ -6,6 +6,7 @@ import et.alpha.nchat.mesh.protocol.peerIdFor
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -83,6 +84,64 @@ class PublicKeyDirectoryTest {
             directory.record(Announcement(signing, agreement))
             expectNoEvents()
         }
+    }
+
+    @Test
+    fun `strangers beyond the cap push out the least recently used`() {
+        val directory = PublicKeyDirectory(maxTransient = 2)
+        val (a, b, c) = (1..3).map { n -> ByteArray(32) { n.toByte() } }
+        directory.recordSigningKey(a)
+        directory.recordSigningKey(b)
+
+        // Verifying a packet from a touches it, so b is now the stalest.
+        directory.signingKeyFor(peerIdFor(a))
+        directory.recordSigningKey(c)
+
+        // The bug this guards: every self-signed ANNOUNCE stayed in memory until
+        // restart, so a phone minting keys could grow the heap without limit.
+        assertEquals(2, directory.size)
+        assertTrue(directory.knows(peerIdFor(a)))
+        assertFalse(directory.knows(peerIdFor(b)))
+        assertTrue(directory.knows(peerIdFor(c)))
+    }
+
+    @Test
+    fun `pinned keys survive any number of strangers`() {
+        val directory = PublicKeyDirectory(maxTransient = 1)
+        directory.restore(signing, agreement, pin = true)
+
+        (1..5).forEach { n -> directory.recordSigningKey(ByteArray(32) { n.toByte() }) }
+
+        assertArrayEquals(agreement, directory.agreementKeyFor(peerId))
+        assertEquals(2, directory.size)
+    }
+
+    @Test
+    fun `pinning a stranger already held keeps its agreement key`() {
+        val directory = PublicKeyDirectory(maxTransient = 1)
+        directory.record(Announcement(signing, agreement))
+
+        // A QR scan of someone first heard on the air.
+        directory.record(Announcement(signing, agreement), pin = true)
+        directory.recordSigningKey(ByteArray(32) { 7 })
+
+        assertArrayEquals(agreement, directory.agreementKeyFor(peerId))
+        assertEquals(2, directory.size)
+    }
+
+    @Test
+    fun `an evicted stranger is learned again from its next announce`() = runTest {
+        val directory = PublicKeyDirectory(maxTransient = 1)
+        directory.record(Announcement(signing, agreement))
+        directory.recordSigningKey(ByteArray(32) { 7 })
+        assertFalse(directory.knows(peerId))
+
+        directory.agreementKeyLearned.test {
+            directory.record(Announcement(signing, agreement))
+            // Signalled again, so messages held for it while it was forgotten go out.
+            assertEquals(peerIdHex(), awaitItem())
+        }
+        assertArrayEquals(agreement, directory.agreementKeyFor(peerId))
     }
 
     private fun peerIdHex() = peerId.joinToString("") { "%02x".format(it) }

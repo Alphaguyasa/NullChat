@@ -111,6 +111,19 @@ val PeerEntity.preferredName: String?
     get() = nickname?.takeIf { it.isNotBlank() } ?: displayName?.takeIf { it.isNotBlank() }
 
 /**
+ * Whether the user has a reason to keep this peer: they checked its key by QR,
+ * named it, blocked it, or have a thread with it ([hasThread]).
+ *
+ * Everyone else is a stranger who announced within range, and a crowded place
+ * makes hundreds of those. A kept peer is listed and its keys stay in memory
+ * however many strangers come after it; a stranger gets neither once it has
+ * not been heard for a while. Blocked counts as kept so the user can still find
+ * the row to unblock it.
+ */
+fun PeerEntity.isKept(hasThread: Boolean): Boolean =
+    isVerified || isBlocked || nickname != null || hasThread
+
+/**
  * A chat thread: either one-to-one with [peerId], or the broadcast thread when
  * [peerId] is null.
  *

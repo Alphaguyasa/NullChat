@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.ConversationSummary
+import et.alpha.nchat.data.db.PeerEntity
 import et.alpha.nchat.data.db.directConversationId
+import et.alpha.nchat.data.db.isKept
 import et.alpha.nchat.data.db.preferredName
 import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.repo.MessageRepository
@@ -111,6 +113,23 @@ data class PeerListState(
  */
 private const val SHORT_ID_CHARS = 8
 
+/**
+ * How long an unkept stranger stays listed after it was last heard.
+ *
+ * An hour keeps everyone around you this afternoon reachable from the list,
+ * while a festival's worth of passers-by drops off by evening instead of
+ * burying the contacts. The rows are not deleted; see `PeerDao.pruneStrangers`
+ * for that.
+ */
+internal const val STRANGER_LISTED_MS: Long = 60 * 60 * 1000L
+
+/**
+ * Whether [peer] gets a row: kept (see [isKept]), on a proven link this
+ * instant, or heard within [STRANGER_LISTED_MS] of [now].
+ */
+internal fun isListed(peer: PeerEntity, hasThread: Boolean, isOnline: Boolean, now: Long): Boolean =
+    peer.isKept(hasThread) || isOnline || peer.lastSeenAt >= now - STRANGER_LISTED_MS
+
 internal fun peerLabel(displayName: String?, peerId: String): String {
     val shortId = peerId.take(SHORT_ID_CHARS)
     return if (displayName.isNullOrBlank()) shortId else "$displayName · $shortId"
@@ -169,8 +188,12 @@ class PeerListViewModel @Inject constructor(
         val byConversation = conversations.associateBy { it.conversation.id }
 
         val broadcastRow = byConversation[BROADCAST_CONVERSATION_ID].toBroadcastRow(nearby)
-        val peerRows = knownPeers.map { peer ->
+        // Read per emission, not frozen when the flow was built; a stranger
+        // goes off the list at the next change of anything above.
+        val now = System.currentTimeMillis()
+        val peerRows = knownPeers.mapNotNull { peer ->
             val summary = byConversation[directConversationId(peer.id)]
+            if (!isListed(peer, summary != null, peer.id in online, now)) return@mapNotNull null
             PeerRow(
                 peerId = peer.id,
                 label = peerLabel(peer.preferredName, peer.id),
