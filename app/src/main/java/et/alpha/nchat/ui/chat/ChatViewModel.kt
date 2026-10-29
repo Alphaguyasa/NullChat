@@ -63,6 +63,8 @@ data class ChatState(
     val disappearAfterMillis: Long? = null,
     /** True when the user blocked this peer; its new messages are dropped. */
     val isBlocked: Boolean = false,
+    /** True when the user muted this thread's notifications. */
+    val isMuted: Boolean = false,
 )
 
 /**
@@ -147,6 +149,7 @@ class ChatViewModel @Inject constructor(
                 isVerified = peerRow?.isVerified == true,
                 disappearAfterMillis = conversation?.disappearAfterMillis,
                 isBlocked = peerRow?.isBlocked == true,
+                isMuted = conversation?.isMuted == true,
             )
         }
     }.stateIn(
@@ -417,6 +420,15 @@ class ChatViewModel @Inject constructor(
     fun onSetDisappearing(millis: Long?) {
         val peer = peerId.value
         viewModelScope.launch { coordinator.setDisappearing(peer, millis) }
+    }
+
+    /**
+     * Mutes or unmutes this thread's notifications. Direct chats only: the
+     * broadcast thread never notifies (see `MessageNotificationPolicy`).
+     */
+    fun onSetMuted(muted: Boolean) {
+        val peer = peerId.value ?: return
+        viewModelScope.launch { messages.setMuted(directConversationId(peer), peer, muted) }
     }
 
     private fun conversationIdFor(peer: String?): String =

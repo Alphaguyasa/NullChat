@@ -341,7 +341,7 @@ fun ChatScreen(
                         else -> "Out of range"
                     } + state.disappearAfterMillis
                         ?.let { " · disappears after ${DisappearingTimer.label(it)}" }
-                        .orEmpty(),
+                        .orEmpty() + if (state.isMuted) " · muted" else "",
                     // A bare peer id is machine text people compare character by
                     // character; a name or the broadcast thread's "Everyone" is a word
                     // and reads as one.
@@ -351,6 +351,10 @@ fun ChatScreen(
                     onSearch = { isSearching = true },
                     onRename = if (state.isBroadcast) null else ({ isRenaming = true }),
                     onDisappearing = { isChoosingTimer = true },
+                    // Unmuting takes nothing away and muting is undone the same
+                    // way, so neither asks first.
+                    onMute = if (state.isBroadcast) null else ({ viewModel.onSetMuted(!state.isMuted) }),
+                    isMuted = state.isMuted,
                     onDeleteChat = { isDeletingChat = true },
                     onExport = { isExporting = true },
                     // Unblocking takes nothing away, so only blocking asks first.
@@ -506,6 +510,8 @@ private fun ChatTopBar(
     onSearch: (() -> Unit)? = null,
     onRename: (() -> Unit)? = null,
     onDisappearing: (() -> Unit)? = null,
+    onMute: (() -> Unit)? = null,
+    isMuted: Boolean = false,
     onDeleteChat: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onBlock: (() -> Unit)? = null,
@@ -555,7 +561,7 @@ private fun ChatTopBar(
                     },
                 )
             }
-            if (onSearch != null || onRename != null || onDisappearing != null || onDeleteChat != null ||
+            if (onSearch != null || onRename != null || onDisappearing != null || onMute != null || onDeleteChat != null ||
                 onExport != null || onBlock != null || onForget != null
             ) {
                 Box {
@@ -594,6 +600,21 @@ private fun ChatTopBar(
                                 onClick = {
                                     menuOpen = false
                                     choose()
+                                },
+                            )
+                        }
+                        onMute?.let { toggle ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            if (isMuted) R.string.chat_unmute_action else R.string.chat_mute_action,
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    toggle()
                                 },
                             )
                         }

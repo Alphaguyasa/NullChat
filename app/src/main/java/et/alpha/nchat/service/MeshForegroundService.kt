@@ -17,6 +17,7 @@ import et.alpha.nchat.data.db.preferredName
 import et.alpha.nchat.di.logUncaught
 import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.BatteryModeStore
+import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.router.MeshRouter
@@ -68,6 +69,8 @@ class MeshForegroundService : Service() {
     @Inject lateinit var foregroundConversation: ForegroundConversation
 
     @Inject lateinit var peerRepository: PeerRepository
+
+    @Inject lateinit var messageRepository: MessageRepository
 
     @Inject lateinit var appLock: AppLockStore
 
@@ -167,6 +170,8 @@ class MeshForegroundService : Service() {
                         foregroundConversation.current.value,
                         senderName,
                         hideContent,
+                        // Read per arrival too, so a mute applies to the next message.
+                        isMuted = messageRepository.isMuted(arrival.conversationId),
                     )
                 } catch (e: CancellationException) {
                     throw e

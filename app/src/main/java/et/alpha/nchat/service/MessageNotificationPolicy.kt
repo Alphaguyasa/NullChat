@@ -22,10 +22,11 @@ internal object MessageNotificationPolicy {
      * Direct messages only. The broadcast thread is everyone in range talking
      * at once, and in a busy room a notification per line would train people
      * to switch notifications off altogether — losing the direct messages that
-     * actually need them. Nothing is posted for the thread already on screen.
+     * actually need them. Nothing is posted for the thread already on screen,
+     * nor for one the user muted ([isMuted]).
      */
-    fun shouldNotify(arrival: Arrival, foregroundConversationId: String?): Boolean =
-        !arrival.isBroadcast && arrival.conversationId != foregroundConversationId
+    fun shouldNotify(arrival: Arrival, foregroundConversationId: String?, isMuted: Boolean = false): Boolean =
+        !arrival.isBroadcast && !isMuted && arrival.conversationId != foregroundConversationId
 
     /**
      * Title: who it is from, labelled exactly as on the peer list — the
