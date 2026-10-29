@@ -11,8 +11,9 @@ Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. The run 
 tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
 
 - Main CI was green at the start (`cb76c85`, `v2026-10-29-3`). No PRs were open.
-- No local Android build (no SDK in the cloud box). CI was the only build. All three PRs
-  were green on the first attempt.
+- No local Android build (no SDK in the cloud box). CI was the only build. #65 and #66
+  were green on the first attempt. #67 failed once in unit tests, and the second attempt
+  was green (see below).
 - **Room schema hashes are back.** The earlier script was not in the repo, so it was
   rebuilt: MD5 over `?:?`-joined keys, per table and then over the sorted tables. It
   reproduces all nine committed hashes and produced `10.json`.
@@ -38,6 +39,10 @@ tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_AP
   - The bubble image keeps the long-press menu.
   - The viewer closes if its message is deleted or expires.
   - ImageZoomTest 3.
+  - The first CI run failed `ImageZoomTest`. At 1x, `coerceIn(-0f, 0f)` returned `-0f`
+    for a negative drag, and `Offset` compares its packed bits, so that was not
+    `Offset.Zero`. `clampOffset` now returns `Offset.Zero` outright at 1x. Green on the
+    second attempt.
 - Phone checks for all three are in NEEDS_APPROVAL 5u.
 
 ### REPORT
@@ -45,7 +50,7 @@ tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_AP
 |---|---|
 | Done | #49 part 2 stranger bounds (PR #65); #50 mute a chat (PR #66); #51 full-screen image (PR #67) |
 | Merged | #65 yes, `v2026-10-29-4`; #66 yes; #67 see notification. Tags from `release-tag.yml` |
-| Failed or blocked | Nothing failed. No local Android build (CI only) |
+| Failed or blocked | #67 failed CI once (signed zero in `ImageZoom`), fixed on the same branch. No local Android build (CI only) |
 | Roadmap | 7 open (#52–#54, #42, #21–#23) plus tech debt; no replan needed yet (replan when under 5) |
 | Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
 | Needs approval | Model (#7); backup (#3); phone checks 5u…5f; Dependabot authorship; signing; route strip |
