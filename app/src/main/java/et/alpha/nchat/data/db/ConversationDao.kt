@@ -104,6 +104,13 @@ interface ConversationDao {
     @Query("UPDATE conversations SET disappearAfterMillis = :millis WHERE id = :id")
     suspend fun setDisappearAfter(id: String, millis: Long?): Int
 
+    @Query("UPDATE conversations SET isMuted = :muted WHERE id = :id")
+    suspend fun setMuted(id: String, muted: Boolean): Int
+
+    /** Null for a thread with no row, which nobody can have muted. */
+    @Query("SELECT isMuted FROM conversations WHERE id = :id")
+    suspend fun isMuted(id: String): Boolean?
+
     @Query("DELETE FROM conversations WHERE id = :id")
     suspend fun deleteById(id: String): Int
 }

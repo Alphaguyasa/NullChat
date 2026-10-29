@@ -151,6 +151,12 @@ data class ConversationEntity(
      * `MeshCoordinator.setDisappearing`. A phone on an older build ignores it.
      */
     val disappearAfterMillis: Long? = null,
+    /**
+     * No notifications for this thread. Local only: nothing is sent, and the
+     * other phone cannot tell. NOT NULL with a default, like `peers.isBlocked`.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val isMuted: Boolean = false,
 )
 
 /**

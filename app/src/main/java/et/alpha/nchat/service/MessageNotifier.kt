@@ -59,7 +59,8 @@ class MessageNotifier @Inject constructor(
      *
      * [senderName] is the peer's nickname or chosen name, if any; the caller
      * looks it up because this class has no database access of its own.
-     * [hideContent] is whether the app lock is on.
+     * [hideContent] is whether the app lock is on, and [isMuted] whether the
+     * user muted this thread.
      *
      * Without POST_NOTIFICATIONS on SDK 33+ the system drops the post silently,
      * which is the right outcome: the user said no.
@@ -70,8 +71,9 @@ class MessageNotifier @Inject constructor(
         foregroundConversationId: String?,
         senderName: String?,
         hideContent: Boolean,
+        isMuted: Boolean = false,
     ) {
-        if (!MessageNotificationPolicy.shouldNotify(arrival, foregroundConversationId)) return
+        if (!MessageNotificationPolicy.shouldNotify(arrival, foregroundConversationId, isMuted)) return
 
         val count = (unseen[arrival.conversationId] ?: 0) + 1
         unseen[arrival.conversationId] = count

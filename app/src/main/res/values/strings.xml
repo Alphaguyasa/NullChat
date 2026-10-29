@@ -95,6 +95,8 @@
     <string name="chat_export_confirm">Choose where to save</string>
     <string name="chat_block_action">Block</string>
     <string name="chat_unblock_action">Unblock</string>
+    <string name="chat_mute_action">Mute notifications</string>
+    <string name="chat_unmute_action">Unmute notifications</string>
     <string name="chat_block_title">Block this person?</string>
     <string name="chat_block_body">New messages from them are dropped on this phone, with no notification. They are not told, but their messages to you stay at sent instead of delivered. Your phone still relays mesh traffic, theirs included. What you already received stays.</string>
     <string name="chat_block_confirm">Block</string>

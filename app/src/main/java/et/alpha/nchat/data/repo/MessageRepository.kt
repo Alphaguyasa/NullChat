@@ -220,6 +220,22 @@ class MessageRepository @Inject constructor(
         conversationDao.setDisappearAfter(conversationId, millis)
     }
 
+    /**
+     * Mutes or unmutes a thread's notifications. Creates the thread if needed,
+     * like [setDisappearAfter], so a chat can be muted before anyone writes.
+     */
+    suspend fun setMuted(
+        conversationId: String,
+        peerId: String?,
+        muted: Boolean,
+        now: Long = System.currentTimeMillis(),
+    ) = database.withTransaction {
+        ensureConversation(conversationId, peerId, now)
+        conversationDao.setMuted(conversationId, muted)
+    }
+
+    suspend fun isMuted(conversationId: String): Boolean = conversationDao.isMuted(conversationId) == true
+
     /** Messages whose disappearing timer has run out; see [MessageDao.findExpired]. */
     suspend fun findExpired(now: Long = System.currentTimeMillis()): List<MessageEntity> =
         messageDao.findExpired(now)

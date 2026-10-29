@@ -47,6 +47,11 @@ class MessageNotificationPolicyTest {
     }
 
     @Test
+    fun `a muted thread is silent`() {
+        assertFalse(MessageNotificationPolicy.shouldNotify(direct(), foregroundConversationId = null, isMuted = true))
+    }
+
+    @Test
     fun `broadcasts never notify`() {
         assertFalse(MessageNotificationPolicy.shouldNotify(broadcast, foregroundConversationId = null))
     }

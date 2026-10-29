@@ -516,6 +516,57 @@ class NChatDatabaseMigrationTest {
         }
     }
 
+    /**
+     * The v9 → v10 upgrade that adds muting.
+     *
+     * Every existing thread keeps its timer and messages and reads back
+     * unmuted, and a mute set afterwards reads back.
+     */
+    @Test
+    fun migratingToVersion10AddsMutingAndKeepsThreads() {
+        helper.createDatabase(TEST_DB, 9).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO conversations
+                    (id, peerId, title, createdAt, lastActivityAt, lastReadAt, disappearAfterMillis)
+                VALUES ('direct:peer', 'peer', NULL, 1000, 1000, 0, 3600000)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO messages
+                    (id, conversationId, senderId, body, timestamp, deliveryState,
+                     isOutgoing, attachmentFile, hops, receivedAt, expiresAt)
+                VALUES ('m1', 'direct:peer', 'peer', 'survived', 1000, 'DELIVERED', 0, NULL, NULL, 1000, NULL)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_9_10 and validates the result against schemas/10.json.
+        helper.runMigrationsAndValidate(TEST_DB, 10, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val thread = db.conversationDao().findById("direct:peer")
+                assertEquals(3_600_000L, thread?.disappearAfterMillis)
+                assertEquals(false, thread?.isMuted)
+                assertEquals("survived", db.messageDao().findById("m1")?.body)
+
+                assertEquals(1, db.conversationDao().setMuted("direct:peer", true))
+                assertEquals(true, db.conversationDao().isMuted("direct:peer"))
+                assertNull(db.conversationDao().isMuted("direct:nobody"))
+            }
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

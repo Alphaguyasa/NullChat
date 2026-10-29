@@ -53,7 +53,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun forwardQueueDao(): ForwardQueueDao
 
     companion object {
-        const val VERSION: Int = 9
+        const val VERSION: Int = 10
 
         const val NAME: String = "nchat.db"
 
@@ -194,6 +194,21 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds `conversations.isMuted`.
+         *
+         * NOT NULL with a default of 0, as in 8 → 9. No row is rewritten and
+         * every existing thread reads back unmuted, which is how it behaved
+         * before this version: nothing could be muted.
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "ALTER TABLE `conversations` ADD COLUMN `isMuted` INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
@@ -208,6 +223,7 @@ abstract class NChatDatabase : RoomDatabase() {
             MIGRATION_6_7,
             MIGRATION_7_8,
             MIGRATION_8_9,
+            MIGRATION_9_10,
         )
     }
 }
