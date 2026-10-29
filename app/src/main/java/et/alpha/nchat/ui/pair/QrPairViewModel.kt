@@ -95,7 +95,7 @@ class QrPairViewModel @Inject constructor(
     private fun pair(announcement: Announcement) = viewModelScope.launch {
         val peerHex = announcement.peerId.toHexId()
 
-        keyDirectory.record(announcement)
+        keyDirectory.record(announcement, pin = true)
         peers.recordSeen(
             peerHex,
             publicKey = announcement.signingKey,

@@ -7,6 +7,7 @@ import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.PeerEntity
 import et.alpha.nchat.data.db.directConversationId
 import et.alpha.nchat.data.db.hexIdToBytes
+import et.alpha.nchat.data.db.isKept
 import et.alpha.nchat.data.db.newMessageId
 import et.alpha.nchat.data.db.peerIdOfDirect
 import et.alpha.nchat.data.db.toHexId
@@ -529,9 +530,16 @@ class MeshCoordinator @Inject constructor(
             Log.w(TAG, "pruning strangers failed: ${e::class.simpleName}")
         }
         try {
-            keyDirectory.record(identity.announcement)
-            peers.observePeers().first().forEach { peer ->
-                peer.publicKey?.let { keyDirectory.restore(it, peer.agreementKey) }
+            keyDirectory.record(identity.announcement, pin = true)
+            val threads = messages.observeConversations().first()
+                .mapNotNullTo(HashSet()) { it.conversation.peerId }
+            // Oldest heard first, so if strangers overflow the directory's
+            // transient slots it is the stalest who are pushed out, not the
+            // freshest.
+            peers.observePeers().first().asReversed().forEach { peer ->
+                peer.publicKey?.let {
+                    keyDirectory.restore(it, peer.agreementKey, pin = peer.isKept(peer.id in threads))
+                }
             }
             Log.i(TAG, "key directory warmed with ${keyDirectory.size} key(s)")
         } catch (e: CancellationException) {
