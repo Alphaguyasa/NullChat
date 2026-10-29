@@ -107,4 +107,27 @@ interface PeerDao {
 
     @Query("DELETE FROM peers WHERE id = :id")
     suspend fun deleteById(id: String): Int
+
+    /**
+     * Deletes strangers last heard before [cutoff]: rows the user never verified,
+     * named or blocked, with no thread and no message anywhere, broadcast included.
+     *
+     * Every self-signed ANNOUNCE within six hops creates a row, so without this a
+     * busy place leaves hundreds of rows that only ever grow. A pruned stranger
+     * who comes back is recreated by its next ANNOUNCE, keys and all, since its
+     * id is the hash of the key it signs with. Anyone the user has a reason to
+     * keep is excluded by one of the conditions.
+     */
+    @Query(
+        """
+        DELETE FROM peers
+        WHERE lastSeenAt < :cutoff
+          AND isVerified = 0
+          AND isBlocked = 0
+          AND nickname IS NULL
+          AND id NOT IN (SELECT peerId FROM conversations WHERE peerId IS NOT NULL)
+          AND id NOT IN (SELECT senderId FROM messages)
+        """,
+    )
+    suspend fun pruneStrangers(cutoff: Long): Int
 }

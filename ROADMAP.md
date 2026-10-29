@@ -13,7 +13,7 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 49 | **Bound the stranger list**: every self-signed ANNOUNCE heard within 6 hops adds a permanent peer row, key-directory entry and hop observation (copied on every packet). Prune unverified strangers with no thread after N days; cap the hop map; list only peers with a thread, verified, or seen recently. | P2 | M | Room change → migration + test if a column is needed |
+| 49 | **Bound the stranger list, part 2** (part 1 done in #64: stale strangers pruned at start, hop map capped at 256). Left: list only peers with a thread, verified, or seen recently; bound the in-session key directory (it still grows until the next restart). | P2 | S | |
 | 50 | **Mute a chat**: per-thread "no notifications" (local only), shown in the subtitle; broadcast thread already silent. | P2 | M | Room 9→10 + migration test |
 | 51 | **Tap an image to see it full screen** (pinch to zoom, back closes; content description). | P2 | S | |
 | 52 | **Timer change race**: a contact's TIMER held by a relay for hours overrides the user's newer local change, because local changes record no stamp (`PeerTimer`). Stamp local changes and reject older peer changes; show a thread line when the contact changes it. | P3 | M | |
@@ -90,3 +90,4 @@ change once decided.
 | 2026-10-28 | #46 Online and "1 hop" from bound links only: the coordinator publishes `boundPeers` (links that proved their id); chat subtitle and peer list use it, the "devices in range" count still counts every link | #61 | see log |
 | 2026-10-29 | #47 Fragment bounds (non-final chunks full size; total ≤ ceil(64 KiB / chunk)) | #62 | see log |
 | 2026-10-29 | #48 `TransferTracker` forgets: completed transfers leave at once (ids remembered, bounded, for stragglers), newest 32 failures kept, stalled incoming dropped after 60 s | #63 | see log |
+| 2026-10-29 | #49 part 1: strangers unheard for 7 days with no thread, message, verification, nickname or block are pruned at start; hop readings capped at 256 peers | #64 | see log |

@@ -325,6 +325,28 @@ class InboundHandlerTest {
     }
 
     @Test
+    fun `distance readings are capped, the longest unheard peer making room`() = runTest {
+        val handler = handler()
+        val crowd = (0..InboundHandler.MAX_HOP_OBSERVATIONS).map { i ->
+            ByteArray(Packet.PEER_ID_SIZE).also {
+                it[0] = 0x40
+                it[6] = (i ushr 8).toByte()
+                it[7] = i.toByte()
+            }
+        }
+
+        crowd.forEach { sender ->
+            now += 1
+            handler.handle(broadcast("hi", from = sender))
+        }
+
+        val observations = handler.hopObservations.value
+        assertEquals(InboundHandler.MAX_HOP_OBSERVATIONS, observations.size)
+        assertFalse(crowd.first().toHexId() in observations, "the first heard made room")
+        assertTrue(crowd.last().toHexId() in observations)
+    }
+
+    @Test
     fun `a forged ttl above the default records no distance`() = runTest {
         val handler = handler()
 

@@ -517,6 +517,17 @@ class MeshCoordinator @Inject constructor(
      * later must not have their held messages stranded too.
      */
     private fun warmKeyDirectory() = scope.launch {
+        // Before the directory is filled, so pruned strangers' keys are not
+        // loaded only to sit there. On its own guard: a failed prune must not
+        // cost the restore.
+        try {
+            val pruned = peers.pruneStrangers()
+            if (pruned > 0) Log.i(TAG, "pruned $pruned stale stranger(s)")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "pruning strangers failed: ${e::class.simpleName}")
+        }
         try {
             keyDirectory.record(identity.announcement)
             peers.observePeers().first().forEach { peer ->

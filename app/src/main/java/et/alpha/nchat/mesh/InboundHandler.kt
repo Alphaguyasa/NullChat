@@ -382,7 +382,17 @@ internal class InboundHandler(
             val keepPrevious = previous != null &&
                 previous.hops <= hops &&
                 now - previous.observedAt <= HOP_FRESHNESS_MILLIS
-            if (keepPrevious) observations else observations + (senderHex to HopObservation(hops, now))
+            when {
+                keepPrevious -> observations
+                previous == null && observations.size >= MAX_HOP_OBSERVATIONS -> {
+                    // Every self-signed stranger within six hops lands here, and
+                    // the map is copied on every packet. The peer heard from
+                    // longest ago makes room; its reading had aged out anyway.
+                    val oldest = observations.minBy { it.value.observedAt }.key
+                    observations - oldest + (senderHex to HopObservation(hops, now))
+                }
+                else -> observations + (senderHex to HopObservation(hops, now))
+            }
         }
     }
 
@@ -593,9 +603,12 @@ internal class InboundHandler(
         log.debug("timer from ${Packet.tag(packet.senderId)} applied")
     }
 
-    private companion object {
+    companion object {
         /** Arrivals held for a slow listener before the oldest are dropped. */
-        const val ARRIVAL_BUFFER = 32
+        private const val ARRIVAL_BUFFER = 32
+
+        /** Peers whose distance is remembered at once; see [recordHops]. */
+        const val MAX_HOP_OBSERVATIONS = 256
 
         /**
          * How long a hop observation stays worth comparing a new one against.
@@ -604,6 +617,6 @@ internal class InboundHandler(
          * someone is changes as they walk, while whether they are here at all
          * changes only when they leave.
          */
-        const val HOP_FRESHNESS_MILLIS: Long = 60 * 1000L
+        private const val HOP_FRESHNESS_MILLIS: Long = 60 * 1000L
     }
 }

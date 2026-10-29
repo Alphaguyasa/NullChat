@@ -4,7 +4,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.cash.turbine.test
 import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_A
 import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_B
+import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_C
 import et.alpha.nchat.data.db.DatabaseTestFixtures.T0
+import et.alpha.nchat.data.db.DatabaseTestFixtures.conversation
+import et.alpha.nchat.data.db.DatabaseTestFixtures.message
 import et.alpha.nchat.data.db.DatabaseTestFixtures.peer
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -257,4 +260,51 @@ class PeerDaoTest {
 
         assertEquals(true, peers.findById(PEER_A)?.isBlocked)
     }
+
+    // region pruneStrangers (roadmap #49)
+
+    private val week = 7 * 24 * 60 * 60 * 1000L
+
+    @Test
+    fun pruneStrangersRemovesAStaleStrangerAndKeepsAFreshOne() = runTest {
+        peers.insert(peer(id = PEER_A, lastSeenAt = T0))
+        peers.insert(peer(id = PEER_B, lastSeenAt = T0 + week))
+
+        assertEquals(1, peers.pruneStrangers(cutoff = T0 + 1))
+
+        assertNull(peers.findById(PEER_A))
+        assertTrue(peers.findById(PEER_B) != null)
+    }
+
+    @Test
+    fun pruneStrangersKeepsVerifiedNamedAndBlockedPeers() = runTest {
+        peers.insert(peer(id = PEER_A, isVerified = true))
+        peers.insert(peer(id = PEER_B))
+        peers.setNickname(PEER_B, "Sam")
+        peers.insert(peer(id = PEER_C))
+        peers.setBlocked(PEER_C, true)
+
+        assertEquals(0, peers.pruneStrangers(cutoff = T0 + week))
+    }
+
+    @Test
+    fun pruneStrangersKeepsAPeerWithAThread() = runTest {
+        peers.insert(peer(id = PEER_A))
+        db.conversationDao().insert(conversation())
+
+        assertEquals(0, peers.pruneStrangers(cutoff = T0 + week))
+    }
+
+    @Test
+    fun pruneStrangersKeepsAPeerWhoWroteToTheBroadcastThread() = runTest {
+        peers.insert(peer(id = PEER_B))
+        db.conversationDao().insert(conversation(id = BROADCAST_CONVERSATION_ID, peerId = null))
+        db.messageDao().insert(
+            message(id = "m1", conversationId = BROADCAST_CONVERSATION_ID, senderId = PEER_B),
+        )
+
+        assertEquals(0, peers.pruneStrangers(cutoff = T0 + week))
+    }
+
+    // endregion
 }

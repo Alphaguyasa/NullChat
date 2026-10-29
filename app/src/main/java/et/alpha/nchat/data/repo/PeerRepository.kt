@@ -94,7 +94,19 @@ class PeerRepository @Inject constructor(
 
     suspend fun forget(peerId: String): Boolean = peerDao.deleteById(peerId) > 0
 
+    /** Removes strangers unheard for [maxAge]; see [PeerDao.pruneStrangers]. */
+    suspend fun pruneStrangers(
+        maxAge: Long = STRANGER_MAX_AGE_MS,
+        now: Long = System.currentTimeMillis(),
+    ): Int = peerDao.pruneStrangers(now - maxAge)
+
     companion object {
+        /**
+         * How long an unknown peer's row outlives its last ANNOUNCE. A week, so a
+         * neighbour seen on weekdays keeps one row instead of churning.
+         */
+        const val STRANGER_MAX_AGE_MS: Long = 7 * 24 * 60 * 60 * 1000L
+
         /** How long since [PeerEntity.lastSeenAt] a peer still counts as present. */
         const val DEFAULT_PRESENCE_WINDOW_MS: Long = 2 * 60 * 1000L
     }

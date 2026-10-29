@@ -4,6 +4,51 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-29 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page was reachable
+this time. It lists Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest
+Opus. The run has no tool to switch the routine's model, so the ACTION FOR ALPHA stays
+open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`8144b6c`, `v2026-10-28-6`). No PRs were open.
+- No local build: Gradle failed offline as before. CI was the only build. All three PRs
+  were green on the first attempt.
+- **PR #62**, roadmap #47: fragment bounds.
+  - Every piece but the last must be exactly the sender's chunk size (51 bytes), and
+    `total` may not exceed ceil(64 KiB / 51) = 1286.
+  - Before, `total = 65535` with one-byte chunks passed the byte check and allocated
+    65 535 slots.
+  - FragmenterTest +5. Merged, `v2026-10-29-1`.
+- **PR #63**, roadmap #48: `TransferTracker` forgets.
+  - Completed transfers leave the map at once. Their ids are remembered (up to 256) so
+    straggler fragments are still ignored.
+  - Only the newest 32 failures are kept.
+  - Stalled incoming transfers are dropped after the 60 s reassembly window.
+  - TransferTrackerTest +7; InboundHandlerTest updated.
+- **PR #64**, roadmap #49 part 1: bound the stranger list.
+  - `PeerDao.pruneStrangers` runs at start, before the key directory is warmed. It
+    deletes peers unheard for 7 days who have no thread and no message, and are not
+    verified, nicknamed or blocked.
+  - Hop readings are capped at 256 peers; the one unheard longest makes room.
+  - This is a DAO query only, so there is no schema change and no migration.
+  - PeerDaoTest +4 (instrumented); InboundHandlerTest +1.
+  - Part 2 (the peer list filter and an in-session key directory bound) stays on the
+    roadmap.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #47 fragment bounds (PR #62); #48 TransferTracker forgets (PR #63); #49 part 1 prune strangers + hop cap (PR #64) |
+| Merged | #62 yes, `v2026-10-29-1`; #63 yes; #64 see notification. Tags from `release-tag.yml` |
+| Failed or blocked | Nothing failed. No local Android build (CI only) |
+| Roadmap | 11 open (#49 part 2, #50–#54, #42, #21–#23); no replan needed |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model (#7); backup (#3); phone checks 5t…5f; Dependabot authorship; signing; route strip |
+| Next | #49 part 2, #50 mute a chat, #51 full-screen image |
+
+---
+
 ## 2026-10-28 — second run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models docs were unreachable again (proxy 403 on
