@@ -9,6 +9,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -236,6 +237,14 @@ fun ChatScreen(
             MessageInfoDialog(message = message, onDismiss = { infoFor = null })
         }
     }
+    // By id, like `infoFor`: a picture deleted or expired while open closes
+    // the viewer instead of staying on screen after its message is gone.
+    var viewingImage by rememberSaveable { mutableStateOf<String?>(null) }
+    viewingImage?.let { messageId ->
+        state.messages.firstOrNull { it.id == messageId }?.attachmentFile?.let { file ->
+            ImageViewer(path = viewModel.attachmentPath(file), onDismiss = { viewingImage = null })
+        }
+    }
     var isRenaming by rememberSaveable { mutableStateOf(false) }
     if (isRenaming) {
         RenameDialog(
@@ -450,6 +459,7 @@ fun ChatScreen(
                                 // The sender's own words, as Copy takes them.
                                 onForward = { onForward(Quote.replyText(message.body)) },
                                 onInfo = { infoFor = message.id },
+                                onOpenImage = { viewingImage = message.id },
                                 // Settled on the row's first composition and kept:
                                 // a bubble scrolled out of view and back is the
                                 // same message, not a second send.
@@ -855,6 +865,7 @@ private fun ChatMessage(
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
     onInfo: () -> Unit = {},
+    onOpenImage: () -> Unit = {},
 ) {
     val outgoing = message.isOutgoing
     val inFlight = transfer != null && transfer.state != TransferState.COMPLETE
@@ -875,7 +886,14 @@ private fun ChatMessage(
         if (attachmentPath != null || inFlight) {
             {
                 if (attachmentPath != null) {
-                    AttachmentImage(path = attachmentPath, transfer = transfer)
+                    AttachmentImage(
+                        path = attachmentPath,
+                        transfer = transfer,
+                        onOpen = onOpenImage,
+                        // The image would otherwise swallow the bubble's long
+                        // press, and with it the only way to reach the menu.
+                        onLongPress = { menuOpen = true },
+                    )
                 }
                 if (transfer != null && inFlight) TransferIndicator(transfer)
             }
@@ -1281,7 +1299,12 @@ private class SendAnimations(private val openedAt: Long) {
  * decoded with bounds: see [decodeBoundedImage].
  */
 @Composable
-private fun AttachmentImage(path: String, transfer: Transfer?) {
+private fun AttachmentImage(
+    path: String,
+    transfer: Transfer?,
+    onOpen: () -> Unit = {},
+    onLongPress: () -> Unit = {},
+) {
     val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
         value = withContext(Dispatchers.IO) {
             decodeBoundedImage(path)?.asImageBitmap()
@@ -1302,7 +1325,15 @@ private fun AttachmentImage(path: String, transfer: Transfer?) {
                 // nothing is noise to a screen reader. The sender is announced
                 // by the bubble's own label.
                 contentDescription = null,
-                modifier = Modifier.fillMaxWidth(),
+                // Only once decoded: a placeholder has nothing to enlarge.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        onClickLabel = stringResource(R.string.chat_view_image),
+                        onClick = onOpen,
+                        onLongClickLabel = stringResource(R.string.chat_actions_label),
+                        onLongClick = onLongPress,
+                    ),
                 contentScale = ContentScale.FillWidth,
             )
         } else {
