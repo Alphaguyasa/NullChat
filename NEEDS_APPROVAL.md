@@ -196,7 +196,9 @@ B's peer list should show `name · <A's id>` within a few seconds if in range,
 otherwise the next time they connect. A phone on an older build must still see
 A by id and still exchange messages (it ignores the new PROFILE packet).
 
-### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-19)
+### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-29)
+Re-checked 2026-10-29: platform.claude.com's models page is reachable again and still
+lists Claude Fable 5.1 above Opus 5.5. Opus 5.5 is still the newest Opus.
 Anthropic's model docs now list **Claude Fable 5.1** (`claude-fable-5-1`) above
 Opus 5.5 ("for demanding reasoning and long-horizon agentic work"). The MODEL
 POLICY says to use the newest Opus-class model *or any higher tier*. The cloud run
