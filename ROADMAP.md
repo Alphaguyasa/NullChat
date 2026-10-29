@@ -13,7 +13,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 48 | **`TransferTracker` never forgets**: `clear()` has no callers; every image and long text adds an entry, and each progress tick copies the whole map to the chat screen. Clear on final state and after the reassembly timeout. | P2 | S | |
 | 49 | **Bound the stranger list**: every self-signed ANNOUNCE heard within 6 hops adds a permanent peer row, key-directory entry and hop observation (copied on every packet). Prune unverified strangers with no thread after N days; cap the hop map; list only peers with a thread, verified, or seen recently. | P2 | M | Room change → migration + test if a column is needed |
 | 50 | **Mute a chat**: per-thread "no notifications" (local only), shown in the subtitle; broadcast thread already silent. | P2 | M | Room 9→10 + migration test |
 | 51 | **Tap an image to see it full screen** (pinch to zoom, back closes; content description). | P2 | S | |
@@ -90,3 +89,4 @@ change once decided.
 | 2026-10-28 | #45 Held messages always leave: pending rows looked up per chat (no 100-row cap); one release pass over every keyed chat after start-up warm-up, so more than 64 restored keys strand nothing | #60 | see log |
 | 2026-10-28 | #46 Online and "1 hop" from bound links only: the coordinator publishes `boundPeers` (links that proved their id); chat subtitle and peer list use it, the "devices in range" count still counts every link | #61 | see log |
 | 2026-10-29 | #47 Fragment bounds (non-final chunks full size; total ≤ ceil(64 KiB / chunk)) | #62 | see log |
+| 2026-10-29 | #48 `TransferTracker` forgets: completed transfers leave at once (ids remembered, bounded, for stragglers), newest 32 failures kept, stalled incoming dropped after 60 s | #63 | see log |
