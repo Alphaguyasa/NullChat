@@ -13,7 +13,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 51 | **Tap an image to see it full screen** (pinch to zoom, back closes; content description). | P2 | S | |
 | 52 | **Timer change race**: a contact's TIMER held by a relay for hours overrides the user's newer local change, because local changes record no stamp (`PeerTimer`). Stamp local changes and reject older peer changes; show a thread line when the contact changes it. | P3 | M | |
 | 53 | **Peer list order**: comment says "then most recently heard from", code sorts by label (`PeerListViewModel` sort). Sort by last seen; test. Also highlight the open chat's row in the two-pane layout. | P3 | S | |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
@@ -91,3 +90,4 @@ change once decided.
 | 2026-10-29 | #49 part 1: strangers unheard for 7 days with no thread, message, verification, nickname or block are pruned at start; hop readings capped at 256 peers | #64 | see log |
 | 2026-10-29 | #49 part 2: key directory pins kept peers and holds ≤ 1024 strangers (LRU); peer list shows kept, online or heard-within-the-hour peers only | #65 | see log |
 | 2026-10-29 | #50 Mute a chat: `conversations.isMuted` (Room 9→10), menu toggle, "muted" in the subtitle, notifier skips muted threads | #66 | see log |
+| 2026-10-29 | #51 Full-screen image: tap to open, pinch zoom 1–4x, pan within the overhang, double tap resets | #67 | see log |
