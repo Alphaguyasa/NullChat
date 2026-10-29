@@ -22,6 +22,7 @@ object DatabaseTestFixtures {
     const val SELF = "0011223344556677"
     const val PEER_A = "aabbccddeeff0011"
     const val PEER_B = "1122334455667788"
+    const val PEER_C = "99aabbccddeeff00"
 
     const val T0 = 1_700_000_000_000L
 
