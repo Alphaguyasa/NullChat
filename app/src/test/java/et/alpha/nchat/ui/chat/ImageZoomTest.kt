@@ -18,7 +18,9 @@ class ImageZoomTest {
 
     @Test
     fun `nothing pans at 1x`() {
+        // A negative drag once clamped to -0f, which Offset does not count as zero.
         assertEquals(Offset.Zero, ImageZoom.clampOffset(Offset(300f, -300f), 1f, screen))
+        assertEquals(Offset.Zero, ImageZoom.clampOffset(Offset(-300f, -300f), 1f, screen))
     }
 
     @Test

@@ -62,6 +62,10 @@ internal object ImageZoom {
      * is nothing to pan.
      */
     fun clampOffset(offset: Offset, scale: Float, size: IntSize): Offset {
+        // Returned outright rather than clamped to ±0: coerceIn(-0f, 0f) hands
+        // back -0f for a negative drag, and Offset compares its packed bits, so
+        // that "zero" would not equal Offset.Zero.
+        if (scale <= MIN_SCALE) return Offset.Zero
         val maxX = (scale - 1f) * size.width / 2f
         val maxY = (scale - 1f) * size.height / 2f
         return Offset(offset.x.coerceIn(-maxX, maxX), offset.y.coerceIn(-maxY, maxY))
