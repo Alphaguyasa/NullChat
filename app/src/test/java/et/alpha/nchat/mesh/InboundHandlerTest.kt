@@ -473,7 +473,11 @@ class InboundHandlerTest {
         val timers = mutableMapOf<String, Long?>()
         val timerStamps = mutableMapOf<String, PeerTimerStamp>()
 
+        val localTimerChanges = mutableMapOf<String, Long>()
+
         override suspend fun peerTimer(peerHex: String): PeerTimerStamp? = timerStamps[peerHex]
+
+        override suspend fun localTimerChange(peerHex: String): Long? = localTimerChanges[peerHex]
 
         override suspend fun applyPeerTimer(peerHex: String, millis: Long?, stamp: PeerTimerStamp) {
             timers[peerHex] = millis
@@ -522,6 +526,27 @@ class InboundHandlerTest {
         handler.handle(timer(HOUR, sentAt = 10L))
 
         assertNull(store.timers.getValue(aliceHex))
+    }
+
+    @Test
+    fun `a contact's change from before our own does not undo ours`() = runTest {
+        now = 100 * HOUR
+        // We turned the timer off just now; the contact's hour was sent hours
+        // earlier and spent the afternoon in a relay's queue.
+        store.timers[aliceHex] = null
+        store.localTimerChanges[aliceHex] = now
+        handler().handle(timer(HOUR, sentAt = now - 3 * HOUR))
+
+        assertNull(store.timers.getValue(aliceHex))
+        assertNull(store.timerStamps[aliceHex])
+    }
+
+    @Test
+    fun `a contact's change after our own still wins`() = runTest {
+        store.localTimerChanges[aliceHex] = now - HOUR
+        handler().handle(timer(HOUR, sentAt = now - 1L))
+
+        assertEquals(HOUR, store.timers.getValue(aliceHex))
     }
 
     @Test

@@ -142,6 +142,9 @@ internal interface InboundStore {
     /** The last timer change accepted from [peerHex]; see [acceptsPeerTimer]. */
     suspend fun peerTimer(peerHex: String): PeerTimerStamp?
 
+    /** When the user last changed the timer of the chat with [peerHex] here, or null. */
+    suspend fun localTimerChange(peerHex: String): Long?
+
     /** Sets the direct chat's timer to [millis] (null = off) and remembers [stamp]. */
     suspend fun applyPeerTimer(peerHex: String, millis: Long?, stamp: PeerTimerStamp)
 }
@@ -595,7 +598,8 @@ internal class InboundHandler(
         val setting = TimerSetting.parse(plaintext) ?: return
 
         val now = clock()
-        if (!acceptsPeerTimer(store.peerTimer(senderHex), packet.timestamp, now)) {
+        val previous = store.peerTimer(senderHex)
+        if (!acceptsPeerTimer(previous, packet.timestamp, now, store.localTimerChange(senderHex))) {
             log.debug("older timer from ${Packet.tag(packet.senderId)} ignored")
             return
         }

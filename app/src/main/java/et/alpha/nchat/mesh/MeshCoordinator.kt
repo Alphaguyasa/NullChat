@@ -234,6 +234,8 @@ private class RepositoryInboundStore(
 
     override suspend fun peerTimer(peerHex: String): PeerTimerStamp? = peerTimers.get(peerHex)
 
+    override suspend fun localTimerChange(peerHex: String): Long? = peerTimers.getLocalChange(peerHex)
+
     override suspend fun applyPeerTimer(peerHex: String, millis: Long?, stamp: PeerTimerStamp) {
         messages.setDisappearAfter(directConversationId(peerHex), peerHex, millis)
         peerTimers.put(peerHex, stamp)
@@ -606,10 +608,16 @@ class MeshCoordinator @Inject constructor(
      * peer's agreement key; the other phone then keeps its own timer, and the
      * next change made after the keys arrive reaches it. Queued like a message
      * when the peer is out of range. The broadcast thread has nobody to tell.
+     *
+     * The change's time is remembered so that an older TIMER from the peer,
+     * still on its way through the mesh, cannot undo it; see `acceptsPeerTimer`.
      */
     suspend fun setDisappearing(recipientHexId: String?, millis: Long?) = scope.outliveCaller {
         messages.setDisappearAfter(conversationIdFor(recipientHexId), recipientHexId, millis)
-        if (recipientHexId != null) tellTimer(recipientHexId, millis)
+        if (recipientHexId != null) {
+            peerTimers.putLocalChange(recipientHexId, System.currentTimeMillis())
+            tellTimer(recipientHexId, millis)
+        }
     }
 
     private suspend fun tellTimer(peerHex: String, millis: Long?) {
