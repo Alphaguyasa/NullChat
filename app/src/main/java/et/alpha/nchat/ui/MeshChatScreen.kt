@@ -122,7 +122,9 @@ fun MeshChatScreen(
             onDraftFilled = { draftToFill = null },
         )
     }
-    val peerList: @Composable (Modifier) -> Unit = { paneModifier ->
+    // The flag marks the open chat's row, which only means something when the
+    // chat is on screen beside the list.
+    val peerList: @Composable (Modifier, Boolean) -> Unit = { paneModifier, markOpenChat ->
         PeerListScreen(
             onOpenConversation = { peerId ->
                 openPeerId = peerId
@@ -135,6 +137,7 @@ fun MeshChatScreen(
             onOpenSettings = { destination = Destination.SETTINGS },
             isPickingForShare = pendingShare != null,
             onCancelShare = { pendingShare = null },
+            isOpen = { row -> markOpenChat && row.peerId == openPeerId },
         )
     }
 
@@ -146,7 +149,10 @@ fun MeshChatScreen(
             (destination == Destination.PEERS || destination == Destination.CHAT)
         if (twoPanes) {
             Row(Modifier.fillMaxSize()) {
-                peerList(Modifier.width(listPaneWidthDp(widthDp).dp).fillMaxHeight())
+                peerList(
+                    Modifier.width(listPaneWidthDp(widthDp).dp).fillMaxHeight(),
+                    destination == Destination.CHAT,
+                )
                 VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     if (destination == Destination.CHAT) {
@@ -169,7 +175,7 @@ fun MeshChatScreen(
                     Destination.CHAT -> chat(Modifier)
                     Destination.PAIR -> QrPairScreen(onBack = { destination = Destination.PEERS })
                     Destination.SETTINGS -> SettingsScreen(onBack = { destination = Destination.PEERS })
-                    Destination.PEERS -> peerList(Modifier)
+                    Destination.PEERS -> peerList(Modifier, false)
                 }
             }
         }

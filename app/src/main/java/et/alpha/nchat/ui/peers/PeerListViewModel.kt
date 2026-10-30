@@ -65,6 +65,8 @@ data class PeerRow(
      * in the room.
      */
     val lastRelayAt: Long? = null,
+    /** When this phone last heard from the peer, by its own clock; 0 if never. */
+    val lastSeenAt: Long = 0L,
 ) {
     val isBroadcast: Boolean get() = peerId == null
 
@@ -129,6 +131,21 @@ internal const val STRANGER_LISTED_MS: Long = 60 * 60 * 1000L
  */
 internal fun isListed(peer: PeerEntity, hasThread: Boolean, isOnline: Boolean, now: Long): Boolean =
     peer.isKept(hasThread) || isOnline || peer.lastSeenAt >= now - STRANGER_LISTED_MS
+
+/**
+ * The order of the peer rows: reachable peers first, then the rest by who was
+ * heard from most recently. Someone standing next to you matters more than
+ * someone you spoke to yesterday, and yesterday more than last month.
+ *
+ * Reachable peers sort by label among themselves, not by last seen: they all
+ * announce every few seconds, and rows that swapped places on each announcement
+ * would move under the user's finger. The label also breaks ties, so the order
+ * never depends on what order the database returned.
+ */
+internal val peerRowOrder: Comparator<PeerRow> =
+    compareByDescending<PeerRow> { it.isOnline }
+        .thenByDescending { if (it.isOnline) 0L else it.lastSeenAt }
+        .thenBy { it.label }
 
 internal fun peerLabel(displayName: String?, peerId: String): String {
     val shortId = peerId.take(SHORT_ID_CHARS)
@@ -206,10 +223,9 @@ class PeerListViewModel @Inject constructor(
                 // only ever answers for peers we cannot reach directly.
                 hops = if (peer.id in online) DIRECT_HOPS else observedHops[peer.id],
                 lastRelayAt = relayedAt[peer.id],
+                lastSeenAt = peer.lastSeenAt,
             )
-        // Reachable peers first, then most recently heard from. Someone standing
-        // next to you matters more than someone you spoke to yesterday.
-        }.sortedWith(compareByDescending<PeerRow> { it.isOnline }.thenBy { it.label })
+        }.sortedWith(peerRowOrder)
 
         PeerListState(
             rows = listOf(broadcastRow) + peerRows,

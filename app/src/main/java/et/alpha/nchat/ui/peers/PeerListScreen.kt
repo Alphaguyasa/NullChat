@@ -38,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -76,6 +78,8 @@ fun PeerListScreen(
     onOpenSettings: () -> Unit = {},
     isPickingForShare: Boolean = false,
     onCancelShare: () -> Unit = {},
+    /** Whether a row's chat is the one open beside the list, in two panes. */
+    isOpen: (PeerRow) -> Boolean = { false },
     viewModel: PeerListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -131,6 +135,7 @@ fun PeerListScreen(
                         PeerRowItem(
                             row = visible.row,
                             onClick = { onOpenConversation(visible.row.peerId) },
+                            isOpen = isOpen(visible.row),
                         )
                         HorizontalDivider()
                     }
@@ -263,10 +268,21 @@ private fun Header(
 }
 
 @Composable
-internal fun PeerRowItem(row: PeerRow, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PeerRowItem(
+    row: PeerRow,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isOpen: Boolean = false,
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // In two panes the list stays on screen beside the chat; without a
+            // mark, nothing says which row the right-hand side belongs to. A flat
+            // surface tint, since the design forbids elevation, and `selected`
+            // so TalkBack says it too.
+            .then(if (isOpen) Modifier.background(MaterialTheme.colorScheme.surfaceVariant) else Modifier)
+            .semantics { selected = isOpen }
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
