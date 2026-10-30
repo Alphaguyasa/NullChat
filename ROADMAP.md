@@ -26,11 +26,8 @@ change once decided.
 
 ### Tech debt (slot into light days)
 
-- Stale KDoc: `KeyManager` says the X25519 key is "unused until SessionCipher lands". (`MeshCoordinator`'s `flushPending`/`TESTING.md` references were fixed in #9.)
 - Receiving side still accepts plaintext direct messages from older builds (`openedBody` fallback). Once every phone runs a build with #9, consider rejecting them.
-- Delete `ExampleUnitTest` and `ExampleInstrumentedTest`.
 - `MeshCoordinator` is about 1000 lines after #35. `offerQueued` and `releaseHeld` (send side) still have no JVM test; an `OutboundSender` split would give them one.
-- `MainActivityPreview` composes `MeshChatScreen`, which needs Hilt ViewModels; replace with a stateless preview.
 
 ## Done
 
@@ -92,3 +89,4 @@ change once decided.
 | 2026-10-29 | #51 Full-screen image: tap to open, pinch zoom 1–4x, pan within the overhang, double tap resets | #67 | see log |
 | 2026-10-30 | #52 part 1: local timer changes are stamped; a contact's TIMER sent more than 15 min before our own change no longer undoes it | #68 | see log |
 | 2026-10-30 | #53 Peer list order: online first by name, then most recently heard; the open chat's row is marked in two panes | #69 | see log |
+| 2026-10-30 | Tech debt: stale `KeyManager` KDoc fixed; template `Example*` tests and the Hilt-bound `MainActivityPreview` removed (the list and chat keep their stateless previews) | #70 | see log |

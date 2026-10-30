@@ -53,7 +53,7 @@ class KeyManager(
     /** Ed25519 public key, 32 bytes. Safe to publish; this is what a QR encodes. */
     val signingPublicKey: ByteArray get() = material.signingPublic.copyOf()
 
-    /** X25519 public key, 32 bytes. Unused until SessionCipher lands. */
+    /** X25519 public key, 32 bytes. Announced so peers can seal direct messages to us; see SessionCipher. */
     val agreementPublicKey: ByteArray get() = material.agreementPublic.copyOf()
 
     /** This device's 8-byte mesh id, committed to [signingPublicKey]. */

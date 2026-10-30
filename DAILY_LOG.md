@@ -4,6 +4,57 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-30 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists
+Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. The run has no
+tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`63232bf`, `v2026-10-29-6`). No PRs were open.
+- No local build: Gradle cannot resolve plugins offline, and the box has no Android SDK.
+  CI was the only build. All three PRs were green on the first attempt.
+- The run's branch is `alpha/beautiful-davinci-08xlrd`, reused for each PR. After each
+  squash-merge the branch was restarted from main and the old tip merged in with no
+  content change, so nothing was force-pushed.
+- **PR #68**, roadmap #52 part 1: timer change race.
+  - `setDisappearing` stores when the user changed a chat's timer on this phone
+    (`PeerTimerStore`, `local:` key; prefs, no schema change).
+  - `acceptsPeerTimer` refuses a contact's TIMER stamped more than 15 minutes before
+    that local change. Like the peer-order rule, the refusal lasts at most the
+    one-week replay window.
+  - This is the first rule that compares the two phones' clocks, and the tolerance is
+    loose on purpose. A phone more than 15 minutes behind has its changes refused while
+    our change is recent. Both chats then show different timers, as with an older
+    build, and the next change from either side settles it.
+  - PeerTimerTest +3, InboundHandlerTest +2. Merged, `v2026-10-30-1`.
+  - Part 2 (a thread line when the contact changes the timer) needs non-message rows,
+    which means a schema change. It stays on the roadmap as #52.
+- **PR #69**, roadmap #53: peer list order.
+  - `peerRowOrder`: online peers first, by name (they announce every few seconds, so
+    sorting them by last seen would reorder rows under the user's finger). Then the
+    rest by `lastSeenAt`, newest first, with the name as tie-break.
+  - In two panes the open chat's row gets the surface tint and `selected` semantics.
+  - PeerRowOrderTest 3. Merged.
+- **PR #70**, tech debt.
+  - Fixed the stale `KeyManager` KDoc.
+  - Deleted the template `ExampleUnitTest` and `ExampleInstrumentedTest`.
+  - Removed `MainActivityPreview`. It composed Hilt ViewModels and so never rendered,
+    and the list and chat already have stateless previews.
+- Phone checks are in NEEDS_APPROVAL 5v.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #52 part 1 timer race (PR #68); #53 peer list order (PR #69); tech debt cleanup (PR #70) |
+| Merged | #68 yes, `v2026-10-30-1`; #69 yes; #70 see notification. Tags from `release-tag.yml` |
+| Failed or blocked | Nothing failed. No local Android build (CI only) |
+| Roadmap | 6 open (#52 part 2, #54, #42, #21–#23) plus 2 tech-debt notes. No replan yet; the next run replans if fewer than 5 are open |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model (#7); backup (#3); phone checks 5v…5f; Dependabot authorship; signing; route strip |
+| Next | #52 part 2 (timer thread line, Room 10→11) or #42 link challenge; #54 still waits for phone evidence. Replan once fewer than 5 items are open |
+
+---
+
 ## 2026-10-29 — second run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists

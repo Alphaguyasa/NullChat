@@ -5,6 +5,17 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5v. Phone checks for the timer race and the peer list (2026-10-30)
+*Timer race (#68), two paired phones A and B:* take B out of range and on B set
+Disappearing messages → 1 hour (it queues). On A, a few minutes later, set Off.
+Bring B back: A stays Off (before this change it turned to 1 hour). B shows 1 hour
+until A's Off reaches it. Changing the timer on either phone afterwards still
+reaches the other as before.
+*Peer list (#69), one phone:* contacts who are not nearby are listed with the most
+recently heard first, not alphabetically; nearby ones stay on top, by name. On a
+tablet or a phone in landscape, the open chat's row is tinted and the tint moves
+when you tap another row. No radio change.
+
 ### 5u. Phone checks for mute, full-screen images and the shorter list (2026-10-29, second run)
 *Mute (#66), two phones A and B:* on A, open B's chat, ⋮ → Mute notifications. The
 subtitle ends `· muted`. Leave the chat; B sends a message: it arrives on A (unread
@@ -209,8 +220,8 @@ B's peer list should show `name · <A's id>` within a few seconds if in range,
 otherwise the next time they connect. A phone on an older build must still see
 A by id and still exchange messages (it ignores the new PROFILE packet).
 
-### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-29, second run)
-Re-checked 2026-10-29: platform.claude.com's models page is reachable again and still
+### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-30)
+Re-checked 2026-10-30: platform.claude.com's models page is reachable again and still
 lists Claude Fable 5.1 above Opus 5.5. Opus 5.5 is still the newest Opus.
 Anthropic's model docs now list **Claude Fable 5.1** (`claude-fable-5-1`) above
 Opus 5.5 ("for demanding reasoning and long-horizon agentic work"). The MODEL
