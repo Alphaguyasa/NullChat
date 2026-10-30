@@ -33,4 +33,45 @@ class PeerTimerTest {
             acceptsPeerTimer(accepted, sentAt = 999L, now = 50_001L + PEER_TIMER_REPLAY_WINDOW_MILLIS),
         )
     }
+
+    @Test
+    fun `a change stamped before our own local change loses`() {
+        assertFalse(
+            acceptsPeerTimer(
+                null,
+                sentAt = 10_000_000L - PEER_TIMER_CLOCK_TOLERANCE_MILLIS - 1L,
+                now = 10_000_001L,
+                localChangedAt = 10_000_000L,
+            ),
+        )
+        // Even when it is newer than the peer's last accepted change.
+        assertFalse(
+            acceptsPeerTimer(accepted, sentAt = 1_001L, now = 10_000_001L, localChangedAt = 10_000_000L),
+        )
+    }
+
+    @Test
+    fun `a change stamped after our own, or within the clock tolerance, wins`() {
+        assertTrue(acceptsPeerTimer(null, sentAt = 10_000_001L, now = 10_000_002L, localChangedAt = 10_000_000L))
+        assertTrue(
+            acceptsPeerTimer(
+                null,
+                sentAt = 10_000_000L - PEER_TIMER_CLOCK_TOLERANCE_MILLIS,
+                now = 10_000_001L,
+                localChangedAt = 10_000_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun `an old local change stops shielding once the window is over`() {
+        assertTrue(
+            acceptsPeerTimer(
+                null,
+                sentAt = 1L,
+                now = 10_000_001L + PEER_TIMER_REPLAY_WINDOW_MILLIS,
+                localChangedAt = 10_000_000L,
+            ),
+        )
+    }
 }

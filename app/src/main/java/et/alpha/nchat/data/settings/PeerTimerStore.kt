@@ -17,6 +17,9 @@ import kotlinx.coroutines.withContext
  * over, which does not justify a schema version. It must survive a restart,
  * because the forward queues that would replay an old change do too.
  *
+ * Also remembers when the user last changed each chat's timer on this phone,
+ * under a prefixed key, so a contact's older change cannot undo it.
+ *
  * Kept when a contact is forgotten. A forgotten peer's old TIMER replayed by a
  * relay would otherwise bring the thread back with a timer nobody chose.
  */
@@ -38,6 +41,17 @@ class PeerTimerStore @Inject constructor(
         }
     }
 
+    /** When the user last changed the timer of the chat with [peerHex] here, or null. */
+    suspend fun getLocalChange(peerHex: String): Long? = withContext(Dispatchers.IO) {
+        preferences.getString(LOCAL_PREFIX + peerHex, null)?.toLongOrNull()
+    }
+
+    suspend fun putLocalChange(peerHex: String, changedAt: Long) {
+        withContext(Dispatchers.IO) {
+            preferences.edit().putString(LOCAL_PREFIX + peerHex, changedAt.toString()).commit()
+        }
+    }
+
     private fun decode(value: String?): PeerTimerStamp? {
         val (sentAt, appliedAt) = value?.split(FIELD)?.takeIf { it.size == 2 } ?: return null
         return PeerTimerStamp(sentAt.toLongOrNull() ?: return null, appliedAt.toLongOrNull() ?: return null)
@@ -46,5 +60,8 @@ class PeerTimerStore @Inject constructor(
     private companion object {
         const val PREFERENCES = "peer_timers"
         const val FIELD = ":"
+
+        /** Peer ids are hex, so this can never collide with a peer's own key. */
+        const val LOCAL_PREFIX = "local:"
     }
 }
