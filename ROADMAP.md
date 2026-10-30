@@ -14,7 +14,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 52 | **Timer change thread line** (part 2; part 1 #68 stamps local changes): show a line in the thread when the contact changes the timer. Needs a way to store non-message rows (Room column or a separate table). | P3 | M | Schema change |
-| 53 | **Peer list order**: comment says "then most recently heard from", code sorts by label (`PeerListViewModel` sort). Sort by last seen; test. Also highlight the open chat's row in the two-pane layout. | P3 | S | |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 42 | **Link challenge**: a stranger in range of a contact can relay the contact's live ANNOUNCE onto its own link and be bound (see `LinkBindings`). A plain nonce does not stop a live relay; sign Nearby's per-connection raw authentication token instead, which differs on each of the relay's two links. New packet type. | P3 | M | Wire change, needs two-phone check |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
@@ -92,3 +91,4 @@ change once decided.
 | 2026-10-29 | #50 Mute a chat: `conversations.isMuted` (Room 9→10), menu toggle, "muted" in the subtitle, notifier skips muted threads | #66 | see log |
 | 2026-10-29 | #51 Full-screen image: tap to open, pinch zoom 1–4x, pan within the overhang, double tap resets | #67 | see log |
 | 2026-10-30 | #52 part 1: local timer changes are stamped; a contact's TIMER sent more than 15 min before our own change no longer undoes it | #68 | see log |
+| 2026-10-30 | #53 Peer list order: online first by name, then most recently heard; the open chat's row is marked in two panes | #69 | see log |
