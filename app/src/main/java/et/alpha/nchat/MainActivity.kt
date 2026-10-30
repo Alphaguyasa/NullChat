@@ -19,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.AndroidEntryPoint
 import et.alpha.nchat.data.settings.AppLockStore
@@ -180,12 +179,4 @@ private fun MeshHost(
         shareRequest = shareRequest,
         onShareRequestHandled = onShareRequestHandled,
     )
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun MainActivityPreview() {
-    NChatTheme {
-        MeshChatScreen()
-    }
 }
