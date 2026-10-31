@@ -101,6 +101,12 @@ class NearbyTransport(
 
     private val connectedEndpoints = mutableSetOf<String>()
 
+    /**
+     * Each connection's raw authentication token, the same at both ends of one
+     * link and different on every other; see `LinkTokenProof`.
+     */
+    private val tokensByEndpoint = mutableMapOf<String, ByteArray>()
+
     private val _connectedPeers = MutableStateFlow<Set<String>>(emptySet())
 
     override val connectedPeers: StateFlow<Set<String>> = _connectedPeers.asStateFlow()
@@ -170,6 +176,7 @@ class NearbyTransport(
             connectedEndpoints.clear()
             peerIdsByEndpoint.clear()
             endpointsByPeerId.clear()
+            tokensByEndpoint.clear()
             _connectedPeers.value = emptySet()
             previous
         }
@@ -183,6 +190,10 @@ class NearbyTransport(
     /** The 8-byte protocol id behind a Nearby endpoint, or null if not yet known. */
     fun peerIdFor(endpointId: String): ByteArray? =
         synchronized(lock) { peerIdsByEndpoint[endpointId]?.copyOf() }
+
+    /** The connection's raw authentication token, or null if Nearby gave none. */
+    fun linkTokenFor(endpointId: String): ByteArray? =
+        synchronized(lock) { tokensByEndpoint[endpointId]?.copyOf() }
 
     /** The endpoint currently carrying a protocol peer, or null if unreachable. */
     fun endpointIdFor(peerId: ByteArray): String? =
@@ -209,6 +220,11 @@ class NearbyTransport(
 
             Log.i(TAG, "found $endpointId (peer ${tag(peerId)})")
             remember(endpointId, peerId)
+            // Kept for the link proof; never logged, since it is half of what
+            // authenticates this connection.
+            info.rawAuthenticationToken?.let { token ->
+                synchronized(lock) { tokensByEndpoint[endpointId] = token.copyOf() }
+            }
 
             // Both sides discover and both request; Nearby resolves the collision
             // and surfaces one connection, so a rejected duplicate is expected.
@@ -250,8 +266,8 @@ class NearbyTransport(
             // Auto-accept: Nearby's authentication token confirms only that both
             // ends see the same link, which is not an identity claim. Trust is
             // established above this layer — out-of-band QR verification plus the
-            // per-packet Ed25519 signature — so there is nothing for a user
-            // prompt here to meaningfully confirm.
+            // per-packet Ed25519 signature, and the LINK_PROOF that signs this
+            // token — so there is nothing for a user prompt here to confirm.
             client.acceptConnection(endpointId, payloadCallback)
                 .addOnFailureListener {
                     Log.w(TAG, "acceptConnection $endpointId failed: ${it.message}")
@@ -329,6 +345,7 @@ class NearbyTransport(
     }
 
     private fun forget(endpointId: String) = synchronized(lock) {
+        tokensByEndpoint.remove(endpointId)
         peerIdsByEndpoint.remove(endpointId)?.let { peerId ->
             // Only clear the reverse entry if it still points at this endpoint: a
             // peer that reconnected under a new endpoint id must not be unmapped

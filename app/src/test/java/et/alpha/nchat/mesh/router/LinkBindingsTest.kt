@@ -104,5 +104,84 @@ class LinkBindingsTest {
         assertEquals(emptySet<String>(), links.boundPeers(), "a link that left is nobody's")
     }
 
+    // Roadmap #42: a stranger M sits between Alice and us. Alice's link to M has
+    // token T1, M's link to us has T2, and Alice can only sign T1's digest.
+    private val t1 = ByteArray(32) { 1 }
+    private val t2 = ByteArray(32) { 2 }
+
+    @Test
+    fun `a token proof for this link binds it`() {
+        val proved = mutableListOf<String>()
+        val links = LinkBindings(onTokenProof = { proved.add(it) })
+        links.claim("e1", alice, tokenDigest = t2)
+
+        assertTrue(links.prove(LinkProof("e1", alice, tokenDigest = t2)))
+        assertEquals(listOf(alice.hex()), proved)
+    }
+
+    @Test
+    fun `a relayed token proof made for another link does not bind`() {
+        val proved = mutableListOf<String>()
+        val links = LinkBindings(onTokenProof = { proved.add(it) })
+        links.claim("relay", alice, tokenDigest = t2)
+
+        assertFalse(links.prove(LinkProof("relay", alice, tokenDigest = t1)))
+        assertFalse(links.isBound("relay"))
+        assertTrue(proved.isEmpty(), "a mismatched proof must not mark the peer as a prover")
+    }
+
+    @Test
+    fun `a relayed announcement no longer binds a peer known to send token proofs`() {
+        val links = LinkBindings(requiresTokenProof = { it == alice.hex() })
+        links.claim("relay", alice, tokenDigest = t2)
+
+        assertFalse(links.prove(LinkProof("relay", alice)), "a live relay of the announcement is not proof")
+        assertFalse(links.isBound("relay"))
+        assertTrue(links.prove(LinkProof("relay", alice, tokenDigest = t2)))
+    }
+
+    @Test
+    fun `an announcement still binds a peer that never sent a token proof`() {
+        // Older builds send no LINK_PROOF; they must keep working.
+        val links = LinkBindings(requiresTokenProof = { false })
+        links.claim("e1", alice, tokenDigest = t2)
+
+        assertTrue(links.prove(LinkProof("e1", alice)))
+    }
+
+    @Test
+    fun `a token proof that beats the claim binds when the claim comes`() {
+        val proved = mutableListOf<String>()
+        val links = LinkBindings(requiresTokenProof = { true }, onTokenProof = { proved.add(it) })
+
+        assertFalse(links.prove(LinkProof("e1", alice)))
+        assertFalse(links.prove(LinkProof("e1", alice, tokenDigest = t1)))
+        assertFalse(links.claim("e2", alice, tokenDigest = t2))
+        assertFalse(links.prove(LinkProof("e3", alice, tokenDigest = t2)))
+        assertTrue(links.claim("e3", alice, tokenDigest = t2))
+        assertEquals(listOf(alice.hex()), proved)
+    }
+
+    @Test
+    fun `an early announcement does not bind a peer known to send token proofs`() {
+        val links = LinkBindings(requiresTokenProof = { true })
+        links.prove(LinkProof("e1", alice))
+
+        assertFalse(links.claim("e1", alice, tokenDigest = t2))
+    }
+
+    @Test
+    fun `a token proof after an announcement binding still marks the peer`() {
+        // First meeting with an updated contact: the announcement binds, and the
+        // proof right behind it is what makes the next meeting strict.
+        val proved = mutableListOf<String>()
+        val links = LinkBindings(onTokenProof = { proved.add(it) })
+        links.claim("e1", alice, tokenDigest = t2)
+        assertTrue(links.prove(LinkProof("e1", alice)))
+
+        assertFalse(links.prove(LinkProof("e1", alice, tokenDigest = t2)), "already bound")
+        assertEquals(listOf(alice.hex()), proved)
+    }
+
     private fun ByteArray.hex(): String = joinToString("") { "%02x".format(it) }
 }

@@ -5,6 +5,18 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5x. Two-phone check for the link proof (2026-10-31, second run)
+*Link proof (#73), two paired phones A and B, both on this build:* this changes what
+goes on the air (new LINK_PROOF packet right after each announcement). Bring them
+together: B shows online on A within a few seconds, as before. With B out of range,
+send B a message from A: it shows `queued`; bring B back and it turns `sent`, then
+`delivered`. Now take B away and back again (second meeting, where the stricter rule
+applies): the same must happen. If B ever stays offline on A, or a message stays
+`queued` while B is right next to A, this change is failing; say so and it will be
+reverted. A phone on an **older build** still shows online and still gets its queue
+(it sends no proof, so the old rule applies to it). Known cost: a contact who goes
+*back* to an older build after meeting you on this one stays offline until it updates.
+
 ### 5w. Phone checks for timer lines (2026-10-31)
 *Timer lines (#71), two paired phones A and B:* on A, open B's chat, ⋮ →
 Disappearing messages → 1 hour. A's thread shows "You set messages to disappear

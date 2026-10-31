@@ -17,6 +17,7 @@ import et.alpha.nchat.data.repo.DeletedMessageStore
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.data.settings.DisplayNameStore
+import et.alpha.nchat.data.settings.LinkProverStore
 import et.alpha.nchat.data.settings.PeerTimerStore
 import et.alpha.nchat.di.MeshScope
 import et.alpha.nchat.mesh.crypto.LocalIdentity
@@ -24,11 +25,14 @@ import et.alpha.nchat.mesh.crypto.PublicKeyDirectory
 import et.alpha.nchat.mesh.crypto.SessionCipher
 import et.alpha.nchat.mesh.protocol.Attachment
 import et.alpha.nchat.mesh.protocol.Fragmenter
+import et.alpha.nchat.mesh.protocol.LinkTokenProof
 import et.alpha.nchat.mesh.protocol.MessagePacket
 import et.alpha.nchat.mesh.protocol.announcementPacket
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.Profile
 import et.alpha.nchat.mesh.protocol.TimerSetting
+import et.alpha.nchat.mesh.protocol.linkProofPacket
+import et.alpha.nchat.mesh.protocol.linkTokenDigest
 import et.alpha.nchat.mesh.protocol.profilePacket
 import et.alpha.nchat.mesh.protocol.timerPacket
 import et.alpha.nchat.mesh.router.ForwardQueue
@@ -321,6 +325,7 @@ class MeshCoordinator @Inject constructor(
     private val displayNames: DisplayNameStore,
     private val deletedMessages: DeletedMessageStore,
     private val peerTimers: PeerTimerStore,
+    private val linkProvers: LinkProverStore,
     @MeshScope private val scope: CoroutineScope,
 ) {
 
@@ -330,7 +335,10 @@ class MeshCoordinator @Inject constructor(
     private val resending: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     /** Which connected endpoints have proved the peer id they advertise. */
-    private val links = LinkBindings()
+    private val links = LinkBindings(
+        requiresTokenProof = linkProvers::contains,
+        onTokenProof = linkProvers::add,
+    )
 
     private val _boundPeers = MutableStateFlow<Set<String>>(emptySet())
 
@@ -1117,10 +1125,13 @@ class MeshCoordinator @Inject constructor(
                     // Introduce ourselves first, so the peer can verify what
                     // follows rather than filing it as from an unknown sender.
                     announceSelf()
+                    val token = transport.linkTokenFor(endpointId)
+                    val digest = token?.let(::linkTokenDigest)
+                    if (digest != null) proveLink(endpointId, peerId, digest)
                     // After the announcement, so the peer holds our key by the
                     // time the signed name arrives and can verify it.
                     broadcastProfile()
-                    if (links.claim(endpointId, peerId)) {
+                    if (links.claim(endpointId, peerId, digest)) {
                         _boundPeers.value = links.boundPeers()
                         offerQueued(peerId, endpointId)
                     }
@@ -1131,6 +1142,23 @@ class MeshCoordinator @Inject constructor(
             // reconnects later gets a fresh greeting.
             greeted.retainAll(endpoints)
         }
+    }
+
+    /**
+     * Signs this link's token digest and sends it down that link only, so the
+     * phone at the other end can tell us from a relay passing our announcement
+     * along; see [LinkBindings].
+     */
+    private suspend fun proveLink(endpointId: String, peerId: ByteArray, digest: ByteArray) {
+        val packet = linkProofPacket(
+            messageId = newMessageId().hexIdToBytes(),
+            senderId = identity.peerId,
+            recipientId = peerId,
+            proof = LinkTokenProof(identity.publicKey, digest),
+            timestamp = System.currentTimeMillis(),
+        )
+        runCatching { router.sendOnLink(endpointId, packet) }
+            .onFailure { Log.w(TAG, "failed to prove link to ${Packet.tag(peerId)}: ${it.message}") }
     }
 
     /** A link that proves the id it claimed gets that id's queued packets. */
