@@ -220,11 +220,6 @@ class NearbyTransport(
 
             Log.i(TAG, "found $endpointId (peer ${tag(peerId)})")
             remember(endpointId, peerId)
-            // Kept for the link proof; never logged, since it is half of what
-            // authenticates this connection.
-            info.rawAuthenticationToken?.let { token ->
-                synchronized(lock) { tokensByEndpoint[endpointId] = token.copyOf() }
-            }
 
             // Both sides discover and both request; Nearby resolves the collision
             // and surfaces one connection, so a rejected duplicate is expected.
@@ -257,6 +252,11 @@ class NearbyTransport(
             // Incoming connections arrive without discovery, so this is the only
             // place the mapping gets recorded for a peer that found us first.
             remember(endpointId, peerId)
+            // Kept for the link proof; never logged, since it is half of what
+            // authenticates this connection.
+            info.rawAuthenticationToken?.let { token ->
+                synchronized(lock) { tokensByEndpoint[endpointId] = token.copyOf() }
+            }
             Log.i(
                 TAG,
                 "connection initiated with $endpointId (peer ${tag(peerId)}), " +
