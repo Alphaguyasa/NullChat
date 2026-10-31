@@ -4,6 +4,50 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-31 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists
+Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. The run has no
+tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`970eedd`). No PRs were open, and no Dependabot PRs.
+- No local Android build (no SDK in the cloud box). CI was the only build. The Room
+  hash script was rebuilt again (Java `Collator` + MD5). It reproduces all ten
+  committed hashes, and it produced `11.json`.
+- **PR #71**, roadmap #52 part 2: timer lines in the thread.
+  - New table `timer_changes` (Room 10→11, additive, FK cascade to `conversations`).
+    Migration test added.
+  - `setDisappearAfter(…, byPeer)` writes the line in the same transaction, only
+    when the value changes. At most 50 lines per thread.
+  - `threadRows` places lines between messages by local time.
+  - The lines are a separate table, not a message kind, so unread counts,
+    notifications, search, export and the timer sweep never see them.
+  - ThreadRowsTest 6, MessageRepositoryTest +4. Green on the first attempt. Merged.
+  - The first push went to `claude/timer-lines` by mistake. The proxy refuses
+    branch deletes, so that branch is left for alpha (NEEDS_APPROVAL 5w).
+- **PR #72**, tech debt: `releaseHeld` and `offerQueued`'s row updates are now
+  `sendHeld` and `markFlushed`, top-level helpers like `heldFor`. SendGlueTest 5.
+  No behaviour change.
+- Roadmap #42 (link challenge) was not started. It changes the Transport interface
+  and the wire and needs two phones, which is too much for the end of a run. It is
+  next.
+- Roadmap: 5 open (#54, #42, #21, #22, #23), so no replan this run. #54 waits for
+  phone evidence and #23 for alpha's privacy decision, so the next run will likely
+  replan after #42.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #52 part 2 timer lines (PR #71); send-side glue tests (PR #72) |
+| Merged | #71 yes; #72 see notification. Tags from `release-tag.yml` |
+| Failed or blocked | Nothing failed. Stray branch `claude/timer-lines` (proxy refuses deletes). No local Android build |
+| Roadmap | 5 open; no replan needed yet |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Model (#7); backup (#3); phone checks 5w…5f; Dependabot authorship; signing; route strip |
+| Next | #42 link challenge (wire change, needs two-phone check), then a replan audit |
+
+---
+
 ## 2026-10-30 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists

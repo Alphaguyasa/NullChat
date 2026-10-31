@@ -5,6 +5,19 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5w. Phone checks for timer lines (2026-10-31)
+*Timer lines (#71), two paired phones A and B:* on A, open B's chat, ⋮ →
+Disappearing messages → 1 hour. A's thread shows "You set messages to disappear
+after 1 hour" where it happened, between the messages. B's shows "<A's name> set
+messages to disappear after 1 hour". Set Off on B: both show the matching "turned
+off" line. Choosing the value a chat already has adds no line. Updating from the
+previous build keeps every chat (Room 10→11), and changes made before the update
+get no line. A line is plain text, and a long press on it does nothing.
+*Send glue (#72):* nothing new to see. Queued messages still turn `sent` when the
+contact comes into range, as in check 5p.
+*Housekeeping:* the cloud proxy would not delete a stray branch,
+`claude/timer-lines` (same commit as #71). Delete it on GitHub whenever you like.
+
 ### 5v. Phone checks for the timer race and the peer list (2026-10-30)
 *Timer race (#68), two paired phones A and B:* take B out of range and on B set
 Disappearing messages → 1 hour (it queues). On A, a few minutes later, set Off.

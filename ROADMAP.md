@@ -26,7 +26,7 @@ change once decided.
 ### Tech debt (slot into light days)
 
 - Receiving side still accepts plaintext direct messages from older builds (`openedBody` fallback). Once every phone runs a build with #9, consider rejecting them.
-- `MeshCoordinator` is about 1000 lines after #35. `offerQueued` and `releaseHeld` (send side) still have no JVM test; an `OutboundSender` split would give them one.
+- `MeshCoordinator` is about 1200 lines. The send-side glue now has JVM tests (`sendHeld`, `markFlushed`, #72); an `OutboundSender` class split is still open if the file keeps growing.
 
 ## Done
 
@@ -90,3 +90,4 @@ change once decided.
 | 2026-10-30 | #53 Peer list order: online first by name, then most recently heard; the open chat's row is marked in two panes | #69 | see log |
 | 2026-10-30 | Tech debt: stale `KeyManager` KDoc fixed; template `Example*` tests and the Hilt-bound `MainActivityPreview` removed (the list and chat keep their stateless previews) | #70 | see log |
 | 2026-10-31 | #52 part 2: timer change lines in the thread (Room 10→11, `timer_changes`) | #71 | see log |
+| 2026-10-31 | Tech debt: `releaseHeld` / `offerQueued` glue extracted to `sendHeld` / `markFlushed` with JVM tests | #72 | see log |
