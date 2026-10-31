@@ -50,7 +50,8 @@ decrement ttl, jitter, relay) → `MeshCoordinator.collectIncoming` → Room →
 ### Packet format (big-endian, ≤180 bytes before fragmentation)
 
 ```
-version u8 | packetType u8 (1 ANNOUNCE, 2 MESSAGE, 3 ACK, 4 KEY_EXCHANGE, 5 FRAGMENT)
+version u8 | packetType u8 (1 ANNOUNCE, 2 MESSAGE, 3 ACK, 4 KEY_EXCHANGE, 5 FRAGMENT,
+                         6 PROFILE, 7 TIMER, 8 LINK_PROOF)
 messageId 16B | senderId 8B | recipientId 8B (all zero = broadcast)
 ttl u8 (starts at 6, NOT signed) | timestamp u64 | payloadLen u16 | payload | signature 64B
 ```

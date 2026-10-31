@@ -2,6 +2,7 @@ package et.alpha.nchat.mesh.crypto
 
 import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.mesh.protocol.Announcement
+import et.alpha.nchat.mesh.protocol.LinkTokenProof
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketCodec
 import et.alpha.nchat.mesh.protocol.PacketType
@@ -218,6 +219,18 @@ class DirectoryPacketVerifier @Inject constructor(
             if (!announced.peerId.contentEquals(packet.senderId)) return Verification.INVALID
 
             return if (verifyEd25519(announced.signingKey, signedBytes, packet.signature)) {
+                Verification.VALID
+            } else {
+                Verification.INVALID
+            }
+        }
+
+        // Self-authenticating for the same reason, and so that a proof which
+        // overtakes the announcement filing its key is not lost.
+        if (packet.type == PacketType.LINK_PROOF) {
+            val proof = LinkTokenProof.parse(packet.payload) ?: return Verification.INVALID
+            if (!proof.peerId.contentEquals(packet.senderId)) return Verification.INVALID
+            return if (verifyEd25519(proof.signingKey, signedBytes, packet.signature)) {
                 Verification.VALID
             } else {
                 Verification.INVALID

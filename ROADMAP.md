@@ -14,7 +14,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
-| 42 | **Link challenge**: a stranger in range of a contact can relay the contact's live ANNOUNCE onto its own link and be bound (see `LinkBindings`). A plain nonce does not stop a live relay; sign Nearby's per-connection raw authentication token instead, which differs on each of the relay's two links. New packet type. | P3 | M | Wire change, needs two-phone check |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
 | 23 | **Route strip**: show relay chain on tap. Privacy trade-off — see NEEDS_APPROVAL. | P3 | M | |
@@ -91,3 +90,4 @@ change once decided.
 | 2026-10-30 | Tech debt: stale `KeyManager` KDoc fixed; template `Example*` tests and the Hilt-bound `MainActivityPreview` removed (the list and chat keep their stateless previews) | #70 | see log |
 | 2026-10-31 | #52 part 2: timer change lines in the thread (Room 10→11, `timer_changes`) | #71 | see log |
 | 2026-10-31 | Tech debt: `releaseHeld` / `offerQueued` glue extracted to `sendHeld` / `markFlushed` with JVM tests | #72 | see log |
+| 2026-10-31 | #42 Link challenge: LINK_PROOF signs the Nearby link token (needs two-phone check) | #73 | see log |

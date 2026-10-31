@@ -1,5 +1,6 @@
 package et.alpha.nchat.mesh.router
 
+import et.alpha.nchat.mesh.protocol.LinkTokenProof
 import et.alpha.nchat.mesh.protocol.Packet
 import et.alpha.nchat.mesh.protocol.PacketCodec
 import et.alpha.nchat.mesh.protocol.PacketDecodeException
@@ -98,7 +99,7 @@ class MeshRouter(
     private val proofs = Channel<LinkProof>(Channel.UNLIMITED)
 
     /**
-     * Verified ANNOUNCEs, each tagged with the link it arrived on. See
+     * Verified ANNOUNCEs and LINK_PROOFs, each tagged with the link it arrived on. See
      * [LinkBindings] for why the coordinator needs the link and not just the
      * sender.
      */
@@ -201,6 +202,20 @@ class MeshRouter(
         // silent failure.
         enqueueForLater(signed)
         return false
+    }
+
+    /**
+     * Signs [packet] and hands it to one link only, never to the queue.
+     *
+     * For what is about the link itself (a LINK_PROOF): it means nothing to
+     * anyone else and nothing an hour later.
+     *
+     * @return false if the link was already gone.
+     */
+    suspend fun sendOnLink(endpointId: String, packet: Packet): Boolean {
+        val signed = signer?.signing(packet) ?: packet
+        seenCache.markSeen(signed.messageId)
+        return transport.send(endpointId, PacketCodec.encode(signed))
     }
 
     /**
@@ -343,6 +358,16 @@ class MeshRouter(
         // carried, and a replay inside the seen-cache window is dropped above.
         if (packet.type == PacketType.ANNOUNCE && verification == Verification.VALID) {
             proofs.trySend(LinkProof(inbound.fromPeer, packet.senderId.copyOf()))
+        }
+
+        // A link proof is about the link it came in on and nothing else: never
+        // delivered, never relayed, whatever its ttl claims (ttl is unsigned).
+        if (packet.type == PacketType.LINK_PROOF) {
+            val proof = LinkTokenProof.parse(packet.payload)
+            if (verification == Verification.VALID && proof != null) {
+                proofs.trySend(LinkProof(inbound.fromPeer, packet.senderId.copyOf(), proof.tokenDigest))
+            }
+            return
         }
 
         // Rule 3: deliver anything addressed to us or to everyone — but only if

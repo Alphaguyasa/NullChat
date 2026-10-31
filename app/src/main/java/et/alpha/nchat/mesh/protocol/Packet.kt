@@ -150,6 +150,13 @@ enum class PacketType(val wire: Int) {
 
     /** A direct chat's disappearing timer, sealed. Builds before it drop the packet unread. */
     TIMER(7),
+
+    /**
+     * Proof that the sender's key holder is at the other end of this very link;
+     * see [LinkTokenProof]. Never relayed or queued. Builds before it drop the
+     * packet unread.
+     */
+    LINK_PROOF(8),
     ;
 
     companion object {
