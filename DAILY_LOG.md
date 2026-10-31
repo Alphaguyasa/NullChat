@@ -4,6 +4,55 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-10-31 — second run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists
+Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. The run has no
+tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`651a5a5`). No PRs were open, and no Dependabot PRs.
+- No local Android build (no SDK in the cloud box). CI was the only build.
+- **PR #73**, roadmap #42: link challenge.
+  - New packet type 8, LINK_PROOF. It carries the signing key and the SHA-256 of a
+    domain tag plus the connection's raw Nearby authentication token. It is sent with
+    ttl 1 down the new link only, right after the announcement, and is never
+    delivered, relayed or queued.
+  - Both ends of one link see the same token. A relay's two links have different
+    ones, so a contact's proof passed along by a stranger never matches.
+  - `LinkBindings` binds a link on a matching token proof. A bare announcement still
+    binds a peer that has never sent one (older builds). It stops binding a peer
+    that has, and `LinkProverStore` (prefs) remembers those peers so a relay cannot
+    strip the proof.
+  - CI failed twice; both are fixed on the branch:
+    1. Compile error: my edit read the token in the discovery callback, not
+       `onConnectionInitiated`. Wrong first match in a scripted replace.
+    2. Unit tests: `PacketCodecTest` used 8 as its "unknown type". It now uses 9.
+  - Green on the third push. Merged, `v2026-10-31-3`.
+  - Phone check: NEEDS_APPROVAL 5x.
+- **Replan** (4 items left after #42, below the 5-item threshold).
+  - A subagent did a read-only audit; I checked each finding before listing it.
+  - New items #55–66: service crash loop without permissions, unbounded broadcast
+    storage, per-link rate limit, greeting floods, replayed ANNOUNCE/PROFILE,
+    notifications outliving deleted messages, mesh on/off, `receivedAt` index,
+    `_boundPeers` race, orphan image files, tombstone cap, mesh health row.
+  - The audit also flagged the #73 token bug (item 1), which was already fixed by
+    then.
+- Stopped at one roadmap item this run: two CI fixes used the attempt budget, and
+  #55 wants a device to confirm the crash first.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #42 link challenge (PR #73); replan audit, items #55–66 (PR #74) |
+| Merged | #73 yes, `v2026-10-31-3`; #74 see notification |
+| Failed or blocked | #73 failed CI twice (compile error, then a stale test), fixed both times. No local Android build |
+| Roadmap | 16 open after the replan (#55–66 new) |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Two-phone check 5x (link proof, on-air change); model (#7); backup (#3); earlier phone checks; signing; route strip |
+| Next | #55 service crash guard, #56 broadcast storage cap, #57 per-link rate limit |
+
+---
+
 ## 2026-10-31 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists
