@@ -4,8 +4,9 @@ Prioritized backlog. Work top-down; the daily run takes up to 3 items.
 Priority: **P0** broken / security · **P1** high value · **P2** solid improvement · **P3** nice to have.
 Effort: **S** < 2 h · **M** half a day · **L** a day or more (split into several PRs).
 
-Audit of 2026-10-14; replanned 2026-10-22 (items 27–41); **replanned 2026-10-28**
-(third audit, items 43–54, evidence in DAILY_LOG 2026-10-28). This round's theme is a
+Audit of 2026-10-14; replanned 2026-10-22 (items 27–41); replanned 2026-10-28
+(third audit, items 43–54); **replanned 2026-10-31** (fourth audit, items 55–66, evidence
+in DAILY_LOG 2026-10-31 second run). This round's theme is a
 hostile or crowded mesh: what one modified phone, or a festival's worth of strangers,
 can make this phone hold, drop or show. Bugs and abuse resistance come before features.
 
@@ -13,6 +14,18 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
+| 55 | **Service crash loop without permissions**: `MeshForegroundService` is START_STICKY and calls `startForeground` unguarded; if Bluetooth/Nearby permission is revoked, the system restart throws `SecurityException` on API 34+ every time. Check permissions first, catch, `stopSelf()`. | P1 | S | Needs a device to confirm the crash |
+| 56 | **Broadcast thread grows without limit**: any self-made key makes its broadcasts VALID, and nothing trims them (`pruneOlderThan`, `AttachmentStore.pruneExcept` have no callers). One hostile phone can fill storage and slow the Everyone thread. Cap broadcast rows and images, oldest first, files included. | P1 | M | |
+| 57 | **Per-link inbound rate limit**: `MeshRouter.onInbound` verifies, caches and relays every unique id with no budget, and the inbound channels are unlimited. Token bucket per endpoint (pure Kotlin), drop and count the excess. | P1 | M | On-air, needs two-phone check |
+| 58 | **Greeting floods the mesh**: each new link triggers a ttl-6 ANNOUNCE and PROFILE with fresh ids, so a crowd pays ~O(N²) airtime on every reconnect. Send the announcement on the new link only (`sendOnLink`) and broadcast at most every few minutes. | P1 | M | On-air, needs two-phone check |
+| 59 | **Replayed ANNOUNCE/PROFILE**: `recordSeen` uses our clock and ignores `packet.timestamp`, so a relay replaying old signed copies after the 10-minute seen window makes a contact look "heard now", resets the stranger prune and reverts their name. Ignore stale packets; newest PROFILE by sender clock wins (as TIMER). | P2 | S | |
+| 60 | **Notifications outlive deleted or disappearing messages**: the sweep, delete chat, forget and block leave the preview in the shade; swiping a notification does not reset the count. Cancel from those paths; add a delete intent. | P2 | S | Privacy |
+| 61 | **Mesh on/off**: `MeshForegroundService.stop()` has no callers; the only way to stop relaying is force stop. Setting plus a Stop action on the ongoing notification, remembered across restarts. | P2 | M | |
+| 62 | **Index on `receivedAt`**: thread and summary queries order by `receivedAt` (since #29) but only `(conversationId, timestamp)` is indexed. Add `(conversationId, receivedAt)` (Room 11→12, migration test). | P2 | S | Schema change |
+| 63 | **`_boundPeers` race**: two collectors on `Dispatchers.Default` snapshot `links.boundPeers()` and assign separately, so a stale set can win and show a bound peer offline. Publish from inside the `LinkBindings` lock. | P3 | S | |
+| 64 | **Orphan image files**: `deleteLocally`/`deleteChat` are not `outliveCaller`-wrapped, and `pruneExcept` is never called. Wrap both; prune once at start against live attachment names. | P3 | S | |
+| 65 | **Tombstone cap**: `Tombstones.MAX_ENTRIES = 1000`, so deleting a chat over 1000 messages lets older ones come back from relays' queues within 24 h. Raise the cap or move to Room. | P3 | S | |
+| 66 | **Mesh health row** in Settings from the unused router counters (forged, malformed, failed forwards); fix "Open Settings" → "Open settings" (strings.xml:30). | P3 | S | |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
@@ -90,4 +103,4 @@ change once decided.
 | 2026-10-30 | Tech debt: stale `KeyManager` KDoc fixed; template `Example*` tests and the Hilt-bound `MainActivityPreview` removed (the list and chat keep their stateless previews) | #70 | see log |
 | 2026-10-31 | #52 part 2: timer change lines in the thread (Room 10→11, `timer_changes`) | #71 | see log |
 | 2026-10-31 | Tech debt: `releaseHeld` / `offerQueued` glue extracted to `sendHeld` / `markFlushed` with JVM tests | #72 | see log |
-| 2026-10-31 | #42 Link challenge: LINK_PROOF signs the Nearby link token (needs two-phone check) | #73 | see log |
+| 2026-10-31 | #42 Link challenge: LINK_PROOF signs the Nearby link token (needs two-phone check) | #73 | v2026-10-31-3 |
