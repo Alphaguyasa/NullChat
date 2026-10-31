@@ -81,6 +81,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -187,18 +188,19 @@ fun ChatScreen(
     BackHandler(enabled = isSearching, onBack = closeSearch)
     val currentHitId = hits.getOrNull(currentHit)
     LaunchedEffect(currentHitId) {
-        val row = currentHitId?.let { id -> state.messages.indexOfFirst { it.id == id } } ?: return@LaunchedEffect
+        // An index into the rows, not the messages: timer lines sit between them.
+        val row = currentHitId?.let { id -> state.rows.indexOfFirst { it.key == id } } ?: return@LaunchedEffect
         if (row < 0) return@LaunchedEffect
         if (animate) listState.animateScrollToItem(row) else listState.scrollToItem(row)
     }
 
     // Follow the tail as messages arrive, which is what a chat log should do.
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(state.rows.size) {
+        if (state.rows.isEmpty()) return@LaunchedEffect
         // Not while searching: a message arriving would yank the user away from
         // the match they are reading.
         if (isSearching) return@LaunchedEffect
-        val tail = state.messages.lastIndex
+        val tail = state.rows.lastIndex
         if (animate) listState.animateScrollToItem(tail) else listState.scrollToItem(tail)
     }
 
@@ -412,7 +414,7 @@ fun ChatScreen(
                 // The title is empty only in the initial state, before the first
                 // query has come back. Waiting for it keeps "no messages yet"
                 // from flashing across a thread that in fact has history.
-                if (state.messages.isEmpty() && state.title.isNotEmpty()) {
+                if (state.rows.isEmpty() && state.title.isNotEmpty()) {
                     EmptyState(
                         modifier = Modifier.align(Alignment.Center),
                         title = "No messages yet",
@@ -429,53 +431,65 @@ fun ChatScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(state.messages, key = { it.id }) { message ->
-                            ChatMessage(
-                                message = message,
-                                isBroadcast = state.isBroadcast,
-                                searchQuery = query.takeIf { isSearching }.orEmpty(),
-                                transfer = transfers[message.id],
-                                attachmentPath = message.attachmentFile
-                                    ?.let(viewModel::attachmentPath),
-                                onResend = { viewModel.onResend(message.id) },
-                                onCopy = {
-                                    scope.launch {
-                                        clipboard.setClipEntry(
-                                            // The answer only: the quoted words are
-                                            // someone else's, already in the thread.
-                                            messageClip(
-                                                Quote.replyText(message.body),
-                                                sensitive = !state.isBroadcast,
-                                            ),
-                                        )
-                                        // Android 13 and later confirm a copy themselves.
-                                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                                            snackbarHostState.showSnackbar(copiedText)
+                        items(state.rows, key = { it.key }) { row ->
+                            if (row is ThreadRow.TimerLine) {
+                                TimerChangeLine(
+                                    text = timerLineText(row.change, state.peerName),
+                                    modifier = Modifier.animateItem(
+                                        fadeInSpec = if (animate) MotionSpec else null,
+                                        placementSpec = if (animate) MotionPlacementSpec else null,
+                                        fadeOutSpec = if (animate) MotionSpec else null,
+                                    ),
+                                )
+                            } else {
+                                val message = (row as ThreadRow.Message).message
+                                ChatMessage(
+                                    message = message,
+                                    isBroadcast = state.isBroadcast,
+                                    searchQuery = query.takeIf { isSearching }.orEmpty(),
+                                    transfer = transfers[message.id],
+                                    attachmentPath = message.attachmentFile
+                                        ?.let(viewModel::attachmentPath),
+                                    onResend = { viewModel.onResend(message.id) },
+                                    onCopy = {
+                                        scope.launch {
+                                            clipboard.setClipEntry(
+                                                // The answer only: the quoted words are
+                                                // someone else's, already in the thread.
+                                                messageClip(
+                                                    Quote.replyText(message.body),
+                                                    sensitive = !state.isBroadcast,
+                                                ),
+                                            )
+                                            // Android 13 and later confirm a copy themselves.
+                                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                                                snackbarHostState.showSnackbar(copiedText)
+                                            }
                                         }
-                                    }
-                                },
-                                onDelete = { pendingDelete = message.id },
-                                onReply = { viewModel.onReply(message) },
-                                // The sender's own words, as Copy takes them.
-                                onForward = { onForward(Quote.replyText(message.body)) },
-                                onInfo = { infoFor = message.id },
-                                onOpenImage = { viewingImage = message.id },
-                                // Settled on the row's first composition and kept:
-                                // a bubble scrolled out of view and back is the
-                                // same message, not a second send.
-                                animateSend = remember(message.id) {
-                                    sends.isFreshSend(message) && animate
-                                },
-                                modifier = Modifier.animateItem(
-                                    // No fade in: the bubble runs its own
-                                    // entrance, and two overlapping entrances
-                                    // read as a stutter. The list only animates
-                                    // the rows the new message displaces.
-                                    fadeInSpec = null,
-                                    placementSpec = if (animate) MotionPlacementSpec else null,
-                                    fadeOutSpec = if (animate) MotionSpec else null,
-                                ),
-                            )
+                                    },
+                                    onDelete = { pendingDelete = message.id },
+                                    onReply = { viewModel.onReply(message) },
+                                    // The sender's own words, as Copy takes them.
+                                    onForward = { onForward(Quote.replyText(message.body)) },
+                                    onInfo = { infoFor = message.id },
+                                    onOpenImage = { viewingImage = message.id },
+                                    // Settled on the row's first composition and kept:
+                                    // a bubble scrolled out of view and back is the
+                                    // same message, not a second send.
+                                    animateSend = remember(message.id) {
+                                        sends.isFreshSend(message) && animate
+                                    },
+                                    modifier = Modifier.animateItem(
+                                        // No fade in: the bubble runs its own
+                                        // entrance, and two overlapping entrances
+                                        // read as a stutter. The list only animates
+                                        // the rows the new message displaces.
+                                        fadeInSpec = null,
+                                        placementSpec = if (animate) MotionPlacementSpec else null,
+                                        fadeOutSpec = if (animate) MotionSpec else null,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }
@@ -499,6 +513,26 @@ fun ChatScreen(
             )
         }
     }
+}
+
+/**
+ * A centred line between the messages saying the disappearing timer changed,
+ * and who changed it.
+ *
+ * Plain text, not a bubble, and nothing happens on a press: it is not
+ * something anyone wrote, so there is nothing to copy, reply to or delete.
+ */
+@Composable
+private fun TimerChangeLine(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 4.dp),
+    )
 }
 
 /**

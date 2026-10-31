@@ -260,6 +260,47 @@ data class MessageEntity(
 }
 
 /**
+ * One change to a thread's disappearing timer, for the line the thread shows
+ * where it happened ("Maya set messages to disappear after 1 hour").
+ *
+ * A table of its own rather than a kind of [MessageEntity]. A message row is
+ * counted as unread, notified, searched, exported, quoted, swept by the timer
+ * and offered for resend; a timer line must be none of those, and a `kind`
+ * column would have to be remembered in every one of those queries. Kept
+ * apart, nothing that reads messages can mistake it for one.
+ *
+ * Not swept by the disappearing timer: it says what the timer is, not anything
+ * anyone wrote, and a thread whose messages have gone should still say why.
+ * Deleting the thread deletes its lines by cascade.
+ */
+@Entity(
+    tableName = "timer_changes",
+    foreignKeys = [
+        ForeignKey(
+            entity = ConversationEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["conversationId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("conversationId", "changedAt")],
+)
+data class TimerChangeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val conversationId: String,
+    /** True when the other phone set it (a TIMER packet), false when this user did. */
+    val byPeer: Boolean,
+    /** The timer from then on, in millis, or null for off. */
+    val disappearAfterMillis: Long?,
+    /**
+     * When this phone applied the change, by this phone's clock, like
+     * [MessageEntity.receivedAt], so the line sits among the messages in the
+     * order the user saw things happen.
+     */
+    val changedAt: Long,
+)
+
+/**
  * A packet held for a recipient that was not reachable when we tried to send it.
  *
  * This is the persistent half of `ForwardQueue`; the policy — 500 entry cap, 24

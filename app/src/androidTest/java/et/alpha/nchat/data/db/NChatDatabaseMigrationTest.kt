@@ -567,6 +567,67 @@ class NChatDatabaseMigrationTest {
         }
     }
 
+    /**
+     * The v10 → v11 upgrade that adds timer lines.
+     *
+     * Threads, their timer and mute, and their messages all survive; the new
+     * table starts empty and takes a line for a thread that already existed.
+     */
+    @Test
+    fun migratingToVersion11AddsTimerLinesAndKeepsThreads() {
+        helper.createDatabase(TEST_DB, 10).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO conversations
+                    (id, peerId, title, createdAt, lastActivityAt, lastReadAt, disappearAfterMillis, isMuted)
+                VALUES ('direct:peer', 'peer', NULL, 1000, 1000, 0, 3600000, 1)
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO messages
+                    (id, conversationId, senderId, body, timestamp, deliveryState,
+                     isOutgoing, attachmentFile, hops, receivedAt, expiresAt)
+                VALUES ('m1', 'direct:peer', 'peer', 'survived', 1000, 'DELIVERED', 0, NULL, NULL, 1000, 3601000)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_10_11 and validates the result against schemas/11.json.
+        helper.runMigrationsAndValidate(TEST_DB, 11, true, *NChatDatabase.MIGRATIONS).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val thread = db.conversationDao().findById("direct:peer")
+                assertEquals(3_600_000L, thread?.disappearAfterMillis)
+                assertEquals(true, thread?.isMuted)
+                val message = db.messageDao().findById("m1")
+                assertEquals("survived", message?.body)
+                assertEquals(3_601_000L, message?.expiresAt)
+
+                val lines = db.timerChangeDao()
+                assertEquals(emptyList<TimerChangeEntity>(), lines.observeConversation("direct:peer").first())
+                lines.insert(
+                    TimerChangeEntity(
+                        conversationId = "direct:peer",
+                        byPeer = true,
+                        disappearAfterMillis = null,
+                        changedAt = 2000,
+                    ),
+                )
+                assertEquals(listOf(2000L), lines.observeConversation("direct:peer").first().map { it.changedAt })
+            }
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

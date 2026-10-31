@@ -237,7 +237,7 @@ private class RepositoryInboundStore(
     override suspend fun localTimerChange(peerHex: String): Long? = peerTimers.getLocalChange(peerHex)
 
     override suspend fun applyPeerTimer(peerHex: String, millis: Long?, stamp: PeerTimerStamp) {
-        messages.setDisappearAfter(directConversationId(peerHex), peerHex, millis)
+        messages.setDisappearAfter(directConversationId(peerHex), peerHex, millis, byPeer = true)
         peerTimers.put(peerHex, stamp)
     }
 }

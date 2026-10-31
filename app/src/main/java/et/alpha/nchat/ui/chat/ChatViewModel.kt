@@ -45,6 +45,10 @@ import kotlinx.coroutines.withContext
 
 data class ChatState(
     val messages: List<MessageEntity> = emptyList(),
+    /** What the thread shows: [messages] with the timer lines between them. */
+    val rows: List<ThreadRow> = emptyList(),
+    /** The peer's name for timer lines, or null when it has none (or in the broadcast thread). */
+    val peerName: String? = null,
     val title: String = "",
     val isPeerOnline: Boolean = false,
     val isBroadcast: Boolean = true,
@@ -123,7 +127,10 @@ class ChatViewModel @Inject constructor(
 
     val state: StateFlow<ChatState> = peerId.flatMapLatest { peer ->
         combine(
-            messages.observeMessages(conversationIdFor(peer)),
+            combine(
+                messages.observeMessages(conversationIdFor(peer)),
+                messages.observeTimerChanges(conversationIdFor(peer)),
+            ) { rows, changes -> rows to threadRows(rows, changes) },
             // Bound links only: a stranger advertising this peer's id must not
             // make it look like the peer is next to us.
             coordinator.boundPeers.map { bound -> peer == null || peer in bound },
@@ -131,10 +138,12 @@ class ChatViewModel @Inject constructor(
             // which reads as unverified — correctly.
             if (peer == null) flowOf(null) else peers.observePeer(peer),
             messages.observeConversation(conversationIdFor(peer)),
-        ) { rows, online, peerRow, conversation ->
+        ) { (rows, thread), online, peerRow, conversation ->
             val name = peerRow?.preferredName
             ChatState(
                 messages = rows,
+                rows = thread,
+                peerName = name,
                 // A named peer reads like the peer list; an unnamed one keeps its
                 // full id, the one thing to compare against a QR code.
                 title = when {

@@ -32,7 +32,7 @@ class MessageRepositoryTest {
     @Before
     fun setUp() {
         db = DatabaseTestFixtures.createDatabase()
-        repo = MessageRepository(db, db.messageDao(), db.conversationDao())
+        repo = MessageRepository(db, db.messageDao(), db.conversationDao(), db.timerChangeDao())
     }
 
     @After
@@ -330,6 +330,53 @@ class MessageRepositoryTest {
         repo.setDisappearAfter(convoId, PEER_A, HOUR, now = T0)
 
         assertEquals(HOUR, repo.observeConversation(convoId).first()?.disappearAfterMillis)
+    }
+
+    @Test
+    fun aTimerChangeWritesOneLineSayingWhoMadeIt() = runTest {
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, now = T0)
+        repo.setDisappearAfter(convoId, PEER_A, null, byPeer = true, now = T0 + 1)
+
+        val lines = repo.observeTimerChanges(convoId).first()
+        assertEquals(listOf(false to HOUR, true to null), lines.map { it.byPeer to it.disappearAfterMillis })
+        assertEquals(listOf(T0, T0 + 1), lines.map { it.changedAt })
+    }
+
+    @Test
+    fun settingTheTimerItAlreadyHasWritesNoLine() = runTest {
+        // A fresh thread is already off, and a repeated TIMER changes nothing.
+        repo.setDisappearAfter(convoId, PEER_A, null, byPeer = true, now = T0)
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, byPeer = true, now = T0 + 1)
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, byPeer = true, now = T0 + 2)
+
+        assertEquals(listOf(T0 + 1), repo.observeTimerChanges(convoId).first().map { it.changedAt })
+    }
+
+    @Test
+    fun timerLinesAreNotMessagesAndGoWithTheThread() = runTest {
+        repo.recordIncoming("in", convoId, PEER_A, "hi", T0, now = T0)
+        repo.markRead(convoId, at = T0)
+        repo.setDisappearAfter(convoId, PEER_A, HOUR, byPeer = true, now = T0 + 1)
+
+        // Not unread, not in the thread's messages, not swept by the timer.
+        assertEquals(0, repo.observeUnreadCount(convoId, since = T0).first())
+        assertEquals(listOf("in"), repo.observeMessages(convoId).first().map { it.id })
+        assertTrue(repo.findExpired(now = T0 + YEAR).isEmpty())
+
+        repo.deleteConversation(convoId)
+        assertTrue(repo.observeTimerChanges(convoId).first().isEmpty())
+    }
+
+    @Test
+    fun aContactTogglingTheTimerKeepsOnlyTheNewestLines() = runTest {
+        repeat(MessageRepository.TIMER_LINES_KEPT + 10) { i ->
+            repo.setDisappearAfter(convoId, PEER_A, if (i % 2 == 0) HOUR else null, byPeer = true, now = T0 + i)
+        }
+
+        val lines = repo.observeTimerChanges(convoId).first()
+        assertEquals(MessageRepository.TIMER_LINES_KEPT, lines.size)
+        assertEquals(T0 + 10, lines.first().changedAt)
+        assertEquals(T0 + MessageRepository.TIMER_LINES_KEPT + 9, lines.last().changedAt)
     }
 
     @Test

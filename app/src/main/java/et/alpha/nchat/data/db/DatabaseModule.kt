@@ -36,4 +36,8 @@ object DatabaseModule {
     @Provides
     fun provideForwardQueueDao(database: NChatDatabase): ForwardQueueDao =
         database.forwardQueueDao()
+
+    @Provides
+    fun provideTimerChangeDao(database: NChatDatabase): TimerChangeDao =
+        database.timerChangeDao()
 }

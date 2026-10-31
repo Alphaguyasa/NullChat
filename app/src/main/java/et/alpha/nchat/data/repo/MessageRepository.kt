@@ -8,6 +8,8 @@ import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageDao
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.NChatDatabase
+import et.alpha.nchat.data.db.TimerChangeDao
+import et.alpha.nchat.data.db.TimerChangeEntity
 import et.alpha.nchat.data.db.newMessageId
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -25,6 +27,7 @@ class MessageRepository @Inject constructor(
     private val database: NChatDatabase,
     private val messageDao: MessageDao,
     private val conversationDao: ConversationDao,
+    private val timerChangeDao: TimerChangeDao,
 ) {
 
     fun observeMessages(conversationId: String): Flow<List<MessageEntity>> =
@@ -35,6 +38,10 @@ class MessageRepository @Inject constructor(
 
     fun observeUnreadCount(conversationId: String, since: Long): Flow<Int> =
         messageDao.observeUnreadCount(conversationId, since)
+
+    /** A thread's timer lines, oldest first; see [TimerChangeEntity]. */
+    fun observeTimerChanges(conversationId: String): Flow<List<TimerChangeEntity>> =
+        timerChangeDao.observeConversation(conversationId)
 
     suspend fun findMessage(id: String): MessageEntity? = messageDao.findById(id)
 
@@ -209,15 +216,36 @@ class MessageRepository @Inject constructor(
      * Sets how long new messages in a thread stay on this phone; null keeps
      * them. Creates the thread if needed, so a timer can be set before the
      * first message.
+     *
+     * A change also writes the thread's timer line, in the same transaction so
+     * the line can never disagree with the timer. Setting the value the thread
+     * already has writes nothing: a TIMER that only repeats the current value
+     * changed nothing the user needs to read about.
+     *
+     * @param byPeer true when the other phone made the change.
      */
     suspend fun setDisappearAfter(
         conversationId: String,
         peerId: String?,
         millis: Long?,
+        byPeer: Boolean = false,
         now: Long = System.currentTimeMillis(),
-    ) = database.withTransaction {
-        ensureConversation(conversationId, peerId, now)
-        conversationDao.setDisappearAfter(conversationId, millis)
+    ) {
+        database.withTransaction {
+            ensureConversation(conversationId, peerId, now)
+            val previous = conversationDao.findById(conversationId)?.disappearAfterMillis
+            if (previous == millis) return@withTransaction
+            conversationDao.setDisappearAfter(conversationId, millis)
+            timerChangeDao.insert(
+                TimerChangeEntity(
+                    conversationId = conversationId,
+                    byPeer = byPeer,
+                    disappearAfterMillis = millis,
+                    changedAt = now,
+                ),
+            )
+            timerChangeDao.trim(conversationId, TIMER_LINES_KEPT)
+        }
     }
 
     /**
@@ -270,8 +298,14 @@ class MessageRepository @Inject constructor(
         )
     }
 
-    private companion object {
+    companion object {
         /** Well under SQLite's 999 bound parameters on the oldest supported version. */
-        const val DELETE_BATCH = 500
+        private const val DELETE_BATCH = 500
+
+        /**
+         * Timer lines kept per thread. Far more than anyone reads back, and few
+         * enough that a contact toggling the timer in a loop costs nothing.
+         */
+        const val TIMER_LINES_KEPT = 50
     }
 }
