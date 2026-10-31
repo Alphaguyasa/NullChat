@@ -115,6 +115,46 @@ internal fun heldFor(peerHex: String, pending: List<MessageEntity>): List<Messag
     }
 
 /**
+ * Sends [held] rows in order and moves each to SENT only once [transmit] says
+ * it went out.
+ *
+ * A row [transmit] could not send (still no key, or the router threw) stays
+ * PENDING for the next release, and the rows after it still go: one bad row
+ * must not strand the rest of the thread behind it.
+ *
+ * @return how many rows were moved to SENT.
+ */
+internal suspend fun sendHeld(
+    held: List<MessageEntity>,
+    transmit: suspend (MessageEntity) -> Boolean,
+    markSent: suspend (String) -> Boolean,
+): Int {
+    var sent = 0
+    for (row in held) {
+        if (transmit(row) && markSent(row.id)) sent++
+    }
+    return sent
+}
+
+/**
+ * Moves our rows to SENT for exactly the queued packets that went out.
+ *
+ * Only those packets, never every pending row in the thread: the rest are
+ * still in the queue (or held for a key) and showing them as sent would be the
+ * lie the delivery label must never tell. A relayed packet has no row here,
+ * and [markSent] leaves it alone.
+ *
+ * @return how many of our rows were moved to SENT.
+ */
+internal suspend fun markFlushed(delivered: List<Packet>, markSent: suspend (String) -> Boolean): Int {
+    var marked = 0
+    for (packet in delivered) {
+        if (markSent(packet.messageId.toHexId())) marked++
+    }
+    return marked
+}
+
+/**
  * Peers with held messages that can be released now: the direct threads among
  * [conversationIds] whose peer [hasKey]. Used once after the key directory is
  * warmed, so a restart releases everything without relying on one signal per
@@ -590,12 +630,14 @@ class MeshCoordinator @Inject constructor(
         val held = heldFor(peerHex, messages.pendingOutgoingIn(directConversationId(peerHex)))
         if (held.isEmpty()) return
         Log.i(TAG, "key for ${Packet.tag(peerHex.hexIdToBytes())} arrived, sending ${held.size} held message(s)")
-        for (row in held) {
-            // Same id and timestamp as the first attempt, so a row that had in
-            // fact been queued already is deduplicated by the queue and the
-            // receiver rather than shown twice.
-            if (transmit(row.id, row.body, peerHex, row.timestamp)) messages.markSent(row.id)
-        }
+        // Same id and timestamp as the first attempt, so a row that had in
+        // fact been queued already is deduplicated by the queue and the
+        // receiver rather than shown twice.
+        sendHeld(
+            held,
+            transmit = { row -> transmit(row.id, row.body, peerHex, row.timestamp) },
+            markSent = messages::markSent,
+        )
     }
 
     /**
@@ -1117,11 +1159,7 @@ class MeshCoordinator @Inject constructor(
         if (delivered.isEmpty()) return
 
         Log.i(TAG, "flushed ${delivered.size} queued packet(s) to ${Packet.tag(peerId)}")
-        // Exactly the packets that went out, not every pending row: the queue
-        // also carries traffic relayed for other devices, which has no row here.
-        for (packet in delivered) {
-            messages.markSent(packet.messageId.toHexId())
-        }
+        markFlushed(delivered, messages::markSent)
     }
 
     private fun conversationIdFor(recipientHexId: String?): String =
