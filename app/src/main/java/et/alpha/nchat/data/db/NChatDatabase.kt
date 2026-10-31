@@ -37,6 +37,7 @@ import androidx.sqlite.execSQL
         PeerEntity::class,
         ConversationEntity::class,
         ForwardQueueEntity::class,
+        TimerChangeEntity::class,
     ],
     version = NChatDatabase.VERSION,
     exportSchema = true,
@@ -52,8 +53,10 @@ abstract class NChatDatabase : RoomDatabase() {
 
     abstract fun forwardQueueDao(): ForwardQueueDao
 
+    abstract fun timerChangeDao(): TimerChangeDao
+
     companion object {
-        const val VERSION: Int = 10
+        const val VERSION: Int = 11
 
         const val NAME: String = "nchat.db"
 
@@ -209,6 +212,34 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds the `timer_changes` table behind the thread's timer lines.
+         *
+         * Purely additive, like 1 → 2: a new table, so no existing row is
+         * read or rewritten. It starts empty, and so a thread upgraded from
+         * an older version shows no line for changes made before it; the
+         * subtitle still says what the timer is. SQL copied from the
+         * `createSql` in `schemas/11.json`.
+         */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `timer_changes` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`conversationId` TEXT NOT NULL, " +
+                        "`byPeer` INTEGER NOT NULL, " +
+                        "`disappearAfterMillis` INTEGER, " +
+                        "`changedAt` INTEGER NOT NULL, " +
+                        "FOREIGN KEY(`conversationId`) REFERENCES `conversations`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_timer_changes_conversationId_changedAt` " +
+                        "ON `timer_changes` (`conversationId`, `changedAt`)",
+                )
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
@@ -224,6 +255,7 @@ abstract class NChatDatabase : RoomDatabase() {
             MIGRATION_7_8,
             MIGRATION_8_9,
             MIGRATION_9_10,
+            MIGRATION_10_11,
         )
     }
 }
