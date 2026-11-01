@@ -1,7 +1,10 @@
 package et.alpha.nchat.ui.permissions
 
 import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.ContextCompat
 import et.alpha.nchat.mesh.transport.LOCATION_REQUIRED_MAX_SDK
 
 /**
@@ -67,4 +70,18 @@ object MeshPermissions {
         requiredOn(sdkInt).filterNot { it == Manifest.permission.POST_NOTIFICATIONS }
 
     val essential: List<String> get() = essentialOn(Build.VERSION.SDK_INT)
+
+    /**
+     * The essential permissions [isGranted] says are missing, in request order.
+     *
+     * Takes the check as a function so the foreground service's start guard can
+     * be tested on the JVM without a Context.
+     */
+    fun missingOn(sdkInt: Int, isGranted: (String) -> Boolean): List<String> =
+        essentialOn(sdkInt).filterNot(isGranted)
+
+    /** Essential permissions this app does not hold right now. */
+    fun missing(context: Context): List<String> = missingOn(Build.VERSION.SDK_INT) {
+        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+    }
 }

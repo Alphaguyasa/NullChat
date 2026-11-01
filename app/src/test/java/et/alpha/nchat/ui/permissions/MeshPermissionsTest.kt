@@ -106,4 +106,34 @@ class MeshPermissionsTest {
             )
         }
     }
+
+    @Test
+    fun `revoked bluetooth on Android 14 is reported missing, so the service will not start`() {
+        // API 34 refuses a connectedDevice foreground service without one of the
+        // Bluetooth trio; the service checks this list before startForeground.
+        val android14 = Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+        val bluetooth = setOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_ADVERTISE,
+            Manifest.permission.BLUETOOTH_CONNECT,
+        )
+
+        val missing = MeshPermissions.missingOn(android14) { it !in bluetooth }
+
+        assertEquals(bluetooth, missing.toSet())
+    }
+
+    @Test
+    fun `nothing is missing when every essential permission is granted`() {
+        for (sdk in listOf(legacy, android12, android13, Build.VERSION_CODES.UPSIDE_DOWN_CAKE)) {
+            assertTrue(MeshPermissions.missingOn(sdk) { true }.isEmpty(), "sdk $sdk")
+        }
+    }
+
+    @Test
+    fun `a missing notification permission alone does not stop the service`() {
+        val missing = MeshPermissions.missingOn(android13) { it != Manifest.permission.POST_NOTIFICATIONS }
+
+        assertTrue(missing.isEmpty())
+    }
 }
