@@ -52,6 +52,8 @@ tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_AP
 | Needs approval | Phone checks 5y (#77 is on-air); 5x link proof; model (#7); backup (#3); earlier phone checks |
 | Next | #58 greeting floods, #59 replayed ANNOUNCE/PROFILE, #60 stale notifications |
 
+---
+
 ## 2026-10-31 — second run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists
