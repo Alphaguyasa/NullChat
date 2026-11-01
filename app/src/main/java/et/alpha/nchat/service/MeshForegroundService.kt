@@ -28,6 +28,7 @@ import et.alpha.nchat.mesh.transport.RadioBlocker
 import et.alpha.nchat.mesh.transport.RadioMonitor
 import et.alpha.nchat.mesh.transport.RadioState
 import et.alpha.nchat.mesh.transport.Transport
+import et.alpha.nchat.ui.permissions.MeshPermissions
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -86,11 +87,31 @@ class MeshForegroundService : Service() {
 
     private val notifications by lazy { getSystemService(NotificationManager::class.java) }
 
+    /**
+     * False when [onCreate] refused to start (permissions missing, or the system
+     * would not let us go foreground). Such an instance only waits for its own
+     * [stopSelf] to land, and must neither ask to be restarted nor touch the
+     * transport it never started.
+     */
+    private var running = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "starting")
+
+        // START_STICKY brings this service back after the process dies, and
+        // revoking a permission in Settings is exactly what kills it. Without the
+        // permissions the mesh cannot scan anyway, and on API 34+ startForeground
+        // would throw on every restart. The app starts us again once its
+        // permission gate passes.
+        val missing = MeshPermissions.missing(this)
+        if (missing.isNotEmpty()) {
+            Log.w(TAG, "not starting: ${missing.size} permission(s) missing")
+            stopSelf()
+            return
+        }
 
         createNotificationChannel()
         messageNotifier.createChannel()
@@ -101,7 +122,15 @@ class MeshForegroundService : Service() {
 
         // Posted before anything else can fail: a foreground service that does not
         // call startForeground within a few seconds of being started is killed.
-        startForeground(NOTIFICATION_ID, buildNotification(peerCount = 0, initialRadio))
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification(peerCount = 0, initialRadio))
+        } catch (e: Exception) {
+            if (!isForegroundStartRefusal(e)) throw e
+            Log.w(TAG, "foreground start refused: ${e::class.simpleName}")
+            stopSelf()
+            return
+        }
+        running = true
 
         radio = radioMonitor.state.stateIn(scope, SharingStarted.Eagerly, initialRadio)
 
@@ -116,7 +145,9 @@ class MeshForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // START_STICKY: if the system reclaims us under memory pressure, come back.
         // A mesh node that silently stops relaying is worse than one that restarts.
-        return START_STICKY
+        // A refused start is not reclaimed, it is unable to run: restarting it
+        // would only refuse again.
+        return if (running) START_STICKY else START_NOT_STICKY
     }
 
     override fun onDestroy() {
@@ -125,7 +156,7 @@ class MeshForegroundService : Service() {
         // coroutines, so it is stopped explicitly before the scope is cancelled.
         // runBlocking is acceptable here and nowhere else: onDestroy is the last
         // chance to release the radio, and the calls are non-blocking underneath.
-        runBlocking { runCatching { transport.stop() } }
+        if (running) runBlocking { runCatching { transport.stop() } }
         scope.cancel()
         super.onDestroy()
     }
@@ -309,6 +340,10 @@ class MeshForegroundService : Service() {
 
         /** Starts the mesh, if it is not already running. Safe to call repeatedly. */
         fun start(context: Context) {
+            // A service started this way that never reaches startForeground is
+            // an app crash on some API levels, so do not start one that would
+            // refuse. The permission gate normally guarantees this already.
+            if (MeshPermissions.missing(context).isNotEmpty()) return
             context.startForegroundService(Intent(context, MeshForegroundService::class.java))
         }
 
