@@ -198,6 +198,34 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<String>): Int
 
+    /**
+     * Received rows in [conversationId] beyond the newest [keep], oldest last.
+     *
+     * Ordered by local arrival time, not the sender's timestamp: a hostile sender
+     * could backdate its own messages to survive a trim, or postdate them to push
+     * everyone else's out. Our own messages are never counted or returned.
+     */
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :conversationId AND isOutgoing = 0
+        ORDER BY receivedAt DESC, id DESC
+        LIMIT -1 OFFSET :keep
+        """,
+    )
+    suspend fun findIncomingBeyond(conversationId: String, keep: Int): List<MessageEntity>
+
+    /** As [findIncomingBeyond], counting only rows that carry an image. */
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :conversationId AND isOutgoing = 0 AND attachmentFile IS NOT NULL
+        ORDER BY receivedAt DESC, id DESC
+        LIMIT -1 OFFSET :keep
+        """,
+    )
+    suspend fun findIncomingImagesBeyond(conversationId: String, keep: Int): List<MessageEntity>
+
     @Query("DELETE FROM messages WHERE timestamp < :cutoff")
     suspend fun deleteOlderThan(cutoff: Long): Int
 }

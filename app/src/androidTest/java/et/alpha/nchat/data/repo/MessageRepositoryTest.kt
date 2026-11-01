@@ -1,6 +1,7 @@
 package et.alpha.nchat.data.repo
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.DatabaseTestFixtures
 import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_A
 import et.alpha.nchat.data.db.DatabaseTestFixtures.PEER_B
@@ -408,5 +409,56 @@ class MessageRepositoryTest {
     private companion object {
         const val HOUR = 60 * 60 * 1000L
         const val YEAR = 365L * 24 * HOUR
+    }
+
+    @Test
+    fun trimIncomingDropsTheOldestArrivalsBeyondTheCap() = runTest {
+        // Sender timestamps run backwards, so a trim by timestamp would keep the
+        // wrong rows: arrival order is what decides.
+        for (i in 0 until 5) {
+            repo.recordIncoming("b$i", BROADCAST_CONVERSATION_ID, PEER_A, "m$i", timestamp = T0 - i, now = T0 + i)
+        }
+
+        val trimmed = repo.trimIncoming(BROADCAST_CONVERSATION_ID, maxRows = 3, maxImages = 10)
+
+        assertEquals(setOf("b0", "b1"), trimmed.map { it.id }.toSet())
+        assertEquals(listOf("b2", "b3", "b4"), repo.findIn(BROADCAST_CONVERSATION_ID).map { it.id }.sorted())
+    }
+
+    @Test
+    fun trimIncomingNeverTouchesOurOwnMessages() = runTest {
+        val mine = repo.recordOutgoing(BROADCAST_CONVERSATION_ID, SELF, "mine", peerId = null, now = T0)
+        for (i in 0 until 3) {
+            repo.recordIncoming("b$i", BROADCAST_CONVERSATION_ID, PEER_A, "m$i", timestamp = T0, now = T0 + 1 + i)
+        }
+
+        val trimmed = repo.trimIncoming(BROADCAST_CONVERSATION_ID, maxRows = 1, maxImages = 10)
+
+        assertEquals(setOf("b0", "b1"), trimmed.map { it.id }.toSet())
+        assertNotNull(repo.findMessage(mine.id))
+    }
+
+    @Test
+    fun trimIncomingCapsImagesSeparatelyAndReturnsTheirFiles() = runTest {
+        repo.recordIncoming("i0", BROADCAST_CONVERSATION_ID, PEER_A, "", T0, now = T0, attachmentFile = "i0.jpg")
+        repo.recordIncoming("t1", BROADCAST_CONVERSATION_ID, PEER_A, "text", T0, now = T0 + 1)
+        repo.recordIncoming("i2", BROADCAST_CONVERSATION_ID, PEER_A, "", T0, now = T0 + 2, attachmentFile = "i2.jpg")
+
+        val trimmed = repo.trimIncoming(BROADCAST_CONVERSATION_ID, maxRows = 10, maxImages = 1)
+
+        assertEquals(listOf("i0.jpg"), trimmed.map { it.attachmentFile })
+        assertNotNull(repo.findMessage("t1"))
+        assertNotNull(repo.findMessage("i2"))
+    }
+
+    @Test
+    fun trimIncomingLeavesOtherThreadsAlone() = runTest {
+        repo.recordIncoming("d0", convoId, PEER_A, "direct", T0, now = T0)
+        repo.recordIncoming("d1", convoId, PEER_A, "direct", T0, now = T0 + 1)
+
+        val trimmed = repo.trimIncoming(BROADCAST_CONVERSATION_ID, maxRows = 0, maxImages = 0)
+
+        assertTrue(trimmed.isEmpty())
+        assertEquals(2, repo.findIn(convoId).size)
     }
 }

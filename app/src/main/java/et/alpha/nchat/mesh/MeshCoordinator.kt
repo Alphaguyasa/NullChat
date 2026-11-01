@@ -259,15 +259,46 @@ private class RepositoryInboundStore(
         body: String,
         timestamp: Long,
         attachmentFile: String?,
-    ): Boolean = messages.recordIncoming(
-        messageId = messageId,
-        conversationId = conversationId,
-        senderId = senderId,
-        body = body,
-        timestamp = timestamp,
-        peerId = senderId,
-        attachmentFile = attachmentFile,
-    )
+    ): Boolean {
+        val isNew = messages.recordIncoming(
+            messageId = messageId,
+            conversationId = conversationId,
+            senderId = senderId,
+            body = body,
+            timestamp = timestamp,
+            peerId = senderId,
+            attachmentFile = attachmentFile,
+        )
+        if (isNew && conversationId == BROADCAST_CONVERSATION_ID) trimBroadcast()
+        return isNew
+    }
+
+    /**
+     * Keeps the Everyone thread to [MessageRepository.BROADCAST_ROWS_KEPT]
+     * received messages and [MessageRepository.BROADCAST_IMAGES_KEPT] images.
+     *
+     * Goes the way the disappearing sweep goes: tombstone, row, then file. The
+     * tombstone matters here: a trimmed message replayed from a relay's queue
+     * would otherwise arrive as the newest row and push out a real one.
+     * A failure is logged, not thrown: the message itself is already stored.
+     */
+    private suspend fun trimBroadcast() {
+        try {
+            val trimmed = messages.trimIncoming(
+                BROADCAST_CONVERSATION_ID,
+                maxRows = MessageRepository.BROADCAST_ROWS_KEPT,
+                maxImages = MessageRepository.BROADCAST_IMAGES_KEPT,
+            )
+            if (trimmed.isEmpty()) return
+            deletedMessages.rememberAll(trimmed.map { it.id })
+            trimmed.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
+            Log.i(TAG, "${trimmed.size} old broadcast message(s) trimmed")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "broadcast trim failed: ${e::class.simpleName}")
+        }
+    }
 
     override suspend fun markDelivered(messageId: String, hops: Int?) {
         messages.markDelivered(messageId, hops)
@@ -283,6 +314,10 @@ private class RepositoryInboundStore(
     override suspend fun applyPeerTimer(peerHex: String, millis: Long?, stamp: PeerTimerStamp) {
         messages.setDisappearAfter(directConversationId(peerHex), peerHex, millis, byPeer = true)
         peerTimers.put(peerHex, stamp)
+    }
+
+    private companion object {
+        const val TAG = "MeshCoordinator"
     }
 }
 
