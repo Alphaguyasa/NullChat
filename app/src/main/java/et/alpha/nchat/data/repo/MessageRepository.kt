@@ -273,6 +273,26 @@ class MessageRepository @Inject constructor(
         ids.chunked(DELETE_BATCH).sumOf { messageDao.deleteByIds(it) }
     }
 
+    /**
+     * Deletes received rows in [conversationId] beyond the newest [maxRows], and
+     * received images beyond the newest [maxImages], oldest first.
+     *
+     * For the Everyone thread: anyone can make a key, so anyone in range can post
+     * there, and without a limit one phone could fill this one's storage.
+     *
+     * @return the deleted rows, so the caller can tombstone them and remove their
+     *   image files, which Room cannot reach.
+     */
+    suspend fun trimIncoming(conversationId: String, maxRows: Int, maxImages: Int): List<MessageEntity> =
+        database.withTransaction {
+            val doomed = (
+                messageDao.findIncomingBeyond(conversationId, maxRows) +
+                    messageDao.findIncomingImagesBeyond(conversationId, maxImages)
+                ).distinctBy { it.id }
+            doomed.map { it.id }.chunked(DELETE_BATCH).forEach { messageDao.deleteByIds(it) }
+            doomed
+        }
+
     private suspend fun expiresAt(conversationId: String, now: Long): Long? =
         conversationDao.findById(conversationId)?.disappearAfterMillis?.let { now + it }
 
@@ -307,5 +327,14 @@ class MessageRepository @Inject constructor(
          * enough that a contact toggling the timer in a loop costs nothing.
          */
         const val TIMER_LINES_KEPT = 50
+
+        /**
+         * Received messages kept in the Everyone thread. A few days of a busy
+         * crowd, and at most a couple of megabytes of text.
+         */
+        const val BROADCAST_ROWS_KEPT = 2000
+
+        /** Received images kept in the Everyone thread: about 1.4 MB at 14 KB each. */
+        const val BROADCAST_IMAGES_KEPT = 100
     }
 }
