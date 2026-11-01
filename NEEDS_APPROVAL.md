@@ -5,6 +5,24 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5y. Phone checks for the service guard, broadcast cap and rate limit (2026-11-01)
+*Service guard (#75), one phone on Android 14 or newer:* with the mesh running, go to
+Settings → Apps → Null Chat → Permissions and deny Nearby devices. The app must
+**not** show "Null Chat keeps stopping", and the mesh notification goes away. Open
+the app: the permission screen shows. Grant it, and the notification comes back.
+*Broadcast cap (#76):* nothing visible until the Everyone thread holds more than
+2000 received messages or 100 received images; then the oldest received ones go.
+Your own messages there are never removed.
+*Rate limit (#77), two paired phones A and B; this changes on-air behaviour:* repeat
+check 5p. Take B away, queue several messages and one image on A, bring B back:
+everything still arrives on B, and each item turns `sent` then `delivered` on A.
+Send a few images back and forth quickly. If anything that used to arrive now goes
+missing, this change is failing; say so and it will be reverted. A link may take up
+to 1000 packets at once and then 50 a second; an image is about 300.
+*Housekeeping:* this run's first push went to `claude/service-permission-guard` by
+mistake (same commit as #75). The proxy would not delete it, so delete it on GitHub
+whenever you like, along with `claude/timer-lines`.
+
 ### 5x. Two-phone check for the link proof (2026-10-31, second run)
 *Link proof (#73), two paired phones A and B, both on this build:* this changes what
 goes on the air (new LINK_PROOF packet right after each announcement). Bring them
@@ -245,8 +263,8 @@ B's peer list should show `name · <A's id>` within a few seconds if in range,
 otherwise the next time they connect. A phone on an older build must still see
 A by id and still exchange messages (it ignores the new PROFILE packet).
 
-### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-10-30)
-Re-checked 2026-10-30: platform.claude.com's models page is reachable again and still
+### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-11-01)
+Re-checked 2026-11-01: platform.claude.com's models page is reachable again and still
 lists Claude Fable 5.1 above Opus 5.5. Opus 5.5 is still the newest Opus.
 Anthropic's model docs now list **Claude Fable 5.1** (`claude-fable-5-1`) above
 Opus 5.5 ("for demanding reasoning and long-horizon agentic work"). The MODEL

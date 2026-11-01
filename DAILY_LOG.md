@@ -4,6 +4,54 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-11-01 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists
+Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. The run has no
+tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`ea70eed`). No PRs were open, and no Dependabot PRs.
+- No local Android build (no SDK in the cloud box). CI was the only build.
+- **PR #75**, roadmap #55: service start guard.
+  - `MeshForegroundService` checks the essential mesh permissions before
+    `startForeground`. If any is missing it calls `stopSelf()` and returns
+    `START_NOT_STICKY`.
+  - A `SecurityException` or `IllegalStateException` from `startForeground` is
+    handled the same way. `start()` does not launch a service that would refuse.
+  - MeshPermissionsTest +3, ForegroundStartTest 3. Green on the first attempt.
+    Merged.
+  - The crash itself still wants a phone to confirm (NEEDS_APPROVAL 5y).
+- **PR #76**, roadmap #56: the Everyone thread keeps the newest 2000 received
+  messages and 100 received images.
+  - Trimmed by local arrival time, never our own messages.
+  - Trimmed rows are tombstoned and their files deleted, like the timer sweep.
+  - MessageRepositoryTest +4 (instrumented). Green on the first attempt. Merged.
+- **PR #77**, roadmap #57: per-link inbound rate limit.
+  - `LinkRateLimiter`, a pure-Kotlin token bucket per endpoint: burst 1000,
+    refill 50/s. It runs first in `onInbound`, ahead of decode and verify.
+  - The burst covers a neighbour's full forward-queue hand-over (500 + 32
+    carried), and a test pins that.
+  - Drops are counted in `droppedRateLimited`, and the bucket is forgotten on
+    disconnect.
+  - LinkRateLimiterTest 6. On-air change: two-phone check in NEEDS_APPROVAL 5y.
+- **Process slip:** the first push went to `claude/service-permission-guard`
+  instead of the session's designated branch. The proxy refused the delete, so
+  it is left for alpha, as `claude/timer-lines` was.
+- **No force-push:** each next PR went on the same designated branch by merging
+  main into it, then adding the item's commit.
+- Roadmap: 13 open (#58–66, #54, #21–23), so no replan.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #55 service crash guard (PR #75); #56 broadcast cap (PR #76); #57 per-link rate limit (PR #77) |
+| Merged | #75 yes; #76 yes; #77 see notification. Tags come from release-tag.yml |
+| Failed or blocked | Nothing failed. No local Android build. A stray branch `claude/service-permission-guard` could not be deleted |
+| Roadmap | 13 open, no replan |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Phone checks 5y (#77 is on-air); 5x link proof; model (#7); backup (#3); earlier phone checks |
+| Next | #58 greeting floods, #59 replayed ANNOUNCE/PROFILE, #60 stale notifications |
+
 ## 2026-10-31 — second run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists

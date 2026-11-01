@@ -14,7 +14,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 57 | **Per-link inbound rate limit**: `MeshRouter.onInbound` verifies, caches and relays every unique id with no budget, and the inbound channels are unlimited. Token bucket per endpoint (pure Kotlin), drop and count the excess. | P1 | M | On-air, needs two-phone check |
 | 58 | **Greeting floods the mesh**: each new link triggers a ttl-6 ANNOUNCE and PROFILE with fresh ids, so a crowd pays ~O(N²) airtime on every reconnect. Send the announcement on the new link only (`sendOnLink`) and broadcast at most every few minutes. | P1 | M | On-air, needs two-phone check |
 | 59 | **Replayed ANNOUNCE/PROFILE**: `recordSeen` uses our clock and ignores `packet.timestamp`, so a relay replaying old signed copies after the 10-minute seen window makes a contact look "heard now", resets the stranger prune and reverts their name. Ignore stale packets; newest PROFILE by sender clock wins (as TIMER). | P2 | S | |
 | 60 | **Notifications outlive deleted or disappearing messages**: the sweep, delete chat, forget and block leave the preview in the shade; swiping a notification does not reset the count. Cancel from those paths; add a delete intent. | P2 | S | Privacy |
@@ -104,3 +103,4 @@ change once decided.
 | 2026-10-31 | #42 Link challenge: LINK_PROOF signs the Nearby link token (needs two-phone check) | #73 | v2026-10-31-3 |
 | 2026-11-01 | #55 Service crash loop without permissions: `MeshForegroundService` refuses to start (and asks not to be restarted) when an essential permission is missing or `startForeground` is refused | #75 | see log |
 | 2026-11-01 | #56 Broadcast thread cap: the Everyone thread keeps the newest 2000 received messages and 100 received images by arrival time; trimmed rows are tombstoned and their files deleted | #76 | see log |
+| 2026-11-01 | #57 Per-link inbound rate limit: `LinkRateLimiter` token bucket (burst 1000, 50/s) per endpoint ahead of decode and verify; drops counted in `droppedRateLimited` (needs two-phone check) | #77 | see log |
