@@ -62,6 +62,7 @@ class MeshRouter(
     private val jitter: () -> Long = {
         Random.nextLong(MIN_JITTER_MILLIS, MAX_JITTER_MILLIS + 1)
     },
+    private val rateLimiter: LinkRateLimiter = LinkRateLimiter(),
 ) {
 
     init {
@@ -135,6 +136,13 @@ class MeshRouter(
     private val _droppedMalformed = AtomicLong()
     private val _droppedUnverified = AtomicLong()
     private val _failedForwards = AtomicLong()
+    private val _droppedRateLimited = AtomicLong()
+
+    /**
+     * Packets discarded because their link was over its [LinkRateLimiter]
+     * budget. Above zero means a neighbour sent far more than any normal phone.
+     */
+    val droppedRateLimited: Long get() = _droppedRateLimited.get()
 
     /** Packets discarded because they did not parse. Useful as a health signal. */
     val droppedMalformed: Long get() = _droppedMalformed.get()
@@ -306,13 +314,23 @@ class MeshRouter(
         synchronized(peers) {
             when (event) {
                 is ConnectionEvent.Connected -> peers.add(event.peerId)
-                is ConnectionEvent.Disconnected -> peers.remove(event.peerId)
+                is ConnectionEvent.Disconnected -> {
+                    peers.remove(event.peerId)
+                    rateLimiter.forget(event.peerId)
+                }
             }
         }
     }
 
     /** The five routing rules from CLAUDE.md, in order. */
     private fun onInbound(inbound: InboundPayload) {
+        // Before anything that costs: decoding, the Ed25519 check and a dedup
+        // slot are exactly what a flood is trying to make us spend.
+        if (!rateLimiter.tryAcquire(inbound.fromPeer)) {
+            _droppedRateLimited.incrementAndGet()
+            return
+        }
+
         // A peer that sends us garbage must not take the router down with it, so
         // a parse failure is counted and dropped rather than thrown at the collector.
         val decoded = try {

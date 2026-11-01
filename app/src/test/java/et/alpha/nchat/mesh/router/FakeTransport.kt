@@ -248,6 +248,12 @@ class MeshTestbed(
      */
     var verifier: PacketVerifier = PacketVerifier.AcceptAll
 
+    /**
+     * Builds each new node's per-link budget. The production default unless a
+     * test sets a small one before creating its nodes.
+     */
+    var rateLimiter: () -> LinkRateLimiter = { LinkRateLimiter() }
+
     fun node(name: String): TestNode = nodes.getOrPut(name) {
         val transport = network.register(name)
         val id = peerId(name)
@@ -262,6 +268,7 @@ class MeshTestbed(
             // the policy after the node has already been created.
             verifier = { packet -> verifier.verify(packet) },
             jitter = { jitterMillis },
+            rateLimiter = rateLimiter(),
         )
         val delivered = mutableListOf<Packet>()
         router.start()
