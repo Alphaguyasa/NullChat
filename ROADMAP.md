@@ -14,8 +14,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 56 | **Broadcast thread grows without limit**: any self-made key makes its broadcasts VALID, and nothing trims them (`pruneOlderThan`, `AttachmentStore.pruneExcept` have no callers). One hostile phone can fill storage and slow the Everyone thread. Cap broadcast rows and images, oldest first, files included. | P1 | M | |
-| 55 | **Service crash loop without permissions**: `MeshForegroundService` is START_STICKY and calls `startForeground` unguarded; if Bluetooth/Nearby permission is revoked, the system restart throws `SecurityException` on API 34+ every time. Check permissions first, catch, `stopSelf()`. | P1 | S | Needs a device to confirm the crash |
 | 57 | **Per-link inbound rate limit**: `MeshRouter.onInbound` verifies, caches and relays every unique id with no budget, and the inbound channels are unlimited. Token bucket per endpoint (pure Kotlin), drop and count the excess. | P1 | M | On-air, needs two-phone check |
 | 58 | **Greeting floods the mesh**: each new link triggers a ttl-6 ANNOUNCE and PROFILE with fresh ids, so a crowd pays ~O(N²) airtime on every reconnect. Send the announcement on the new link only (`sendOnLink`) and broadcast at most every few minutes. | P1 | M | On-air, needs two-phone check |
 | 59 | **Replayed ANNOUNCE/PROFILE**: `recordSeen` uses our clock and ignores `packet.timestamp`, so a relay replaying old signed copies after the 10-minute seen window makes a contact look "heard now", resets the stranger prune and reverts their name. Ignore stale packets; newest PROFILE by sender clock wins (as TIMER). | P2 | S | |
