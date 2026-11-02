@@ -55,6 +55,7 @@ import et.alpha.nchat.ui.theme.MonoSmall
 import et.alpha.nchat.ui.theme.MotionSpec
 import et.alpha.nchat.ui.theme.NChatTheme
 import et.alpha.nchat.ui.theme.TextMuted
+import et.alpha.nchat.ui.theme.Warning
 import et.alpha.nchat.ui.theme.rememberAnimationsEnabled
 
 /**
@@ -83,6 +84,7 @@ fun PeerListScreen(
     viewModel: PeerListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    val meshEnabled by viewModel.meshEnabled.collectAsState()
     val animate = rememberAnimationsEnabled()
     val rows = visibleRows(state.rows)
     val radarPeers = radarPeers(state.rows)
@@ -106,6 +108,10 @@ fun PeerListScreen(
             onOpenSettings = onOpenSettings,
         )
         HorizontalDivider()
+        if (!meshEnabled) {
+            MeshOffBanner(onTurnOn = viewModel::turnMeshOn)
+            HorizontalDivider()
+        }
         if (isPickingForShare) {
             SharePickerBanner(onCancel = onCancelShare)
             HorizontalDivider()
@@ -158,6 +164,33 @@ fun PeerListScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Says the mesh is turned off, so an empty radar and `queued` messages are
+ * not mistaken for nobody being in range.
+ *
+ * Warning colour: unlike the share picker, this is a state the user may have
+ * forgotten they chose, and every message they send waits on it.
+ */
+@Composable
+internal fun MeshOffBanner(onTurnOn: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.mesh_off_banner),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Warning,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+        TextButton(onClick = onTurnOn) { Text(text = stringResource(R.string.mesh_off_turn_on)) }
     }
 }
 

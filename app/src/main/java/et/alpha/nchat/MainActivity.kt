@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.AndroidEntryPoint
 import et.alpha.nchat.data.settings.AppLockStore
+import et.alpha.nchat.data.settings.MeshEnabledStore
 import et.alpha.nchat.service.MeshForegroundService
 import et.alpha.nchat.service.MessageNotificationPolicy
 import et.alpha.nchat.ui.MeshChatScreen
@@ -43,6 +44,9 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var appLock: AppLockStore
 
+    @Inject
+    lateinit var meshEnabled: MeshEnabledStore
+
     /**
      * A thread a notification asked to open, until the screen host takes it.
      *
@@ -63,6 +67,7 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         setContent {
             val locked by appLock.gate.locked.collectAsState()
+            val meshOn by meshEnabled.enabled.collectAsState()
             // Asks once each time the lock comes down, so opening the app goes
             // straight to the fingerprint; the button covers a cancelled prompt.
             LaunchedEffect(locked) { if (locked) promptUnlock() }
@@ -79,6 +84,7 @@ class MainActivity : FragmentActivity() {
                         },
                     ) {
                         AppContent(
+                            meshOn = meshOn,
                             openPeerRequest = openPeerRequest,
                             onOpenRequestHandled = { openPeerRequest = null },
                             shareRequest = shareRequest,
@@ -135,6 +141,7 @@ class MainActivity : FragmentActivity() {
 
 @Composable
 private fun AppContent(
+    meshOn: Boolean,
     openPeerRequest: String?,
     onOpenRequestHandled: () -> Unit,
     shareRequest: String?,
@@ -151,6 +158,7 @@ private fun AppContent(
         PermissionGate(modifier = Modifier.padding(innerPadding)) {
             RadioGate(modifier = Modifier.padding(innerPadding)) {
                 MeshHost(
+                    meshOn = meshOn,
                     openPeerRequest = openPeerRequest,
                     onOpenRequestHandled = onOpenRequestHandled,
                     shareRequest = shareRequest,
@@ -164,6 +172,7 @@ private fun AppContent(
 
 @Composable
 private fun MeshHost(
+    meshOn: Boolean,
     openPeerRequest: String?,
     onOpenRequestHandled: () -> Unit,
     shareRequest: String?,
@@ -171,7 +180,12 @@ private fun MeshHost(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { MeshForegroundService.start(context) }
+    // Follows the user's switch both ways, so turning the mesh off in
+    // Settings, or with the notification's Stop, takes effect at once, and
+    // reopening the app never brings back a mesh the user stopped.
+    LaunchedEffect(meshOn) {
+        if (meshOn) MeshForegroundService.start(context) else MeshForegroundService.stop(context)
+    }
     MeshChatScreen(
         modifier = modifier,
         openPeerRequest = openPeerRequest,

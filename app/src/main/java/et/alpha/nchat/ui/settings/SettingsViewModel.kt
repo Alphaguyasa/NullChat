@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.BatteryModeStore
 import et.alpha.nchat.data.settings.DisplayNameStore
+import et.alpha.nchat.data.settings.MeshEnabledStore
 import et.alpha.nchat.data.wipe.PanicWipe
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.protocol.Profile
@@ -29,6 +30,8 @@ data class SettingsState(
     val lockEnabled: Boolean = false,
     /** How hard the radio works; see [BatteryMode]. */
     val batteryMode: BatteryMode = BatteryMode.AUTOMATIC,
+    /** Whether the mesh runs at all; see [MeshEnabledStore]. */
+    val meshEnabled: Boolean = true,
 ) {
     /** The draft as it would be stored: what the user will actually be called. */
     val normalisedDraft: String get() = Profile.normalize(draft)
@@ -45,6 +48,7 @@ class SettingsViewModel @Inject constructor(
     private val panicWipe: PanicWipe,
     private val appLock: AppLockStore,
     private val battery: BatteryModeStore,
+    private val mesh: MeshEnabledStore,
     coordinator: MeshCoordinator,
 ) : ViewModel() {
 
@@ -63,13 +67,20 @@ class SettingsViewModel @Inject constructor(
     private val selfId = coordinator.selfId
 
     val state: StateFlow<SettingsState> =
-        combine(names.displayName, draft, appLock.enabled, battery.mode) { saved, text, lock, mode ->
+        combine(
+            names.displayName,
+            draft,
+            appLock.enabled,
+            battery.mode,
+            mesh.enabled,
+        ) { saved, text, lock, mode, meshOn ->
             SettingsState(
                 selfId = selfId,
                 savedName = saved,
                 draft = text,
                 lockEnabled = lock,
                 batteryMode = mode,
+                meshEnabled = meshOn,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -80,6 +91,7 @@ class SettingsViewModel @Inject constructor(
                 draft = draft.value,
                 lockEnabled = appLock.enabled.value,
                 batteryMode = battery.mode.value,
+                meshEnabled = mesh.enabled.value,
             ),
         )
 
@@ -104,6 +116,14 @@ class SettingsViewModel @Inject constructor(
 
     fun onLockChange(enabled: Boolean) {
         appLock.setEnabled(enabled)
+    }
+
+    /**
+     * Stores the switch. The activity follows the store and starts or stops
+     * the service, so this screen never touches the radio itself.
+     */
+    fun onMeshEnabledChange(enabled: Boolean) {
+        mesh.setEnabled(enabled)
     }
 
     fun onBatteryModeChange(mode: BatteryMode) {

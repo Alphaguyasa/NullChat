@@ -88,6 +88,7 @@ fun SettingsScreen(
         lockAvailable = lockAvailable,
         onLockChange = viewModel::onLockChange,
         onBatteryModeChange = viewModel::onBatteryModeChange,
+        onMeshEnabledChange = viewModel::onMeshEnabledChange,
         modifier = modifier,
     )
 }
@@ -107,6 +108,7 @@ internal fun SettingsContent(
     lockAvailable: Boolean = true,
     onLockChange: (Boolean) -> Unit = {},
     onBatteryModeChange: (BatteryMode) -> Unit = {},
+    onMeshEnabledChange: (Boolean) -> Unit = {},
 ) {
     var confirmWipe by remember { mutableStateOf(false) }
     if (confirmWipe) {
@@ -259,6 +261,33 @@ internal fun SettingsContent(
                 } else {
                     stringResource(R.string.settings_lock_unavailable)
                 },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            HorizontalDivider()
+
+            Text(
+                text = stringResource(R.string.settings_mesh_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            val meshLabel = stringResource(R.string.settings_mesh_switch)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = meshLabel,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = state.meshEnabled,
+                    onCheckedChange = onMeshEnabledChange,
+                    modifier = Modifier.semantics { contentDescription = meshLabel },
+                )
+            }
+            Text(
+                text = stringResource(R.string.settings_mesh_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

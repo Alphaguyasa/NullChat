@@ -13,6 +13,7 @@ import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.data.settings.DisplayNameStore
+import et.alpha.nchat.data.settings.MeshEnabledStore
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.protocol.Quote
 import et.alpha.nchat.mesh.transport.NearbyTransport
@@ -159,9 +160,17 @@ class PeerListViewModel @Inject constructor(
     private val transport: NearbyTransport,
     coordinator: MeshCoordinator,
     displayNames: DisplayNameStore,
+    private val mesh: MeshEnabledStore,
 ) : ViewModel() {
 
     val selfId: String = coordinator.selfId
+
+    /** False while the user has the mesh turned off; the list says so. */
+    val meshEnabled: StateFlow<Boolean> = mesh.enabled
+
+    fun turnMeshOn() {
+        mesh.setEnabled(true)
+    }
 
     /**
      * Relay pulses folded into "when did a packet last cross this peer's link".
