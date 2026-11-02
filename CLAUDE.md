@@ -13,7 +13,7 @@ autonomous lead developer: a daily cloud routine reads this file, `ROADMAP.md`,
 
 ## Stack
 
-- Kotlin 2.2, Jetpack Compose (Material 3), AGP 9.3, Gradle 9.5, JDK 17 target
+- Kotlin 2.2, Jetpack Compose (Material 3), AGP 9.5, Gradle 9.8, JDK 17 target
   (build with JDK 21). minSdk 26, targetSdk 35, compileSdk 37.
 - Hilt for DI, Room for persistence (schemas exported to `app/schemas/`).
 - Google Nearby Connections (`P2P_CLUSTER`) as the only transport.
