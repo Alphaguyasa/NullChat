@@ -38,6 +38,9 @@ routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
   - MeshEnabledStoreTest 2, SettingsScreenTest +1. The lock-switch tests now find
     their switch by label, since the screen has two switches.
   - Needs a phone check (NEEDS_APPROVAL 5za).
+  - CI failed once: the instrumented test APK did not compile, because I imported
+    `SemanticsMatcher.and`, which is a member and cannot be imported. Fixed on the
+    branch.
 - Branching: this session must use its designated branch
   (`alpha/beautiful-davinci-a5tzkd`) for every PR. After each squash-merge, main is
   merged into it (no force-push), so each PR's diff is only its own item.
@@ -48,7 +51,7 @@ routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
 |---|---|
 | Done | #62 receivedAt index (PR #83); #64 orphan image files (PR #84); #61 mesh on/off (PR #85) |
 | Merged | #83 yes, v2026-11-02-5; #84 yes, v2026-11-02-6; #85 see notification |
-| Failed or blocked | #83's first CI run failed on purpose, to get the generated schema. No local Android build |
+| Failed or blocked | #83's first CI run failed on purpose, to get the generated schema. #85 failed CI once (test compile error), fixed. No local Android build |
 | Roadmap | 7 open, no replan (next replan when fewer than 5) |
 | Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
 | Needs approval | Phone checks 5za (new: mesh Stop button), 5z, 5y, 5x; model (#7); backup (#3) |
