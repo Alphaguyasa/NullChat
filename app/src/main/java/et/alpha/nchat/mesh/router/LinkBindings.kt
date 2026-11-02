@@ -1,5 +1,9 @@
 package et.alpha.nchat.mesh.router
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
 /**
  * A verified ANNOUNCE or LINK_PROOF that crossed one of this device's links.
  *
@@ -61,6 +65,20 @@ class LinkBindings(
     private val proofs = mutableMapOf<String, MutableSet<Pending>>()
     private val bound = mutableSetOf<String>()
 
+    private val _boundPeerIds = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * [boundPeers] as a flow, published from inside the lock by every change.
+     *
+     * The coordinator used to read [boundPeers] and assign the result itself from
+     * two collectors on a multi-threaded dispatcher. Read and write were not one
+     * step, so a set read before the other collector's bind could be written
+     * after it, and a peer right next to us showed offline until the next
+     * change. Publishing under the same lock as the change makes the newest set
+     * the last one written.
+     */
+    val boundPeerIds: StateFlow<Set<String>> = _boundPeerIds.asStateFlow()
+
     /**
      * Records that [endpointId] connected naming itself [claimedPeerId].
      *
@@ -90,7 +108,7 @@ class LinkBindings(
                 }
                 binds = true
             }
-            binds && bound.add(endpointId)
+            (binds && bound.add(endpointId)).also { publish() }
         }
         proved.forEach(onTokenProof)
         return result
@@ -125,7 +143,7 @@ class LinkBindings(
             } else if (requiresTokenProof(provedHex)) {
                 return@synchronized false
             }
-            bound.add(proof.endpointId)
+            bound.add(proof.endpointId).also { publish() }
         }
         if (tokenMatched) onTokenProof(provedHex)
         return result
@@ -141,9 +159,7 @@ class LinkBindings(
      * name is not enough, because a stranger naming itself after a contact
      * would make that contact look like it was standing next to us.
      */
-    fun boundPeers(): Set<String> = synchronized(lock) {
-        bound.mapNotNullTo(mutableSetOf()) { claims[it]?.peerHex }
-    }
+    fun boundPeers(): Set<String> = synchronized(lock) { _boundPeerIds.value }
 
     /**
      * Forgets every endpoint not in [connected], so a peer that comes back must
@@ -156,6 +172,12 @@ class LinkBindings(
         // kept: they are exactly the ones waiting for their claim. The cap
         // above bounds what a link that never connects can leave behind.
         if (proofs.size > MAX_PENDING_ENDPOINTS) proofs.keys.retainAll(connected)
+        publish()
+    }
+
+    /** Caller holds [lock]. */
+    private fun publish() {
+        _boundPeerIds.value = bound.mapNotNullTo(mutableSetOf()) { claims[it]?.peerHex }
     }
 
     private data class Claim(val peerHex: String, val digestHex: String?)

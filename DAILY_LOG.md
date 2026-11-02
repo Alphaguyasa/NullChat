@@ -4,6 +4,65 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-11-02 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still lists
+Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. This run has no
+tool to switch the routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`823c5dd`). One Dependabot PR was open: #78, AGP
+  9.4.1 → 9.5.0, and it was green.
+- No local Android build (no SDK in the cloud box). CI was the only build.
+- **PR #79**: re-applied the AGP 9.5.0 bump as an Alphaguyasa commit.
+  - The release notes need Gradle ≥ 9.6 (the wrapper is 9.8.2) and JDK 17, and list
+    no breaking changes.
+  - Green. Merged, and #78 closed with a link to #79.
+- **PR #80**, roadmap #59: replayed ANNOUNCE/PROFILE.
+  - `PresenceFreshness` takes a packet only when it is newer, by the sender's own
+    clock, than the newest one already taken from that sender, or when it is current
+    by our clock (within 10 minutes).
+  - The check runs before the hop reading, so a replay changes nothing: no sighting,
+    no prune reset, no hop reading, no name revert.
+  - No clock agreement between phones is needed.
+  - Known gap: the table is in memory, so after a restart the first replay is
+    believed once.
+  - PresenceFreshnessTest 6, InboundHandlerTest +2. Green on the first attempt.
+    Merged.
+- **PR #81**, roadmap #60: notifications outliving deleted messages.
+  - `MeshCoordinator.withdrawn` carries the conversations hit by the sweep, delete,
+    delete chat, forget and block. The service cancels those notifications.
+  - After a swipe, the count starts again at 1.
+  - DeleteRuleTest +2, MessageNotificationPolicyTest +2.
+  - CI failed once (compile error: I put the buffer constant in the wrong companion
+    object). Fixed on the branch.
+- **PR #82**, roadmap #63: the `_boundPeers` race.
+  - `LinkBindings.boundPeerIds` is a StateFlow published inside the bindings' lock
+    by every change. The coordinator no longer copies the set from two collectors.
+  - LinkBindingsTest +2, including a two-thread test.
+- **#58 (greeting floods) deferred, with a design note in ROADMAP.** The obvious fix,
+  a link-local ANNOUNCE with ttl 1, would be read by the receiver as 6 hops away
+  (`hopsFrom`). Reusing one cached announcement id would be deduplicated by peers
+  that already heard it, so the link would never bind for older builds. It needs a
+  receiver-side rule first.
+- **#62 (receivedAt index) skipped this run.** It needs the Room 12 schema JSON that
+  KSP generates, and with no local build the identity hash cannot be produced here.
+  Next run: push the entity change alone, take `12.json` from the CI artifact, then add
+  the migration test. Or do it from alpha's PC.
+- Roadmap: 10 open, no replan.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | AGP 9.5.0 (PR #79); #59 replayed ANNOUNCE/PROFILE (PR #80); #60 stale notifications (PR #81); #63 bound-peers race (PR #82) |
+| Merged | #79 yes; #80 yes; #81 yes; #82 see notification. Tags come from release-tag.yml |
+| Failed or blocked | #81 failed CI once (compile error), fixed. #58 deferred (design note); #62 needs a generated Room schema. No local Android build |
+| Roadmap | 10 open, no replan |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Phone checks 5z (new), 5y, 5x; model (#7); backup (#3); earlier phone checks |
+| Next | #62 receivedAt index (schema from CI), #58 greeting floods (receiver rule first), #64 orphan image files |
+
+---
+
 ## 2026-11-01 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). platform.claude.com's models page still lists

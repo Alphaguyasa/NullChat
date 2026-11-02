@@ -16,6 +16,47 @@ class LinkBindingsTest {
     private val mallory = peerId("mallory")
 
     @Test
+    fun `the bound set is published by every change, with no caller copying it`() {
+        val links = LinkBindings()
+        val hex = alice.hex()
+        links.claim("e1", alice)
+        assertEquals(emptySet<String>(), links.boundPeerIds.value)
+
+        links.prove(LinkProof("e1", alice))
+        assertEquals(setOf(hex), links.boundPeerIds.value)
+
+        links.retain(emptySet())
+        assertEquals(emptySet<String>(), links.boundPeerIds.value)
+    }
+
+    @Test
+    fun `binds from two threads at once all end up published`() {
+        val links = LinkBindings()
+        val peers = (0 until 200).map { peerId("peer$it") }
+        val threads = listOf(0, 1).map { half ->
+            Thread {
+                peers.forEachIndexed { i, id ->
+                    if (i % 2 != half) return@forEachIndexed
+                    // One thread claims first, the other proves first, as the
+                    // coordinator's two collectors do.
+                    if (half == 0) {
+                        links.claim("e$i", id)
+                        links.prove(LinkProof("e$i", id))
+                    } else {
+                        links.prove(LinkProof("e$i", id))
+                        links.claim("e$i", id)
+                    }
+                }
+            }
+        }
+        threads.forEach(Thread::start)
+        threads.forEach(Thread::join)
+
+        assertEquals(peers.size, links.boundPeerIds.value.size)
+        assertEquals(links.boundPeers(), links.boundPeerIds.value)
+    }
+
+    @Test
     fun `a claimed name alone does not bind the link`() {
         val links = LinkBindings()
 
