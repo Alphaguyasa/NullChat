@@ -493,6 +493,9 @@ class MeshCoordinator @Inject constructor(
     fun ensureStarted() {
         if (!started.compareAndSet(false, true)) return
         Log.i(TAG, "starting mesh coordinator as ${Packet.tag(identity.peerId)}")
+        // Read before any collector can write an image, so the prune never
+        // touches a file this process wrote.
+        val startedAt = System.currentTimeMillis()
 
         warmKeyDirectory()
         router.start()
@@ -504,6 +507,22 @@ class MeshCoordinator @Inject constructor(
         pullBackFutureThreads()
         sweepDisappearing()
         collectNameChanges()
+        pruneOrphanAttachments(startedAt)
+    }
+
+    /**
+     * Once per start: deletes image files no message points at, among those
+     * written before [startedAt]. See [AttachmentStore.pruneExcept].
+     */
+    private fun pruneOrphanAttachments(startedAt: Long) = scope.launch {
+        try {
+            val pruned = attachments.pruneExcept(messages.attachmentFileNames(), writtenBefore = startedAt)
+            if (pruned > 0) Log.i(TAG, "$pruned orphaned image file(s) deleted")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "attachment prune failed: ${e::class.simpleName}")
+        }
     }
 
     /**
@@ -825,19 +844,21 @@ class MeshCoordinator @Inject constructor(
      * Deletes [messageId] from this phone only; anyone who received it keeps it.
      *
      * The tombstone is written before the row goes, so a relay replaying the
-     * message between the two writes still finds it refused.
+     * message between the two writes still finds it refused. Runs in the mesh
+     * scope: the screen that asked is often closed straight after, and a
+     * cancellation between the row and its file left the image on disk.
      *
      * @return false when the message is gone already or [canDeleteLocally]
      *   refuses it.
      */
-    suspend fun deleteLocally(messageId: String): Boolean {
-        val row = messages.findMessage(messageId) ?: return false
-        if (!canDeleteLocally(row)) return false
+    suspend fun deleteLocally(messageId: String): Boolean = scope.outliveCaller {
+        val row = messages.findMessage(messageId) ?: return@outliveCaller false
+        if (!canDeleteLocally(row)) return@outliveCaller false
         deletedMessages.remember(messageId)
-        val removed = messages.deleteMessage(messageId) ?: return false
+        val removed = messages.deleteMessage(messageId) ?: return@outliveCaller false
         removed.attachmentFile?.let { attachments.delete(it) }
         withdrawNotification(removed.conversationId)
-        return true
+        true
     }
 
     /**
@@ -846,20 +867,20 @@ class MeshCoordinator @Inject constructor(
      * The thread row itself is kept, so its disappearing timer survives: someone
      * who set one and then cleared the chat expects new messages to keep
      * disappearing. Tombstones first, as in [deleteLocally], so relays cannot
-     * replay the history back in.
+     * replay the history back in. In the mesh scope, as [deleteLocally] is.
      *
      * @return how many messages were deleted.
      */
-    suspend fun deleteChat(recipientHexId: String?): Int {
+    suspend fun deleteChat(recipientHexId: String?): Int = scope.outliveCaller {
         val doomed = chatDeletion(messages.findIn(conversationIdFor(recipientHexId)))
-        if (doomed.isEmpty()) return 0
+        if (doomed.isEmpty()) return@outliveCaller 0
         val ids = doomed.map { it.id }
         deletedMessages.rememberAll(ids)
         messages.deleteMessages(ids)
         doomed.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
         withdrawNotifications(doomed)
         Log.i(TAG, "${doomed.size} message(s) deleted with their chat")
-        return doomed.size
+        doomed.size
     }
 
     /**

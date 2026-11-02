@@ -51,6 +51,17 @@ class MessageDaoTest {
     }
 
     @Test
+    fun listsEveryAttachmentFileARowStillPointsAt() = runTest {
+        // The start-up prune deletes every file not named here, so a missing
+        // name would delete a picture that is still in a thread.
+        messages.insert(message(id = "text"))
+        messages.insert(message(id = "img1").copy(attachmentFile = "img1.jpg"))
+        messages.insert(message(id = "img2", isOutgoing = true).copy(attachmentFile = "img2.jpg"))
+
+        assertEquals(listOf("img1.jpg", "img2.jpg"), messages.attachmentFileNames().sorted())
+    }
+
+    @Test
     fun preservesDeliveryStateAcrossTheEnumConverter() = runTest {
         DeliveryState.entries.forEachIndexed { i, state ->
             messages.insert(message(id = "state$i", deliveryState = state))

@@ -48,6 +48,9 @@ class MessageRepository @Inject constructor(
     /** Every row in a thread, in no particular order. */
     suspend fun findIn(conversationId: String): List<MessageEntity> = messageDao.findIn(conversationId)
 
+    /** Names of every stored image some message row still points at. */
+    suspend fun attachmentFileNames(): Set<String> = messageDao.attachmentFileNames().toSet()
+
     /**
      * Stores a message this device is sending, in [DeliveryState.PENDING].
      *
