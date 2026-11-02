@@ -5,6 +5,21 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5za. Phone checks for mesh on/off, the index and image cleanup (2026-11-02, second run)
+*Mesh on/off (#85), one phone:* this changes when the radio is on. Pull down the
+notification shade: the "Mesh active" notification now has a **Stop** button. Tap it:
+the notification goes, and opening Null Chat shows "Mesh is off. Messages wait until
+you turn it on." above the peer list. Send a message: it shows `queued`. Restart the
+phone and open the app: the mesh is still off. Tap **Turn on** (or Settings → Mesh →
+"Find phones and relay messages"): the notification comes back and, with a contact in
+range, the queued message turns `sent` then `delivered`. Turning the switch off in
+Settings stops the notification at once. If the mesh ever comes back on by itself, or
+the app shows "Null Chat keeps stopping" after Stop, say so.
+*Index (#83):* nothing new to see. Updating keeps every chat and message (Room 11→12).
+*Image cleanup (#84):* delete an image message, or a chat with images, and close the
+chat at once. After a restart every picture that is still in a chat still shows. If a
+picture ever turns into a grey box, say so.
+
 ### 5z. Phone checks for replays, notifications and bound peers (2026-11-02)
 *Notifications (#81), one phone plus a contact:* set the chat with the contact to
 disappear after 5 minutes, put Null Chat in the background, and have the contact send
@@ -275,7 +290,7 @@ B's peer list should show `name · <A's id>` within a few seconds if in range,
 otherwise the next time they connect. A phone on an older build must still see
 A by id and still exchange messages (it ignores the new PROFILE packet).
 
-### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-11-01)
+### 7. ACTION FOR ALPHA: model (2026-10-15, still open 2026-11-02 second run)
 Re-checked 2026-11-01: platform.claude.com's models page is reachable again and still
 lists Claude Fable 5.1 above Opus 5.5. Opus 5.5 is still the newest Opus.
 Anthropic's model docs now list **Claude Fable 5.1** (`claude-fable-5-1`) above

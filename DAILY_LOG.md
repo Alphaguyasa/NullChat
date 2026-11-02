@@ -4,6 +4,58 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-11-02 — second run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). Claude Fable 5.1 is still the only model above
+it, and Opus 5.5 is still the newest Opus. This session has no tool to switch the
+routine's model, so the ACTION FOR ALPHA stays open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`18ba2da`, tag v2026-11-02-4). No PRs were open.
+- No local Android build (no SDK in the cloud box, and dl.google.com is blocked by
+  the proxy). CI was the only build.
+- **PR #83**, roadmap #62: `(conversationId, receivedAt)` index, Room 11→12.
+  - The migration only creates the index. No column changes and no row is rewritten.
+  - How the schema was produced without a local build: the first push left out
+    `12.json`, so the "Check Room schemas are committed" step failed on purpose and
+    printed the generated file with its identity hash. `12.json` is 11.json plus the
+    new index and that hash, and the second push passed the same check.
+  - Migration test: v11 rows survive, the thread reads in arrival order, and
+    `EXPLAIN QUERY PLAN` uses the new index. Merged, tag v2026-11-02-5.
+- **PR #84**, roadmap #64: orphan image files.
+  - `deleteLocally` and `deleteChat` run in the mesh scope.
+  - Once per start, image files no row points at are pruned. Only files written
+    before the coordinator started are touched, so an incoming image whose row is
+    not yet inserted is safe.
+  - OrphanAttachmentTest 5, MessageDaoTest +1. Green on the first attempt. Merged,
+    tag v2026-11-02-6.
+- **PR #85**, roadmap #61: mesh on/off.
+  - `MeshEnabledStore` is on by default and remembered across restarts. The
+    activity follows it to start or stop the service.
+  - The service refuses to start while the mesh is off. The notification has a Stop
+    action, which stores off before stopping.
+  - The peer list shows "Mesh is off" with Turn on, and Settings has a switch.
+  - Messages sent while off are queued and leave when the mesh comes back.
+  - MeshEnabledStoreTest 2, SettingsScreenTest +1. The lock-switch tests now find
+    their switch by label, since the screen has two switches.
+  - Needs a phone check (NEEDS_APPROVAL 5za).
+- Branching: this session must use its designated branch
+  (`alpha/beautiful-davinci-a5tzkd`) for every PR. After each squash-merge, main is
+  merged into it (no force-push), so each PR's diff is only its own item.
+- Roadmap: 7 open (#58, #65, #66, #54, #21, #22, #23), no replan.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #62 receivedAt index (PR #83); #64 orphan image files (PR #84); #61 mesh on/off (PR #85) |
+| Merged | #83 yes, v2026-11-02-5; #84 yes, v2026-11-02-6; #85 see notification |
+| Failed or blocked | #83's first CI run failed on purpose, to get the generated schema. No local Android build |
+| Roadmap | 7 open, no replan (next replan when fewer than 5) |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Phone checks 5za (new: mesh Stop button), 5z, 5y, 5x; model (#7); backup (#3) |
+| Next | #58 greeting floods (receiver rule first), #65 tombstone cap, #66 mesh health row |
+
+---
+
 ## 2026-11-02 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still lists
