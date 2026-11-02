@@ -126,4 +126,15 @@ class MessageNotificationPolicyTest {
     fun `the app lock still shows how many are waiting`() {
         assertEquals("3 new messages", MessageNotificationPolicy.text(direct(), unseen = 3, hideContent = true))
     }
+
+    @Test
+    fun `the count goes on while the notification is still in the shade`() {
+        assertEquals(1, MessageNotificationPolicy.nextCount(previous = null, stillShown = false))
+        assertEquals(4, MessageNotificationPolicy.nextCount(previous = 3, stillShown = true))
+    }
+
+    @Test
+    fun `a message after the notification was swiped away starts again at one`() {
+        assertEquals(1, MessageNotificationPolicy.nextCount(previous = 3, stillShown = false))
+    }
 }

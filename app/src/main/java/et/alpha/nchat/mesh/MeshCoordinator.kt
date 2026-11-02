@@ -48,10 +48,13 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -201,6 +204,16 @@ internal fun canDeleteLocally(message: MessageEntity): Boolean =
  * [canDeleteLocally] keeps them.
  */
 internal fun chatDeletion(rows: List<MessageEntity>): List<MessageEntity> = rows.filter(::canDeleteLocally)
+
+/**
+ * The conversations whose notification goes when [deleted] rows are removed;
+ * see `MeshCoordinator.withdrawn`. Only threads that received something: our
+ * own messages never raise a notification, and the broadcast thread never has one.
+ */
+internal fun withdrawnConversations(deleted: List<MessageEntity>): List<String> =
+    deleted.filter { !it.isOutgoing && it.conversationId != BROADCAST_CONVERSATION_ID }
+        .map { it.conversationId }
+        .distinct()
 
 /**
  * Whether "Forget contact" is offered for [peer].
@@ -401,6 +414,36 @@ class MeshCoordinator @Inject constructor(
     /** New messages as they are stored, for notifications; see [InboundHandler.arrivals]. */
     val arrivals: SharedFlow<Arrival> = inbound.arrivals
 
+    private val _withdrawn = MutableSharedFlow<String>(
+        extraBufferCapacity = WITHDRAWN_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /**
+     * Conversations whose notification must go, because messages it may be
+     * showing were deleted here: by the disappearing sweep, a delete, delete
+     * chat, forget or block.
+     *
+     * A preview left in the shade after the row is gone undoes the deletion for
+     * anyone who picks up the phone, which for a disappearing message is the
+     * whole point. The whole conversation's notification goes, not just the
+     * deleted line: it shows the newest preview and a count, and nothing short
+     * of reposting could make either honest again. The unread badge in the app
+     * still points at whatever is left.
+     *
+     * Dropping the oldest on overflow, like [arrivals]: never wait on a listener.
+     */
+    val withdrawn: SharedFlow<String> = _withdrawn.asSharedFlow()
+
+    /** Takes down [conversationId]'s notification; see [withdrawn]. */
+    fun withdrawNotification(conversationId: String) {
+        _withdrawn.tryEmit(conversationId)
+    }
+
+    private fun withdrawNotifications(rows: List<MessageEntity>) {
+        withdrawnConversations(rows).forEach(::withdrawNotification)
+    }
+
     /** This device's own id, hex-encoded — the `senderId` on everything it sends. */
     val selfId: String by lazy { identity.peerId.toHexId() }
 
@@ -569,6 +612,7 @@ class MeshCoordinator @Inject constructor(
                     deletedMessages.rememberAll(ids)
                     messages.deleteMessages(ids)
                     expired.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
+                    withdrawNotifications(expired)
                     Log.i(TAG, "${expired.size} disappearing message(s) deleted")
                 }
             } catch (e: CancellationException) {
@@ -796,6 +840,7 @@ class MeshCoordinator @Inject constructor(
         deletedMessages.remember(messageId)
         val removed = messages.deleteMessage(messageId) ?: return false
         removed.attachmentFile?.let { attachments.delete(it) }
+        withdrawNotification(removed.conversationId)
         return true
     }
 
@@ -816,6 +861,7 @@ class MeshCoordinator @Inject constructor(
         deletedMessages.rememberAll(ids)
         messages.deleteMessages(ids)
         doomed.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
+        withdrawNotifications(doomed)
         Log.i(TAG, "${doomed.size} message(s) deleted with their chat")
         return doomed.size
     }
@@ -852,6 +898,8 @@ class MeshCoordinator @Inject constructor(
         )
         messages.deleteConversation(conversationId)
         rows.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
+        // Even with no rows left: the notification may outlive rows the sweep took.
+        withdrawNotification(conversationId)
         peers.forget(peerHex)
         Log.i(TAG, "Forgot a peer and ${rows.size} message(s)")
         true
@@ -1230,6 +1278,9 @@ class MeshCoordinator @Inject constructor(
 
     private companion object {
         const val TAG = "MeshCoordinator"
+
+        /** Withdrawals held for a slow listener; one sweep rarely touches more threads. */
+        const val WITHDRAWN_BUFFER = 64
 
         /**
          * Why a long message or image to a not-yet-introduced peer failed.

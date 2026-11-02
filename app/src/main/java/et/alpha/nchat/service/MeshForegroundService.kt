@@ -214,6 +214,9 @@ class MeshForegroundService : Service() {
         scope.launch {
             foregroundConversation.current.filterNotNull().collect { messageNotifier.cancel(it) }
         }
+        scope.launch {
+            coordinator.withdrawn.collect { messageNotifier.cancel(it) }
+        }
     }
 
     /**

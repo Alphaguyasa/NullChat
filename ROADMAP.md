@@ -15,7 +15,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 58 | **Greeting floods the mesh**: each new link triggers a ttl-6 ANNOUNCE and PROFILE with fresh ids, so a crowd pays ~O(N²) airtime on every reconnect. Send the announcement on the new link only (`sendOnLink`) and broadcast at most every few minutes. | P1 | M | On-air, needs two-phone check |
-| 60 | **Notifications outlive deleted or disappearing messages**: the sweep, delete chat, forget and block leave the preview in the shade; swiping a notification does not reset the count. Cancel from those paths; add a delete intent. | P2 | S | Privacy |
 | 61 | **Mesh on/off**: `MeshForegroundService.stop()` has no callers; the only way to stop relaying is force stop. Setting plus a Stop action on the ongoing notification, remembered across restarts. | P2 | M | |
 | 62 | **Index on `receivedAt`**: thread and summary queries order by `receivedAt` (since #29) but only `(conversationId, timestamp)` is indexed. Add `(conversationId, receivedAt)` (Room 11→12, migration test). | P2 | S | Schema change |
 | 63 | **`_boundPeers` race**: two collectors on `Dispatchers.Default` snapshot `links.boundPeers()` and assign separately, so a stale set can win and show a bound peer offline. Publish from inside the `LinkBindings` lock. | P3 | S | |
@@ -104,3 +103,4 @@ change once decided.
 | 2026-11-01 | #56 Broadcast thread cap: the Everyone thread keeps the newest 2000 received messages and 100 received images by arrival time; trimmed rows are tombstoned and their files deleted | #76 | see log |
 | 2026-11-01 | #57 Per-link inbound rate limit: `LinkRateLimiter` token bucket (burst 1000, 50/s) per endpoint ahead of decode and verify; drops counted in `droppedRateLimited` (needs two-phone check) | #77 | see log |
 | 2026-11-02 | #59 Replayed ANNOUNCE/PROFILE: `PresenceFreshness` takes only a packet newer, by the sender's own clock, than the newest already taken (or current by ours), so a replay no longer marks a contact heard, resets the prune, moves its hop reading or reverts its name | #80 | see log |
+| 2026-11-02 | #60 Notifications outlive deleted messages: the sweep, delete, delete chat, forget and block take the thread's notification down (`MeshCoordinator.withdrawn`); a message after a swipe counts from 1 again | #81 | see log |
