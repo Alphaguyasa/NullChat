@@ -202,6 +202,8 @@ internal class InboundHandler(
      */
     val arrivals: SharedFlow<Arrival> = _arrivals.asSharedFlow()
 
+    private val presence = PresenceFreshness()
+
     private val _hopObservations = MutableStateFlow<Map<String, HopObservation>>(emptyMap())
 
     /** Latest distance reading per hex peer id; see `MeshCoordinator.observedHops`. */
@@ -228,6 +230,13 @@ internal class InboundHandler(
     }
 
     private suspend fun dispatch(packet: Packet) {
+        // Ahead of the hop reading too: a replay's ttl measures the relay that
+        // kept the copy, not the sender, who may be long gone.
+        if (isReplayedPresence(packet)) {
+            log.debug("stale ${packet.type} ${Packet.tag(packet.messageId)} ignored")
+            return
+        }
+
         // Before the type switch, so ANNOUNCE, FRAGMENT and MESSAGE all
         // contribute: this is the one point every live packet with an intact
         // ttl passes through, and an announcement is often the only thing we
@@ -243,6 +252,17 @@ internal class InboundHandler(
             PacketType.TIMER -> recordTimer(packet)
             else -> Unit
         }
+    }
+
+    /**
+     * An ANNOUNCE or PROFILE older, by its sender's clock, than one already
+     * taken from that sender; see [PresenceFreshness]. Other types have their
+     * own defences: messages are deduplicated by row and tombstone, receipts by
+     * the delivered state, timers by [acceptsPeerTimer].
+     */
+    private fun isReplayedPresence(packet: Packet): Boolean {
+        if (packet.type != PacketType.ANNOUNCE && packet.type != PacketType.PROFILE) return false
+        return !presence.accept(packet.senderId.toHexId(), packet.type, packet.timestamp, clock())
     }
 
     private suspend fun recordMessage(packet: Packet) {

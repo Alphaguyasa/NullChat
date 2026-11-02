@@ -262,6 +262,38 @@ class InboundHandlerTest {
     }
 
     @Test
+    fun `a replayed profile does not put back the name the peer has since changed`() = runTest {
+        val handler = handler()
+        val hour = 60 * 60 * 1000L
+        val old = profilePacket(newMessageId().hexIdToBytes(), alice, Profile.fromInput("Maya")!!, timestamp = now)
+        handler.handle(old)
+        now += hour
+        handler.handle(profilePacket(newMessageId().hexIdToBytes(), alice, Profile.fromInput("Maya K")!!, timestamp = now))
+        now += hour
+
+        // The relay kept the first copy and plays it back past the seen-cache window.
+        handler.handle(old)
+
+        assertEquals("Maya K", store.seen.getValue(aliceHex).displayName)
+    }
+
+    @Test
+    fun `a replayed announcement does not mark the peer heard again`() = runTest {
+        val handler = handler()
+        val announcement = Announcement(ByteArray(32) { 7 }, ByteArray(32) { 9 })
+        val copy = announcementPacket(newMessageId().hexIdToBytes(), announcement, timestamp = now)
+        handler.handle(copy)
+        store.seenCalls.clear()
+        now += 60 * 60 * 1000L
+
+        // From a relay five hops out, long after the peer itself was here.
+        handler.handle(copy.copy(ttl = 2))
+
+        assertTrue(store.seenCalls.isEmpty())
+        assertEquals(1, handler.hopObservations.value.getValue(announcement.peerId.toHexId()).hops)
+    }
+
+    @Test
     fun `an image arriving in pieces is stored once and acknowledged`() = runTest {
         val handler = handler()
         val arrivals = arrivalsOf(handler)
@@ -392,6 +424,7 @@ class InboundHandlerTest {
         val rows = linkedMapOf<String, MessageEntity>()
         val images = mutableMapOf<String, ByteArray>()
         val seen = mutableMapOf<String, Seen>()
+        val seenCalls = mutableListOf<String>()
         val deleted = mutableSetOf<String>()
         val blocked = mutableSetOf<String>()
 
@@ -424,6 +457,7 @@ class InboundHandlerTest {
             publicKey: ByteArray?,
             agreementKey: ByteArray?,
         ) {
+            seenCalls += peerHex
             val previous = seen[peerHex]
             seen[peerHex] = Seen(
                 displayName ?: previous?.displayName,
