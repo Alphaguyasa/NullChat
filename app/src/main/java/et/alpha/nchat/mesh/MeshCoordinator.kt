@@ -331,9 +331,6 @@ private class RepositoryInboundStore(
 
     private companion object {
         const val TAG = "MeshCoordinator"
-
-        /** Withdrawals held for a slow listener; one sweep rarely touches more threads. */
-        const val WITHDRAWN_BUFFER = 64
     }
 }
 
@@ -1281,6 +1278,9 @@ class MeshCoordinator @Inject constructor(
 
     private companion object {
         const val TAG = "MeshCoordinator"
+
+        /** Withdrawals held for a slow listener; one sweep rarely touches more threads. */
+        const val WITHDRAWN_BUFFER = 64
 
         /**
          * Why a long message or image to a not-yet-introduced peer failed.
