@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -622,6 +623,73 @@ class NChatDatabaseMigrationTest {
                     ),
                 )
                 assertEquals(listOf(2000L), lines.observeConversation("direct:peer").first().map { it.changedAt })
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * The v11 → v12 upgrade that indexes messages by arrival time.
+     *
+     * Every message survives, and the thread query reads the new index instead
+     * of sorting the whole thread on each emission.
+     */
+    @Test
+    fun migratingToVersion12IndexesArrivalTimeAndKeepsHistory() {
+        helper.createDatabase(TEST_DB, 11).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO conversations
+                    (id, peerId, title, createdAt, lastActivityAt, lastReadAt, disappearAfterMillis, isMuted)
+                VALUES ('direct:peer', 'peer', NULL, 1000, 3000, 0, NULL, 0)
+                """.trimIndent(),
+            )
+            // Sender's clock and arrival order disagree, as they do between
+            // phones that never sync clocks.
+            db.execSQL(
+                """
+                INSERT INTO messages
+                    (id, conversationId, senderId, body, timestamp, deliveryState,
+                     isOutgoing, attachmentFile, hops, receivedAt, expiresAt)
+                VALUES
+                    ('m1', 'direct:peer', 'peer', 'first', 9000, 'DELIVERED', 0, NULL, 2, 1000, NULL),
+                    ('m2', 'direct:peer', 'peer', 'second', 2000, 'DELIVERED', 0, NULL, 1, 3000, NULL)
+                """.trimIndent(),
+            )
+        }
+
+        // Runs MIGRATION_11_12 and validates the result against schemas/12.json.
+        helper.runMigrationsAndValidate(TEST_DB, 12, true, *NChatDatabase.MIGRATIONS).use { db ->
+            db.query(
+                "SELECT name FROM sqlite_master WHERE type = 'index' " +
+                    "AND name = 'index_messages_conversationId_receivedAt'",
+            ).use { cursor -> assertEquals(1, cursor.count) }
+
+            val plan = buildString {
+                db.query(
+                    "EXPLAIN QUERY PLAN SELECT * FROM messages WHERE conversationId = ? " +
+                        "ORDER BY receivedAt ASC, id ASC",
+                    arrayOf("direct:peer"),
+                ).use { cursor ->
+                    val detail = cursor.getColumnIndexOrThrow("detail")
+                    while (cursor.moveToNext()) appendLine(cursor.getString(detail))
+                }
+            }
+            assertTrue(plan, plan.contains("index_messages_conversationId_receivedAt"))
+        }
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NChatDatabase::class.java,
+            TEST_DB,
+        ).addMigrations(*NChatDatabase.MIGRATIONS).build()
+
+        try {
+            runBlocking {
+                val thread = db.messageDao().observeConversation("direct:peer").first()
+                assertEquals(listOf("first", "second"), thread.map { it.body })
+                assertEquals(listOf(2, 1), thread.map { it.hops })
             }
         } finally {
             db.close()

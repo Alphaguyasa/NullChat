@@ -184,6 +184,11 @@ data class ConversationEntity(
     ],
     indices = [
         Index("conversationId", "timestamp"),
+        // Threads, previews and unread counts order and filter by this phone's
+        // arrival clock (since #29). Without it each of those queries sorts the
+        // whole thread in a temp B-tree. The timestamp index stays for the
+        // queries that still read the sender's clock.
+        Index("conversationId", "receivedAt"),
         Index("senderId"),
         Index("deliveryState"),
         Index("expiresAt"),

@@ -56,7 +56,7 @@ abstract class NChatDatabase : RoomDatabase() {
     abstract fun timerChangeDao(): TimerChangeDao
 
     companion object {
-        const val VERSION: Int = 11
+        const val VERSION: Int = 12
 
         const val NAME: String = "nchat.db"
 
@@ -240,6 +240,22 @@ abstract class NChatDatabase : RoomDatabase() {
         }
 
         /**
+         * Adds the `(conversationId, receivedAt)` index on `messages`.
+         *
+         * An index only: no column changes and no row is rewritten, so nothing
+         * can be lost. Building it reads every message once, on the first start
+         * after the update. SQL copied from the `createSql` in `schemas/12.json`.
+         */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_messages_conversationId_receivedAt` " +
+                        "ON `messages` (`conversationId`, `receivedAt`)",
+                )
+            }
+        }
+
+        /**
          * Ordered upgrade path.
          *
          * When adding one, append it here and leave the existing entries alone;
@@ -256,6 +272,7 @@ abstract class NChatDatabase : RoomDatabase() {
             MIGRATION_8_9,
             MIGRATION_9_10,
             MIGRATION_10_11,
+            MIGRATION_11_12,
         )
     }
 }
