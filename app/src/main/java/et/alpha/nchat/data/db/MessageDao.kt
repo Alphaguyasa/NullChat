@@ -62,6 +62,10 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId")
     suspend fun findIn(conversationId: String): List<MessageEntity>
 
+    /** Every image file a row still points at, for the start-up orphan prune. */
+    @Query("SELECT attachmentFile FROM messages WHERE attachmentFile IS NOT NULL")
+    suspend fun attachmentFileNames(): List<String>
+
     /** Outbound messages still awaiting a transport, oldest first. */
     @Query(
         """

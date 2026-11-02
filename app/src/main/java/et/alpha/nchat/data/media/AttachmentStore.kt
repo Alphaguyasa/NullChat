@@ -77,19 +77,29 @@ class AttachmentStore @Inject constructor(
     }
 
     /**
-     * Deletes files no message row points at any more.
+     * Deletes files no message row points at any more, among those written
+     * before [writtenBefore].
      *
-     * Room cascades a deleted conversation to its messages, which leaves their
-     * attachments behind — nothing in SQLite can reach outside the database to
-     * remove a file. Without this, deleting a thread silently keeps its pictures
-     * on disk forever.
+     * Orphans come from a process killed between a delete's row and file
+     * steps, or between an image's file write and its row insert. Nothing in
+     * SQLite can reach outside the database to remove them, so without this
+     * they stay on disk for good.
+     *
+     * [writtenBefore] keeps the prune off files this process is still using: an
+     * incoming image is written a moment before its row is inserted, and a
+     * prune that read the live names in that gap would delete a picture whose
+     * row then points at nothing.
+     *
+     * @return how many files were deleted.
      */
-    suspend fun pruneExcept(liveFileNames: Set<String>): Int = withContext(Dispatchers.IO) {
-        val files = directory.listFiles() ?: return@withContext 0
-        files.count { file ->
-            (file.name !in liveFileNames || file.name.endsWith(".tmp")) && file.delete()
+    suspend fun pruneExcept(liveFileNames: Set<String>, writtenBefore: Long): Int =
+        withContext(Dispatchers.IO) {
+            val files = directory.listFiles() ?: return@withContext 0
+            files.count { file ->
+                isOrphanAttachment(file.name, file.lastModified(), liveFileNames, writtenBefore) &&
+                    file.delete()
+            }
         }
-    }
 
     private fun fileNameFor(messageId: String): String = "$messageId.jpg"
 
@@ -98,3 +108,17 @@ class AttachmentStore @Inject constructor(
         const val DIRECTORY = "attachments"
     }
 }
+
+/**
+ * Whether the prune may delete a file: written before [writtenBefore], and
+ * either a leftover temp file or one no row points at.
+ *
+ * `File.lastModified` is 0 when it cannot be read; such a file counts as old,
+ * which is right for a leftover and harmless for a live one, kept by name.
+ */
+internal fun isOrphanAttachment(
+    name: String,
+    lastModified: Long,
+    liveFileNames: Set<String>,
+    writtenBefore: Long,
+): Boolean = lastModified < writtenBefore && (name.endsWith(".tmp") || name !in liveFileNames)
