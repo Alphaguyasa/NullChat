@@ -7,7 +7,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -112,7 +114,7 @@ class SettingsScreenTest {
         val changes = mutableListOf<Boolean>()
         setLockContent(lockEnabled = false, lockAvailable = true) { changes += it }
 
-        compose.onNode(isToggleable()).performScrollTo().assertIsOff().performClick()
+        compose.onNode(lockSwitch).performScrollTo().assertIsOff().performClick()
 
         assertEquals(listOf(true), changes)
     }
@@ -121,7 +123,7 @@ class SettingsScreenTest {
     fun withoutAScreenLockTheSwitchCannotBeTurnedOn() {
         setLockContent(lockEnabled = false, lockAvailable = false) {}
 
-        compose.onNode(isToggleable()).performScrollTo().assertIsNotEnabled()
+        compose.onNode(lockSwitch).performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("screen lock, set in Android settings", substring = true).assertExists()
     }
 
@@ -131,7 +133,7 @@ class SettingsScreenTest {
         val changes = mutableListOf<Boolean>()
         setLockContent(lockEnabled = true, lockAvailable = false) { changes += it }
 
-        compose.onNode(isToggleable()).performScrollTo().assertIsEnabled().performClick()
+        compose.onNode(lockSwitch).performScrollTo().assertIsEnabled().performClick()
 
         assertEquals(listOf(false), changes)
     }
@@ -198,6 +200,39 @@ class SettingsScreenTest {
             }
         }
     }
+
+    @Test
+    fun theMeshSwitchShowsTheSettingAndReportsTheChange() {
+        val changes = mutableListOf<Boolean>()
+        var state by mutableStateOf(SettingsState(selfId = SELF))
+        compose.setContent {
+            NChatTheme {
+                SettingsContent(
+                    state = state,
+                    saved = false,
+                    wipeFailed = false,
+                    onBack = {},
+                    onDraftChange = {},
+                    onSave = {},
+                    onWipe = {},
+                    onMeshEnabledChange = {
+                        changes += it
+                        state = state.copy(meshEnabled = it)
+                    },
+                )
+            }
+        }
+
+        compose.onNode(meshSwitch).performScrollTo().assertIsOn().performClick()
+        compose.onNode(meshSwitch).assertIsOff()
+        compose.onNodeWithText("wait as queued", substring = true).assertExists()
+
+        assertEquals(listOf(false), changes)
+    }
+
+    // Two switches on the screen now, so each is found by its label.
+    private val lockSwitch = isToggleable() and hasContentDescription("Ask to unlock")
+    private val meshSwitch = isToggleable() and hasContentDescription("Find phones and relay messages")
 
     private companion object {
         const val SELF = "1ac3f00d9e8b7a65"

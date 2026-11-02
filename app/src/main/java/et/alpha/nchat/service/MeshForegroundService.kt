@@ -17,6 +17,7 @@ import et.alpha.nchat.data.db.preferredName
 import et.alpha.nchat.di.logUncaught
 import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.BatteryModeStore
+import et.alpha.nchat.data.settings.MeshEnabledStore
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.mesh.MeshCoordinator
@@ -79,6 +80,8 @@ class MeshForegroundService : Service() {
 
     @Inject lateinit var powerSave: PowerSaveMonitor
 
+    @Inject lateinit var meshEnabled: MeshEnabledStore
+
     private val scope = CoroutineScope(SupervisorJob() + logUncaught(TAG))
 
     private lateinit var radio: StateFlow<RadioState>
@@ -109,6 +112,13 @@ class MeshForegroundService : Service() {
         val missing = MeshPermissions.missing(this)
         if (missing.isNotEmpty()) {
             Log.w(TAG, "not starting: ${missing.size} permission(s) missing")
+            stopSelf()
+            return
+        }
+        // The user turned the mesh off. start() already checks, but a start
+        // request can race the switch, and it must not win.
+        if (!meshEnabled.enabled.value) {
+            Log.i(TAG, "not starting: the mesh is turned off")
             stopSelf()
             return
         }
@@ -143,6 +153,14 @@ class MeshForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // The notification's Stop action. Stored first, so neither the app's
+        // next start nor a sticky restart brings the mesh back unasked.
+        if (intent?.action == ACTION_STOP) {
+            Log.i(TAG, "stop requested from the notification")
+            meshEnabled.setEnabled(false)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // START_STICKY: if the system reclaims us under memory pressure, come back.
         // A mesh node that silently stops relaying is worse than one that restarts.
         // A refused start is not reclaimed, it is unable to run: restarting it
@@ -316,6 +334,15 @@ class MeshForegroundService : Service() {
             else -> resources.getQuantityString(R.plurals.mesh_peer_count, peerCount, peerCount)
         }
 
+        // An explicit intent to this service, immutable: nothing else can fill
+        // it in, and only this app's notification holds it.
+        val stop = PendingIntent.getService(
+            this,
+            0,
+            Intent(this, MeshForegroundService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(
                 getString(
@@ -326,6 +353,7 @@ class MeshForegroundService : Service() {
             .setContentText(text)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentIntent(open)
+            .addAction(0, getString(R.string.mesh_notification_stop), stop)
             .setOngoing(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -340,6 +368,7 @@ class MeshForegroundService : Service() {
         private const val TAG = "MeshService"
         private const val CHANNEL_ID = "mesh"
         private const val NOTIFICATION_ID = 1
+        private const val ACTION_STOP = "et.alpha.nchat.action.STOP_MESH"
 
         /** Starts the mesh, if it is not already running. Safe to call repeatedly. */
         fun start(context: Context) {
@@ -350,7 +379,10 @@ class MeshForegroundService : Service() {
             context.startForegroundService(Intent(context, MeshForegroundService::class.java))
         }
 
-        /** Stops the mesh and releases the radio. */
+        /**
+         * Stops the mesh and releases the radio. Callers store the user's
+         * choice in [MeshEnabledStore] first; this only acts on it.
+         */
         fun stop(context: Context) {
             context.stopService(Intent(context, MeshForegroundService::class.java))
         }
