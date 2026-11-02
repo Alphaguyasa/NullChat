@@ -75,7 +75,13 @@ class MessageNotifier @Inject constructor(
     ) {
         if (!MessageNotificationPolicy.shouldNotify(arrival, foregroundConversationId, isMuted)) return
 
-        val count = (unseen[arrival.conversationId] ?: 0) + 1
+        // Swiping a notification away fires no callback we listen for, so the
+        // count is checked against what is actually still in the shade: a new
+        // message after a swipe starts again at 1 instead of "4 new messages".
+        val count = MessageNotificationPolicy.nextCount(
+            previous = unseen[arrival.conversationId],
+            stillShown = isShown(arrival.conversationId),
+        )
         unseen[arrival.conversationId] = count
 
         val publicVersion = NotificationCompat.Builder(context, CHANNEL_ID)
@@ -104,6 +110,9 @@ class MessageNotifier @Inject constructor(
         unseen.remove(conversationId)
         notifications.cancel(conversationId, NOTIFICATION_ID)
     }
+
+    private fun isShown(conversationId: String): Boolean =
+        notifications.activeNotifications.any { it.tag == conversationId && it.id == NOTIFICATION_ID }
 
     private fun openThread(peerId: String): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)

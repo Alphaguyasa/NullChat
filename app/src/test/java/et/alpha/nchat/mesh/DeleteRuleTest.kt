@@ -1,5 +1,6 @@
 package et.alpha.nchat.mesh
 
+import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.DeliveryState
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.PeerEntity
@@ -58,5 +59,23 @@ class DeleteRuleTest {
         // Forgetting drops the row the block lives on, so it would lift the block.
         assertFalse(canForget(peer.copy(isBlocked = true)))
         assertFalse(canForget(null))
+    }
+
+    @Test
+    fun `deleting received messages takes down each thread's notification once`() {
+        val a = message(DeliveryState.DELIVERED, isOutgoing = false)
+        val b = a.copy(id = "02".repeat(16), conversationId = directConversationId("0102030405060708"))
+        val again = a.copy(id = "03".repeat(16))
+
+        assertEquals(listOf(a.conversationId, b.conversationId), withdrawnConversations(listOf(a, b, again)))
+    }
+
+    @Test
+    fun `our own messages and the broadcast thread have no notification to take down`() {
+        val ours = message(DeliveryState.SENT)
+        val broadcast = message(DeliveryState.DELIVERED, isOutgoing = false)
+            .copy(conversationId = BROADCAST_CONVERSATION_ID)
+
+        assertTrue(withdrawnConversations(listOf(ours, broadcast)).isEmpty())
     }
 }

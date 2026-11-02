@@ -422,7 +422,11 @@ class ChatViewModel @Inject constructor(
      */
     fun onSetBlocked(blocked: Boolean) {
         val peer = peerId.value ?: return
-        viewModelScope.launch { peers.block(peer, blocked) }
+        viewModelScope.launch {
+            peers.block(peer, blocked)
+            // Whatever it last said stays in the shade otherwise.
+            if (blocked) coordinator.withdrawNotification(directConversationId(peer))
+        }
     }
 
     /** Sets this thread's disappearing timer; null turns it off. */

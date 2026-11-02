@@ -29,6 +29,17 @@ internal object MessageNotificationPolicy {
         !arrival.isBroadcast && !isMuted && arrival.conversationId != foregroundConversationId
 
     /**
+     * The count the next notification for a thread shows.
+     *
+     * [previous] is what the last one showed; [stillShown] is whether it is in
+     * the shade now. Once the user has dismissed it, or something took it down,
+     * the messages it counted have been seen or are gone, and counting on from
+     * them would claim news that is not there.
+     */
+    fun nextCount(previous: Int?, stillShown: Boolean): Int =
+        if (stillShown) (previous ?: 0) + 1 else 1
+
+    /**
      * Title: who it is from, labelled exactly as on the peer list — the
      * nickname or chosen name, if any, beside the short id.
      *
