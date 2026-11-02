@@ -5,6 +5,18 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5z. Phone checks for replays, notifications and bound peers (2026-11-02)
+*Notifications (#81), one phone plus a contact:* set the chat with the contact to
+disappear after 5 minutes, put Null Chat in the background, and have the contact send
+a message. Leave the notification alone: when the message disappears, the
+notification goes too. The same happens if you delete the chat or forget the contact
+(from the chat's menu) while a notification for it is showing. Swipe
+a "3 new messages" notification away: the next message shows "1", not "4".
+*Replays (#80), two paired phones:* nothing new to see. Names and "last heard" act as
+before. If a contact who changed their name ever shows the old name again, say so.
+*Bound peers (#82):* nothing new to see. A contact next to you shows online as before.
+No radio change in any of these.
+
 ### 5y. Phone checks for the service guard, broadcast cap and rate limit (2026-11-01)
 *Service guard (#75), one phone on Android 14 or newer:* with the mesh running, go to
 Settings → Apps → Null Chat → Permissions and deny Nearby devices. The app must
