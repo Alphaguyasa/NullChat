@@ -78,4 +78,14 @@ class DeleteRuleTest {
 
         assertTrue(withdrawnConversations(listOf(ours, broadcast)).isEmpty())
     }
+
+    @Test
+    fun `only received messages get a tombstone, oldest received first`() {
+        val ours = message(DeliveryState.SENT).copy(id = "01".repeat(16), receivedAt = 1L)
+        val newer = message(DeliveryState.DELIVERED, isOutgoing = false).copy(id = "02".repeat(16), receivedAt = 30L)
+        val older = message(DeliveryState.DELIVERED, isOutgoing = false).copy(id = "03".repeat(16), receivedAt = 20L)
+
+        // Ours would be dropped by sender id anyway; oldest first so the cap evicts those.
+        assertEquals(listOf(older.id, newer.id), tombstoneIds(listOf(ours, newer, older)))
+    }
 }

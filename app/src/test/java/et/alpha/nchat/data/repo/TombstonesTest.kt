@@ -93,4 +93,38 @@ class TombstonesTest {
         assertEquals(0, Tombstones.decode(null).size)
         assertEquals(0, Tombstones.decode("").size)
     }
+
+    @Test
+    fun `a whole long chat fits under the cap`() {
+        // The 1000 cap let a chat of a few thousand messages come back from relays.
+        val tombstones = Tombstones()
+        repeat(5000) { i -> tombstones.add("m$i", t0) }
+
+        assertTrue(tombstones.contains("m0", t0))
+        assertTrue(tombstones.contains("m4999", t0))
+    }
+
+    @Test
+    fun `a smaller cap is honoured`() {
+        val tombstones = Tombstones(maxEntries = 2)
+        tombstones.add("a", t0)
+        tombstones.add("b", t0)
+        tombstones.add("c", t0)
+
+        assertEquals(2, tombstones.size)
+        assertFalse(tombstones.contains("a", t0))
+    }
+
+    @Test
+    fun `decoding under a smaller cap keeps the newest deletions`() {
+        val written = Tombstones()
+        repeat(5) { i -> written.add("m$i", t0 + i) }
+
+        val decoded = Tombstones.decode(written.encode(), maxEntries = 3)
+
+        assertEquals(3, decoded.size)
+        assertFalse(decoded.contains("m1", t0))
+        assertTrue(decoded.contains("m2", t0))
+        assertTrue(decoded.contains("m4", t0))
+    }
 }
