@@ -5,6 +5,15 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5zb. Phone checks for tombstones and mesh health (2026-11-03)
+*Tombstones (#86), one phone plus a contact:* nothing new to see. Delete a chat
+with a contact: it stays empty, even after the contact's phone comes back in range.
+If deleted messages ever come back, say so.
+*Mesh health (#87):* Settings → Mesh now shows "Dropped since Null Chat started"
+with four counts. Normally the first three stay at 0 and "Relays that missed a
+phone" rises a little as people move. If a count shows a number but the line under
+it says "Nothing unusual", say so. No radio change in either.
+
 ### 5za. Phone checks for mesh on/off, the index and image cleanup (2026-11-02, second run)
 *Mesh on/off (#85), one phone:* this changes when the radio is on. Pull down the
 notification shade: the "Mesh active" notification now has a **Stop** button. Tap it:

@@ -4,6 +4,51 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-11-03 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still
+lists Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. This
+session has no tool to switch the routine's model, so the ACTION FOR ALPHA stays
+open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`66de2c9`). No PRs were open.
+- No local Android build (no SDK in the cloud box). CI was the only build.
+- **PR #86**, roadmap #65: tombstone cap.
+  - The cap went from 1000 to 5000, about 235 KB of preferences when full.
+  - Delete chat and Forget contact tombstone only received messages, oldest first.
+    Our own messages are already dropped by sender id, so tombstoning them only
+    used up the cap.
+  - Found while doing it: the Everyone thread's automatic trim wrote into the same
+    set, one tombstone for each broadcast past 2000 rows. In a crowd, strangers'
+    broadcasts could push out every deletion the user made. The trim now has its
+    own 1000-entry set.
+  - TombstonesTest +3, DeleteRuleTest +1, DeletedMessageStoreTest 2 (instrumented).
+    Green on the first attempt. Merged.
+- **PR #87**, roadmap #66: mesh health in Settings.
+  - Shows the router's forged, unreadable and over-rate counts and missed relays.
+    The view model polls them every 2 s while the screen is open.
+  - A Warning line appears when a phone nearby misbehaves.
+  - "Open Settings" is now "Open settings".
+  - MeshHealthTest 3, SettingsScreenTest +1.
+- Not started: #58 (greeting floods). It changes what a hop count on the air means
+  and needs a receiver-side rule that old builds do not misread, so it gets its own
+  run with a design first rather than a third item squeezed into this one.
+- Roadmap: 5 open (#58, #54, #21, #22, #23), no replan. Next run replans if it
+  drops below 5.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #65 tombstone cap and separate trim set (PR #86); #66 mesh health row (PR #87) |
+| Merged | #86 yes; #87 see notification |
+| Failed or blocked | Nothing failed. #58 deferred: it needs a wire design first. No local Android build |
+| Roadmap | 5 open, no replan |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Phone checks 5zb (new), 5za, 5z, 5y, 5x; model (#7); backup (#3) |
+| Next | #58 greeting floods: design the link-local greeting rule, then implement; replan if under 5 items |
+
+---
+
 ## 2026-11-02 — second run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). Claude Fable 5.1 is still the only model above
