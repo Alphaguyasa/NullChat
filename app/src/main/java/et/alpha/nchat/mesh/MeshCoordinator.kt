@@ -204,6 +204,20 @@ internal fun canDeleteLocally(message: MessageEntity): Boolean =
 internal fun chatDeletion(rows: List<MessageEntity>): List<MessageEntity> = rows.filter(::canDeleteLocally)
 
 /**
+ * The ids among deleted [rows] that need a tombstone, oldest received first.
+ *
+ * Only received messages: a replay of our own is dropped by its sender id
+ * before the tombstone is ever read, so tombstoning it would only spend the
+ * cap. Oldest first because the set evicts in insertion order, so a chat
+ * longer than the cap loses protection for its oldest messages, which are the
+ * ones least likely to still sit in a relay's 24-hour queue.
+ */
+internal fun tombstoneIds(rows: List<MessageEntity>): List<String> =
+    rows.filter { !it.isOutgoing }
+        .sortedWith(compareBy<MessageEntity> { it.receivedAt }.thenBy { it.id })
+        .map { it.id }
+
+/**
  * The conversations whose notification goes when [deleted] rows are removed;
  * see `MeshCoordinator.withdrawn`. Only threads that received something: our
  * own messages never raise a notification, and the broadcast thread never has one.
@@ -301,7 +315,7 @@ private class RepositoryInboundStore(
                 maxImages = MessageRepository.BROADCAST_IMAGES_KEPT,
             )
             if (trimmed.isEmpty()) return
-            deletedMessages.rememberAll(trimmed.map { it.id })
+            deletedMessages.rememberTrimmed(trimmed.map { it.id })
             trimmed.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
             Log.i(TAG, "${trimmed.size} old broadcast message(s) trimmed")
         } catch (e: CancellationException) {
@@ -875,7 +889,7 @@ class MeshCoordinator @Inject constructor(
         val doomed = chatDeletion(messages.findIn(conversationIdFor(recipientHexId)))
         if (doomed.isEmpty()) return@outliveCaller 0
         val ids = doomed.map { it.id }
-        deletedMessages.rememberAll(ids)
+        deletedMessages.rememberAll(tombstoneIds(doomed))
         messages.deleteMessages(ids)
         doomed.forEach { row -> row.attachmentFile?.let { attachments.delete(it) } }
         withdrawNotifications(doomed)
@@ -906,9 +920,8 @@ class MeshCoordinator @Inject constructor(
         if (!canForget(peers.findPeer(peerHex))) return@outliveCaller false
         val conversationId = conversationIdFor(peerHex)
         val rows = messages.findIn(conversationId)
-        val ids = rows.map { it.id }
         // Tombstones first, as in deleteChat, so relays cannot replay the history back in.
-        deletedMessages.rememberAll(ids)
+        deletedMessages.rememberAll(tombstoneIds(rows))
         router.cancelQueued(
             rows.filter { it.isOutgoing && it.deliveryState == DeliveryState.PENDING }
                 .map { it.id.hexIdToBytes() },

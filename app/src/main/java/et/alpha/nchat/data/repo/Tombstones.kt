@@ -11,8 +11,8 @@ package et.alpha.nchat.data.repo
  *
  * Kept for [TTL_MILLIS], well past one forward-queue lifetime because a relay
  * that queues the message late in its own 24 hours restarts the clock for the
- * next hop. Capped at [MAX_ENTRIES], oldest dropped first, so a user deleting
- * thousands of messages cannot grow this without bound; past that a very old
+ * next hop. Capped at [maxEntries], oldest dropped first, so a user deleting
+ * a huge history cannot grow this without bound; past that a very old
  * deletion may come back, which is the cheaper failure.
  *
  * Pure Kotlin and not thread-safe; [DeletedMessageStore] owns the locking and
@@ -21,9 +21,14 @@ package et.alpha.nchat.data.repo
 class Tombstones private constructor(
     // Insertion order is deletion order, which is what the cap evicts by.
     private val entries: LinkedHashMap<String, Long>,
+    private val maxEntries: Int,
 ) {
 
-    constructor() : this(LinkedHashMap())
+    constructor(maxEntries: Int = MAX_ENTRIES) : this(LinkedHashMap(), maxEntries)
+
+    init {
+        require(maxEntries > 0) { "cap must be positive, was $maxEntries" }
+    }
 
     val size: Int get() = entries.size
 
@@ -47,7 +52,11 @@ class Tombstones private constructor(
 
     fun prune(now: Long) {
         entries.values.removeAll { deletedAt -> now - deletedAt >= TTL_MILLIS }
-        val excess = entries.size - MAX_ENTRIES
+        trimToCap()
+    }
+
+    private fun trimToCap() {
+        val excess = entries.size - maxEntries
         if (excess > 0) {
             val oldest = entries.keys.take(excess)
             oldest.forEach(entries::remove)
@@ -59,7 +68,14 @@ class Tombstones private constructor(
 
     companion object {
         const val TTL_MILLIS: Long = 7L * 24 * 60 * 60 * 1000
-        const val MAX_ENTRIES: Int = 1000
+        /**
+         * Enough for deleting a chat of 5000 received messages at once (our own
+         * need no tombstone, see `tombstoneIds`). About 47 bytes an entry, so a
+         * full set is roughly 235 KB of preferences, rewritten on each delete off
+         * the main thread. Was 1000, which let the older part of a long chat
+         * come back from relays' queues within a day.
+         */
+        const val MAX_ENTRIES: Int = 5000
 
         private const val SEPARATOR = ";"
         private const val FIELD = ":"
@@ -69,14 +85,16 @@ class Tombstones private constructor(
          * failing the whole set: losing one tombstone lets one message back,
          * losing all of them lets every one back.
          */
-        fun decode(encoded: String?): Tombstones {
+        fun decode(encoded: String?, maxEntries: Int = MAX_ENTRIES): Tombstones {
             val entries = LinkedHashMap<String, Long>()
             encoded?.split(SEPARATOR)?.forEach { entry ->
                 val id = entry.substringBefore(FIELD, missingDelimiterValue = "")
                 val at = entry.substringAfter(FIELD, missingDelimiterValue = "").toLongOrNull()
                 if (id.isNotEmpty() && at != null) entries[id] = at
             }
-            return Tombstones(entries)
+            // Pruned to the cap at once, so a set written under a larger cap
+            // never sits over this one until the next deletion.
+            return Tombstones(entries, maxEntries).also { it.trimToCap() }
         }
     }
 }
