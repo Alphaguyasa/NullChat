@@ -48,6 +48,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import et.alpha.nchat.R
+import et.alpha.nchat.mesh.MeshHealth
 import et.alpha.nchat.mesh.protocol.Profile
 import et.alpha.nchat.mesh.transport.BatteryMode
 import et.alpha.nchat.ui.lock.SystemUnlock
@@ -56,6 +57,7 @@ import et.alpha.nchat.ui.theme.MonoBody
 import et.alpha.nchat.ui.theme.MonoSmall
 import et.alpha.nchat.ui.theme.NChatTheme
 import et.alpha.nchat.ui.theme.TextMuted
+import et.alpha.nchat.ui.theme.Warning
 
 /**
  * The fourth destination: what this device calls itself.
@@ -74,6 +76,7 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val saved by viewModel.saved.collectAsState()
     val wipeFailed by viewModel.wipeFailed.collectAsState()
+    val health by viewModel.health.collectAsState()
     val context = LocalContext.current
     val lockAvailable = remember { SystemUnlock.isAvailable(context) }
 
@@ -89,6 +92,7 @@ fun SettingsScreen(
         onLockChange = viewModel::onLockChange,
         onBatteryModeChange = viewModel::onBatteryModeChange,
         onMeshEnabledChange = viewModel::onMeshEnabledChange,
+        health = health,
         modifier = modifier,
     )
 }
@@ -109,6 +113,7 @@ internal fun SettingsContent(
     onLockChange: (Boolean) -> Unit = {},
     onBatteryModeChange: (BatteryMode) -> Unit = {},
     onMeshEnabledChange: (Boolean) -> Unit = {},
+    health: MeshHealth = MeshHealth(),
 ) {
     var confirmWipe by remember { mutableStateOf(false) }
     if (confirmWipe) {
@@ -291,6 +296,7 @@ internal fun SettingsContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            MeshHealthRows(health)
 
             HorizontalDivider()
 
@@ -349,6 +355,50 @@ internal fun SettingsContent(
                 Text(text = stringResource(R.string.settings_wipe_action), color = Danger)
             }
         }
+    }
+}
+
+/**
+ * What the router threw away since the app started. Each line says what the
+ * count means rather than naming the counter, so a non-technical reader can
+ * tell a crowd walking past (failed relays) from someone attacking (forged).
+ */
+@Composable
+private fun MeshHealthRows(health: MeshHealth) {
+    Text(
+        text = stringResource(R.string.settings_health_title),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    HealthRow(R.string.settings_health_forged, health.forged)
+    HealthRow(R.string.settings_health_malformed, health.malformed)
+    HealthRow(R.string.settings_health_rate_limited, health.rateLimited)
+    HealthRow(R.string.settings_health_failed_forwards, health.failedForwards)
+    Text(
+        text = stringResource(
+            if (health.suspicious) R.string.settings_health_suspicious else R.string.settings_health_ok,
+        ),
+        style = MaterialTheme.typography.bodyMedium,
+        // Warning, not Danger: nothing is lost, the router already dropped it.
+        color = if (health.suspicious) Warning else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun HealthRow(label: Int, count: Long) {
+    val text = stringResource(label)
+    // One node for TalkBack, read as "Forged packets dropped, 3".
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = "$text, $count" },
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(text = count.toString(), style = MonoBody, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

@@ -28,7 +28,7 @@
 
     <string name="permission_blocked_title">Permission needed</string>
     <string name="permission_blocked_body">Android will not ask again, so this has to be turned on in Settings.\n\nOpen Settings, then Permissions, and allow the nearby device permissions.</string>
-    <string name="permission_open_settings">Open Settings</string>
+    <string name="permission_open_settings">Open settings</string>
     <string name="permission_recheck">I have allowed it</string>
 
     <!-- Radio preconditions. Named concretely — "Bluetooth is off" — because the
@@ -151,6 +151,13 @@
     <string name="settings_mesh_title">Mesh</string>
     <string name="settings_mesh_switch">Find phones and relay messages</string>
     <string name="settings_mesh_hint">When off, this phone stops using Bluetooth and Wi-Fi for Null Chat: it does not find other phones, receive messages or carry them for others. Messages you write wait as queued until you turn it back on.</string>
+    <string name="settings_health_title">Dropped since Null Chat started</string>
+    <string name="settings_health_forged">Forged packets</string>
+    <string name="settings_health_malformed">Unreadable packets</string>
+    <string name="settings_health_rate_limited">Over the rate limit</string>
+    <string name="settings_health_failed_forwards">Relays that missed a phone</string>
+    <string name="settings_health_ok">Nothing unusual. Missed relays are normal as people move; they are sent again.</string>
+    <string name="settings_health_suspicious">A phone nearby sent forged, broken or far too many packets. Null Chat dropped them.</string>
     <string name="mesh_off_banner">Mesh is off. Messages wait until you turn it on.</string>
     <string name="mesh_off_turn_on">Turn on</string>
     <string name="settings_battery_title">Battery use</string>
