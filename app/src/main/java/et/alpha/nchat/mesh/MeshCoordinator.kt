@@ -854,6 +854,14 @@ class MeshCoordinator @Inject constructor(
         }
     }
 
+    /** A snapshot of the router's drop counters, for Settings. */
+    fun health(): MeshHealth = MeshHealth(
+        forged = router.droppedUnverified,
+        malformed = router.droppedMalformed,
+        rateLimited = router.droppedRateLimited,
+        failedForwards = router.failedForwards,
+    )
+
     /**
      * Deletes [messageId] from this phone only; anyone who received it keeps it.
      *

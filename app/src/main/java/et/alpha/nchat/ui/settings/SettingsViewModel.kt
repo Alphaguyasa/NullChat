@@ -9,13 +9,16 @@ import et.alpha.nchat.data.settings.DisplayNameStore
 import et.alpha.nchat.data.settings.MeshEnabledStore
 import et.alpha.nchat.data.wipe.PanicWipe
 import et.alpha.nchat.mesh.MeshCoordinator
+import et.alpha.nchat.mesh.MeshHealth
 import et.alpha.nchat.mesh.protocol.Profile
 import et.alpha.nchat.mesh.transport.BatteryMode
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -49,8 +52,25 @@ class SettingsViewModel @Inject constructor(
     private val appLock: AppLockStore,
     private val battery: BatteryModeStore,
     private val mesh: MeshEnabledStore,
-    coordinator: MeshCoordinator,
+    private val coordinator: MeshCoordinator,
 ) : ViewModel() {
+
+    /**
+     * The router's counters, read every [HEALTH_POLL_MS] while the screen is
+     * showing. Polled rather than pushed: the router bumps them on the hot
+     * inbound path, and a flow emission per dropped packet would cost most
+     * exactly when a flood is under way.
+     */
+    val health: StateFlow<MeshHealth> = flow {
+        while (true) {
+            emit(coordinator.health())
+            delay(HEALTH_POLL_MS)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+        initialValue = coordinator.health(),
+    )
 
     private val draft = MutableStateFlow(names.displayName.value.orEmpty())
 
@@ -140,5 +160,6 @@ class SettingsViewModel @Inject constructor(
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
+        const val HEALTH_POLL_MS = 2_000L
     }
 }

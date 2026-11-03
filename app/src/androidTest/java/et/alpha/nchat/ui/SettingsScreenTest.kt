@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import et.alpha.nchat.mesh.MeshHealth
 import et.alpha.nchat.mesh.transport.BatteryMode
 import et.alpha.nchat.ui.settings.SettingsContent
 import et.alpha.nchat.ui.settings.SettingsState
@@ -228,6 +229,32 @@ class SettingsScreenTest {
         compose.onNodeWithText("wait as queued", substring = true).assertExists()
 
         assertEquals(listOf(false), changes)
+    }
+
+    @Test
+    fun meshHealthReadsEachCountAndFlagsAMisbehavingPhone() {
+        var health by mutableStateOf(MeshHealth(failedForwards = 4))
+        compose.setContent {
+            NChatTheme {
+                SettingsContent(
+                    state = SettingsState(selfId = SELF),
+                    saved = false,
+                    wipeFailed = false,
+                    onBack = {},
+                    onDraftChange = {},
+                    onSave = {},
+                    onWipe = {},
+                    health = health,
+                )
+            }
+        }
+
+        compose.onNode(hasContentDescription("Relays that missed a phone, 4")).performScrollTo().assertExists()
+        compose.onNodeWithText("Nothing unusual", substring = true).assertExists()
+
+        health = health.copy(forged = 3)
+        compose.onNode(hasContentDescription("Forged packets, 3")).assertExists()
+        compose.onNodeWithText("A phone nearby sent forged", substring = true).assertExists()
     }
 
     // Two switches on the screen now, so each is found by its label.
