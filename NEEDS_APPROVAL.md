@@ -5,6 +5,20 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5zc. Two-phone check for quieter greetings (2026-11-04)
+*Greetings (#58), two paired phones A and B, both on this build; this changes what
+goes on the air.* When two phones connect, each used to send a fresh introduction
+(announcement and name) that every phone in range passed on. Now, within 5 minutes
+of its last one, a phone sends a copy of that introduction to the new phone only,
+and only to a phone that has met it on a build from 2026-10-31 or later. Check:
+bring A and B together; B shows online on A within a few seconds. Take B away and
+bring it back within 5 minutes: B is online again within a few seconds, a message
+from A to B turns `sent` then `delivered`, and B still shows A's name. Rename A,
+then reconnect: B shows the new name. If B ever stays offline next to A, or a
+message stays `queued` while B is right there, this change is failing; say so and
+it will be reverted. A phone on an older build, or one you have not met yet, gets
+the fresh introduction as before.
+
 ### 5zb. Phone checks for tombstones and mesh health (2026-11-03)
 *Tombstones (#86), one phone plus a contact:* nothing new to see. Delete a chat
 with a contact: it stays empty, even after the contact's phone comes back in range.

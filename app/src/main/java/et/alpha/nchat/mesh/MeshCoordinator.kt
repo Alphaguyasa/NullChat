@@ -395,6 +395,9 @@ class MeshCoordinator @Inject constructor(
     private val resending: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     /** Which connected endpoints have proved the peer id they advertise. */
+    /** What a new link is greeted with; see [GreetingCache]. */
+    private val greetings = GreetingCache()
+
     private val links = LinkBindings(
         requiresTokenProof = linkProvers::contains,
         onTokenProof = linkProvers::add,
@@ -550,7 +553,7 @@ class MeshCoordinator @Inject constructor(
      */
     private fun collectNameChanges() = scope.launch {
         displayNames.displayName.drop(1).collect { name ->
-            if (name != null) broadcastProfile(name)
+            if (name != null) broadcastProfile(name) else greetings.forgetProfile()
         }
     }
 
@@ -566,6 +569,7 @@ class MeshCoordinator @Inject constructor(
         // Not queued when nobody is in range: PROFILE is not a store-and-forward
         // type, and the next connection sends a fresh one after the announcement.
         runCatching { router.originate(packet) }
+            .onSuccess { tookIt -> if (tookIt) greetings.profiled(packet, packet.timestamp) }
             .onFailure { Log.w(TAG, "failed to send profile: ${it.message}") }
     }
 
@@ -1212,7 +1216,31 @@ class MeshCoordinator @Inject constructor(
             timestamp = System.currentTimeMillis(),
         )
         runCatching { router.originate(packet) }
+            // Only once someone took it: a copy nobody heard is not a greeting
+            // the mesh already knows.
+            .onSuccess { tookIt -> if (tookIt) greetings.announced(packet, packet.timestamp) }
             .onFailure { Log.w(TAG, "failed to announce: ${it.message}") }
+    }
+
+    /**
+     * Greets one new link: a copy of the last greeting on that link only when
+     * it is recent and the peer proves its links, otherwise a fresh broadcast.
+     * See [GreetingCache] for why this keeps reconnects from flooding a crowd.
+     */
+    private suspend fun greetAnnouncement(endpointId: String, provesLinks: Boolean) {
+        val copy = greetings.announcementFor(provesLinks, System.currentTimeMillis())
+        if (copy == null) announceSelf() else resendOnLink(endpointId, copy)
+    }
+
+    /** As [greetAnnouncement], for the display name. */
+    private suspend fun greetProfile(endpointId: String, provesLinks: Boolean) {
+        val copy = greetings.profileFor(provesLinks, System.currentTimeMillis())
+        if (copy == null) broadcastProfile() else resendOnLink(endpointId, copy)
+    }
+
+    private suspend fun resendOnLink(endpointId: String, packet: Packet) {
+        runCatching { router.sendOnLink(endpointId, packet) }
+            .onFailure { Log.w(TAG, "failed to greet ${packet.type}: ${it.message}") }
     }
 
     /**
@@ -1242,15 +1270,16 @@ class MeshCoordinator @Inject constructor(
                 // peer count going 1 -> 2 would re-greet the peer that was
                 // already there.
                 if (greeted.add(endpointId)) {
+                    val provesLinks = linkProvers.contains(peerId.toHexId())
                     // Introduce ourselves first, so the peer can verify what
                     // follows rather than filing it as from an unknown sender.
-                    announceSelf()
+                    greetAnnouncement(endpointId, provesLinks)
                     val token = transport.linkTokenFor(endpointId)
                     val digest = token?.let(::linkTokenDigest)
                     if (digest != null) proveLink(endpointId, peerId, digest)
                     // After the announcement, so the peer holds our key by the
                     // time the signed name arrives and can verify it.
-                    broadcastProfile()
+                    greetProfile(endpointId, provesLinks)
                     if (links.claim(endpointId, peerId, digest)) {
                         offerQueued(peerId, endpointId)
                     }
