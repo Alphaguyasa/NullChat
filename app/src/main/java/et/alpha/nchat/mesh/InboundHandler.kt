@@ -75,10 +75,21 @@ internal fun storedHops(ack: Acknowledgement): Int? =
  * The reassembler accepts up to 64 KB, the most any message may claim, but our
  * own build never sends an image over [ImagePolicy]'s limits. Anything larger
  * came from a modified client, and storing it would hand the chat screen a file
- * it has no reason to trust. Text is bounded by the reassembler alone.
+ * it has no reason to trust.
+ *
+ * Text too: senders stop at [MessagePacket.MAX_TEXT_BYTES], quote included, but
+ * the reassembler alone let 64 KB through. The Everyone thread keeps 2000 rows
+ * and the chat screen loads them all, so strangers could fill it with about
+ * 128 MB of text and the screen would run out of memory opening it. Twice the
+ * send limit, so a later build that raises it a little is not silently dropped.
  */
-internal fun acceptsInbound(attachment: Attachment): Boolean =
-    attachment.contentType != ContentType.IMAGE_JPEG || ImagePolicy.fits(attachment.data.size)
+internal fun acceptsInbound(attachment: Attachment): Boolean = when (attachment.contentType) {
+    ContentType.IMAGE_JPEG -> ImagePolicy.fits(attachment.data.size)
+    ContentType.TEXT_UTF8 -> attachment.data.size <= MAX_INBOUND_TEXT_BYTES
+}
+
+/** The longest reassembled text stored; see [acceptsInbound]. */
+internal const val MAX_INBOUND_TEXT_BYTES: Int = 2 * MessagePacket.MAX_TEXT_BYTES
 
 /**
  * Links between here and a packet's originator, from the ttl it carries.
@@ -499,7 +510,7 @@ internal class InboundHandler(
             return
         }
         if (!acceptsInbound(attachment)) {
-            log.warn("dropped an oversized image from ${Packet.tag(message.senderId)}")
+            log.warn("dropped an oversized ${attachment.contentType} from ${Packet.tag(message.senderId)}")
             return
         }
 

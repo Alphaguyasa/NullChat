@@ -2,6 +2,7 @@ package et.alpha.nchat.mesh
 
 import et.alpha.nchat.data.media.ImagePolicy
 import et.alpha.nchat.mesh.protocol.Attachment
+import et.alpha.nchat.mesh.protocol.MessagePacket
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -28,9 +29,16 @@ class InboundImageTest {
     }
 
     @Test
-    fun `long text is not held to the image limit`() {
-        // Text is bounded by MessagePacket on the sending side and the
-        // reassembler on this one; this check is about images only.
-        assertTrue(acceptsInbound(Attachment.text("a".repeat(ImagePolicy.MAX_ENCODED_BYTES + 1))))
+    fun `the longest text a sender may send is kept`() {
+        assertTrue(acceptsInbound(Attachment.text("a".repeat(MessagePacket.MAX_TEXT_BYTES))))
+        assertTrue(acceptsInbound(Attachment.text("a".repeat(MAX_INBOUND_TEXT_BYTES))))
+    }
+
+    @Test
+    fun `text far past the send limit is dropped`() {
+        // The reassembler alone let 64 KB through; 2000 such rows in the
+        // Everyone thread is about 128 MB loaded at once (roadmap #69).
+        assertFalse(acceptsInbound(Attachment.text("a".repeat(MAX_INBOUND_TEXT_BYTES + 1))))
+        assertFalse(acceptsInbound(Attachment.text("a".repeat(ImagePolicy.MAX_ENCODED_BYTES + 1))))
     }
 }

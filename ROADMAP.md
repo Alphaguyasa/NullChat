@@ -16,7 +16,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 68 | **Pairing QR's agreement key is not authenticated**: `QrPairViewModel.pair` stores the QR's X25519 key and marks the contact verified, and the fingerprint covers the signing key only. A QR with a real signing key and someone else's agreement key gives the same six words. Take the agreement key from a signed ANNOUNCE only; a mismatch shows "codes don't match". | P1 | S | Security, not on-air |
-| 69 | **Received text is capped only by the 64 KB reassembler**, while senders stop at 1000 bytes; the Everyone thread loads every row (up to 2000). Drop reassembled text over the send limit plus margin. | P1 | S | Not on-air |
 | 70 | **Pairing camera outlives the screen**: `QrPairScreen` binds CameraX to the activity, never shuts its executor, blocks Main on `getInstance().get()`, and can call `pair()` several times per QR. Unbind in `DisposableEffect`, await the provider, debounce in the view model; add `QrPairViewModelTest`. | P1 | S | |
 | 71 | **Seen cache too small for images**: 1000 ids against about 280 fragments per image, so a few images in flight evict everything and late copies are relayed again. Raise to about 20k. | P2 | S | Relay behaviour, needs two-phone check |
 | 72 | **A failed `startAdvertising` is never retried** (`MeshForegroundService`), so one radio error leaves the phone invisible all session. Retry each scan window; move the loop into a testable scheduler. | P2 | S | Needs two-phone check |
@@ -119,3 +118,4 @@ change once decided.
 | 2026-11-03 | #66 Mesh health in Settings (forged, unreadable, over-rate packets and missed relays since start; Warning line when a phone nearby misbehaves); "Open settings" | #87 | see log |
 | 2026-11-04 | #58 Greetings stop flooding on reconnect (copy of a recent greeting, link only) | #88 | see log |
 | 2026-11-04 | #67 App lock turns itself off (with a toast) when the phone has no screen lock left, instead of locking the user out until they clear data | #89 | see log |
+| 2026-11-04 | #69 Reassembled text over 2000 bytes (twice the send limit) is dropped instead of stored | #90 | see log |
