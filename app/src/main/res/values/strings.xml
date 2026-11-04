@@ -147,6 +147,7 @@
     <string name="lock_body">Messages keep arriving and relaying while it is locked.</string>
     <string name="lock_unlock">Unlock</string>
     <string name="lock_prompt_title">Unlock Null Chat</string>
+    <string name="lock_turned_off_no_screen_lock">App lock is off. This phone has no screen lock any more.</string>
     <string name="settings_id_hint">Anyone can pick any name. The id comes from your key, so it is what people should check, by pairing with a QR code.</string>
     <string name="settings_mesh_title">Mesh</string>
     <string name="settings_mesh_switch">Find phones and relay messages</string>

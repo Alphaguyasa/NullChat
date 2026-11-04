@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.AndroidEntryPoint
+import et.alpha.nchat.R
 import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.MeshEnabledStore
 import et.alpha.nchat.service.MeshForegroundService
@@ -99,6 +101,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (appLock.enabled.value && SystemUnlock.cannotEverUnlock(this)) turnOffImpossibleLock()
         val enabled = appLock.enabled.value
         appLock.gate.onForeground(SystemClock.elapsedRealtime(), enabled)
         // Keeps the chats out of the recent-apps thumbnail, which would
@@ -123,7 +126,19 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun promptUnlock() {
-        SystemUnlock.prompt(this) { appLock.gate.unlock() }
+        SystemUnlock.prompt(this, onImpossible = ::turnOffImpossibleLock) { appLock.gate.unlock() }
+    }
+
+    /**
+     * The phone has no screen lock any more, so nothing could ever answer the
+     * prompt. Turned off with a word rather than left on: removing the screen
+     * lock already asked for the PIN, and the alternative is clearing the app's
+     * data, which loses every message.
+     */
+    private fun turnOffImpossibleLock() {
+        if (!appLock.enabled.value) return
+        appLock.setEnabled(false)
+        Toast.makeText(this, R.string.lock_turned_off_no_screen_lock, Toast.LENGTH_LONG).show()
     }
 
     private fun handleOpenRequest(intent: Intent?) {

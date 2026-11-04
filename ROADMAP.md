@@ -6,7 +6,8 @@ Effort: **S** < 2 h · **M** half a day · **L** a day or more (split into sever
 
 Audit of 2026-10-14; replanned 2026-10-22 (items 27–41); replanned 2026-10-28
 (third audit, items 43–54); **replanned 2026-10-31** (fourth audit, items 55–66, evidence
-in DAILY_LOG 2026-10-31 second run). This round's theme is a
+in DAILY_LOG 2026-10-31 second run); **replanned 2026-11-04** (fifth audit, items 67–80,
+evidence in DAILY_LOG 2026-11-04). This round's theme is a
 hostile or crowded mesh: what one modified phone, or a festival's worth of strangers,
 can make this phone hold, drop or show. Bugs and abuse resistance come before features.
 
@@ -14,6 +15,19 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
+| 68 | **Pairing QR's agreement key is not authenticated**: `QrPairViewModel.pair` stores the QR's X25519 key and marks the contact verified, and the fingerprint covers the signing key only. A QR with a real signing key and someone else's agreement key gives the same six words. Take the agreement key from a signed ANNOUNCE only; a mismatch shows "codes don't match". | P1 | S | Security, not on-air |
+| 69 | **Received text is capped only by the 64 KB reassembler**, while senders stop at 1000 bytes; the Everyone thread loads every row (up to 2000). Drop reassembled text over the send limit plus margin. | P1 | S | Not on-air |
+| 70 | **Pairing camera outlives the screen**: `QrPairScreen` binds CameraX to the activity, never shuts its executor, blocks Main on `getInstance().get()`, and can call `pair()` several times per QR. Unbind in `DisposableEffect`, await the provider, debounce in the view model; add `QrPairViewModelTest`. | P1 | S | |
+| 71 | **Seen cache too small for images**: 1000 ids against about 280 fragments per image, so a few images in flight evict everything and late copies are relayed again. Raise to about 20k. | P2 | S | Relay behaviour, needs two-phone check |
+| 72 | **A failed `startAdvertising` is never retried** (`MeshForegroundService`), so one radio error leaves the phone invisible all session. Retry each scan window; move the loop into a testable scheduler. | P2 | S | Needs two-phone check |
+| 73 | **One sender can take all 32 reassembly slots** (`FragmentReassembler`). Cap partials per sender at about 4. | P2 | S | |
+| 74 | **Chat rows rebuilt on the main thread** from the full list on every receipt (`ChatViewModel`). `flowOn(Dispatchers.Default)` before `stateIn`. | P2 | S | |
+| 75 | **Switching chats loses the draft** (`ChatViewModel.bind` clears it). Keep drafts per conversation. | P2 | S | |
+| 76 | **Builds cannot be told apart**: versionCode 1 / "1.0" forever. Derive from the CI run number and sha; show "Build …" in Settings, which phone checks need. | P2 | S | |
+| 77 | **Feature: tell me when this contact is in range**: a chat menu toggle and a one-shot local notification when the peer joins `boundPeers`, rate-limited. | P2 | M | No wire change |
+| 78 | **Naming and strings**: `app_name` is "NChat"; "searching for peers nearby" is lowercase and says "Mesh"; about 20 UI literals sit outside `strings.xml`. | P3 | M | |
+| 79 | **Radar pulses by advertised name**, so a stranger can make a contact's node pulse (`PeerListViewModel`). Attribute by bound peers only. | P3 | S | |
+| 80 | **APK carries about 80 dependency locales**; add `localeFilters`. | P3 | S | |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
@@ -104,3 +118,4 @@ change once decided.
 | 2026-11-03 | #65 Tombstone cap 1000 → 5000 (received messages only, oldest first); the Everyone trim gets its own 1000-entry set so a crowd cannot push out the user's deletions | #86 | see log |
 | 2026-11-03 | #66 Mesh health in Settings (forged, unreadable, over-rate packets and missed relays since start; Warning line when a phone nearby misbehaves); "Open settings" | #87 | see log |
 | 2026-11-04 | #58 Greetings stop flooding on reconnect (copy of a recent greeting, link only) | #88 | see log |
+| 2026-11-04 | #67 App lock turns itself off (with a toast) when the phone has no screen lock left, instead of locking the user out until they clear data | #89 | see log |
