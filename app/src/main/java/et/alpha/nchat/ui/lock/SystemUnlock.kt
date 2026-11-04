@@ -38,16 +38,36 @@ object SystemUnlock {
             BiometricManager.BIOMETRIC_SUCCESS
 
     /**
-     * Shows the system prompt. Cancelling or failing leaves the app locked; the
-     * lock screen's button asks again.
+     * True when this phone can never answer the prompt, so a lock left on
+     * would keep the user out of their own messages until they clear its data.
+     *
+     * The screen lock was removed (which itself asked for the PIN), or a
+     * backup with the lock on was restored onto a phone without one. Not a
+     * sensor that is busy or locked out for now: those pass, and the PIN
+     * fallback covers them.
      */
-    fun prompt(activity: FragmentActivity, onUnlocked: () -> Unit) {
+    fun cannotEverUnlock(context: Context): Boolean =
+        unlockIsImpossible(Build.VERSION.SDK_INT, BiometricManager.from(context).canAuthenticate(AUTHENTICATORS))
+
+    /**
+     * Shows the system prompt. Cancelling or failing leaves the app locked; the
+     * lock screen's button asks again. [onImpossible] runs instead when the
+     * prompt errors because the phone has no way left to unlock.
+     */
+    fun prompt(activity: FragmentActivity, onImpossible: () -> Unit = {}, onUnlocked: () -> Unit) {
         val prompt = BiometricPrompt(
             activity,
             ContextCompat.getMainExecutor(activity),
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     onUnlocked()
+                }
+
+                // Asked again rather than read from the error code: the codes
+                // differ between Android versions, the availability check is
+                // the one the Settings switch already trusts.
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    if (cannotEverUnlock(activity)) onImpossible()
                 }
             },
         )
@@ -61,3 +81,17 @@ object SystemUnlock {
         )
     }
 }
+
+/**
+ * The pure half of [SystemUnlock.cannotEverUnlock], for the JVM tests.
+ *
+ * @param status what `BiometricManager.canAuthenticate` returned.
+ */
+internal fun unlockIsImpossible(sdkInt: Int, status: Int): Boolean =
+    sdkInt < Build.VERSION_CODES.P || status in PERMANENTLY_UNAVAILABLE
+
+private val PERMANENTLY_UNAVAILABLE = setOf(
+    BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED,
+    BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE,
+    BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED,
+)
