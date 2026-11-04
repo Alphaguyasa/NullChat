@@ -216,7 +216,9 @@ class MeshRouter(
      * Signs [packet] and hands it to one link only, never to the queue.
      *
      * For what is about the link itself (a LINK_PROOF): it means nothing to
-     * anyone else and nothing an hour later.
+     * anyone else and nothing an hour later. Also for a copy of a recent
+     * greeting, which keeps its id so that peers who already heard it drop it
+     * (see `GreetingCache`).
      *
      * @return false if the link was already gone.
      */
