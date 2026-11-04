@@ -4,6 +4,55 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-11-04 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still
+lists Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. This
+session has no tool to switch the routine's model, so the ACTION FOR ALPHA stays
+open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`b14979b`, tag v2026-11-03-2). No PRs were open.
+- No local Android build (no SDK in the cloud box). CI was the only build.
+- **PR #88**, roadmap #58: greetings no longer flood on reconnect.
+  - `GreetingCache` keeps the last fresh ANNOUNCE and PROFILE.
+  - Within 5 minutes of the last fresh one, a peer that has sent us a link proof
+    gets a copy with the **same id**, on its link only. Peers that already heard
+    it drop it (one packet). A part of the mesh that never heard it floods it on.
+  - The design problem from 2026-11-02 is avoided this way: no ttl-1 packet, so
+    no wrong hop count. Old builds, which bind a link only on an announcement
+    and would drop a copy they had already heard, keep the fresh broadcast.
+    No wire-format change.
+  - Known trade-off: a phone that joins somewhere far away in those 5 minutes
+    hears this phone at its next fresh greeting rather than at its next link.
+  - GreetingCacheTest 7, GreetingAirtimeTest 3. Green on the first attempt.
+    Merged, tag v2026-11-04-1. Needs two-phone check (5zc).
+- **Replan** (roadmap was down to 4): fifth audit, items 67–80. A sub-agent read
+  the code. I checked the top three against it myself: the app lock had no
+  failure path, the QR agreement key is unchecked, and text had no inbound cap.
+- **PR #89**, roadmap #67 (P0): the app lock turns itself off, with a toast, when
+  the phone has no unlock method left (screen lock removed, or a backup restored
+  onto a phone without one). Before, every prompt errored and only clearing data
+  got back in. A sensor that is only busy does not count. UnlockAvailabilityTest 5.
+- **PR #90**, roadmap #69: reassembled text over 2000 bytes (twice the send
+  limit) is dropped. Before, up to 64 KB was stored, and the Everyone thread loads
+  up to 2000 rows at once. InboundImageTest updated (+1).
+- Housekeeping: the designated branch kept the pre-squash commit of #88, and
+  force-pushing is not allowed, so #89 merges that already-merged history back in
+  rather than rewriting it. The squash-merge leaves main clean.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #58 quieter greetings (PR #88); #67 app lock lockout (PR #89); #69 inbound text cap (PR #90) |
+| Merged | #88 yes, v2026-11-04-1; #89 and #90 see notification |
+| Failed or blocked | Nothing failed. No local Android build |
+| Roadmap | Replanned: items 67–80 added; 16 open after this run |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Two-phone check 5zc (new); 5zb, 5za, 5z, 5y, 5x; model (#7); backup (#3) |
+| Next | #68 QR agreement key, #70 pairing camera, #71 seen-cache size |
+
+---
+
 ## 2026-11-03 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still
