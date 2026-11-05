@@ -108,6 +108,9 @@ class ChatViewModel @Inject constructor(
     private val _replyTo = MutableStateFlow<String?>(null)
     val replyTo: StateFlow<String?> = _replyTo.asStateFlow()
 
+    /** Drafts of the threads not on screen; the open one lives in [_draft] and [_replyTo]. */
+    private val drafts = Drafts()
+
     /** Progress bars for images in flight, keyed by message id. */
     val transfers: StateFlow<Map<String, Transfer>> = transferTracker.transfers
 
@@ -180,9 +183,14 @@ class ChatViewModel @Inject constructor(
     /** Points this ViewModel at a conversation. Null opens the broadcast thread. */
     fun bind(target: String?) {
         if (peerId.value == target) return
+        val restored = drafts.swap(
+            leaving = conversationIdFor(peerId.value),
+            draft = Draft(_draft.value, _replyTo.value),
+            entering = conversationIdFor(target),
+        )
         peerId.value = target
-        _draft.value = ""
-        _replyTo.value = null
+        _draft.value = restored.text
+        _replyTo.value = restored.replyTo
         viewModelScope.launch { messages.markRead(conversationIdFor(target)) }
     }
 
@@ -320,6 +328,7 @@ class ChatViewModel @Inject constructor(
     /** Empties the open thread on this phone; the user's queued messages stay. */
     fun onDeleteChat() {
         val peer = peerId.value
+        clearDraft()
         viewModelScope.launch { coordinator.deleteChat(peer) }
     }
 
@@ -330,7 +339,18 @@ class ChatViewModel @Inject constructor(
      */
     fun onForget() {
         val peer = peerId.value ?: return
+        clearDraft()
         viewModelScope.launch { coordinator.forgetPeer(peer) }
+    }
+
+    /**
+     * Empties the box, so the next [bind] has nothing to keep for a thread
+     * the user just wiped. A draft surviving "Delete chat" would be the one
+     * part of the conversation still on the phone.
+     */
+    private fun clearDraft() {
+        _draft.value = ""
+        _replyTo.value = null
     }
 
     /** The name the save dialog suggests for this chat's export. */

@@ -20,7 +20,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 | 72 | **A failed `startAdvertising` is never retried** (`MeshForegroundService`), so one radio error leaves the phone invisible all session. Retry each scan window; move the loop into a testable scheduler. | P2 | S | Needs two-phone check |
 | 73 | **One sender can take all 32 reassembly slots** (`FragmentReassembler`). Cap partials per sender at about 4. | P2 | S | |
 | 74 | **Chat rows rebuilt on the main thread** from the full list on every receipt (`ChatViewModel`). `flowOn(Dispatchers.Default)` before `stateIn`. | P2 | S | |
-| 75 | **Switching chats loses the draft** (`ChatViewModel.bind` clears it). Keep drafts per conversation. | P2 | S | |
 | 76 | **Builds cannot be told apart**: versionCode 1 / "1.0" forever. Derive from the CI run number and sha; show "Build …" in Settings, which phone checks need. | P2 | S | |
 | 77 | **Feature: tell me when this contact is in range**: a chat menu toggle and a one-shot local notification when the peer joins `boundPeers`, rate-limited. | P2 | M | No wire change |
 | 78 | **Naming and strings**: `app_name` is "NChat"; "searching for peers nearby" is lowercase and says "Mesh"; about 20 UI literals sit outside `strings.xml`. | P3 | M | |
@@ -119,3 +118,4 @@ change once decided.
 | 2026-11-04 | #67 App lock turns itself off (with a toast) when the phone has no screen lock left, instead of locking the user out until they clear data | #89 | see log |
 | 2026-11-04 | #69 Reassembled text over 2000 bytes (twice the send limit) is dropped instead of stored | #90 | see log |
 | 2026-11-05 | #68 Pairing QR's agreement key is no longer trusted: only the signing key is taken from the code, the agreement key comes from a signed announce, and a code that disagrees with it shows "Codes don't match" | #91 | see log |
+| 2026-11-05 | #75 Drafts kept per conversation: switching chats keeps the unsent text and quote (in memory, up to 50 threads); deleting the chat or forgetting the contact clears it | #92 | see log |

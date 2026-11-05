@@ -136,8 +136,8 @@ fun ChatScreen(
     onDraftFilled: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
-    // One effect, so the shared text lands after `bind` has cleared the box of
-    // whatever the previous thread left in it, never before.
+    // One effect, so the shared text lands after `bind` has put back this
+    // thread's own draft, under it, and never in the previous thread's box.
     LaunchedEffect(peerId, draftToFill) {
         viewModel.bind(peerId)
         draftToFill?.let {
