@@ -31,6 +31,12 @@ sealed interface ScanOutcome {
 
     /** A QR code, but not one of ours. */
     data object NotAPairingCode : ScanOutcome
+
+    /**
+     * A pairing code whose agreement key is not the one the peer signed over
+     * the air, so it was altered. Nothing is saved.
+     */
+    data object CodesDontMatch : ScanOutcome
 }
 
 data class QrPairState(
@@ -92,15 +98,25 @@ class QrPairViewModel @Inject constructor(
      * physically looked at the other device's screen, so the key is bound to a
      * person and not merely to whoever was transmitting.
      */
-    private fun pair(announcement: Announcement) = viewModelScope.launch {
+    private fun pair(announcement: Announcement) {
+        // Checked before anything is written, so an altered code cannot leave a
+        // half-trusted contact behind.
+        if (checkPairing(announcement, keyDirectory) == PairingCheck.MISMATCH) {
+            _state.update { it.copy(outcome = ScanOutcome.CodesDontMatch) }
+            return
+        }
+        viewModelScope.launch { savePaired(announcement) }
+    }
+
+    /**
+     * Only the signing key is taken from the QR; see [checkPairing] for why the
+     * agreement key is not.
+     */
+    private suspend fun savePaired(announcement: Announcement) {
         val peerHex = announcement.peerId.toHexId()
 
-        keyDirectory.record(announcement, pin = true)
-        peers.recordSeen(
-            peerHex,
-            publicKey = announcement.signingKey,
-            agreementKey = announcement.agreementKey,
-        )
+        keyDirectory.pinSigningKey(announcement.signingKey)
+        peers.recordSeen(peerHex, publicKey = announcement.signingKey)
         peers.markVerified(peerHex)
 
         _state.update {

@@ -277,6 +277,7 @@ private fun Scanner(
                 val message = when (outcome) {
                     ScanOutcome.Ourselves -> stringResource(R.string.pair_scanned_self)
                     ScanOutcome.NotAPairingCode -> stringResource(R.string.pair_scanned_unknown)
+                    ScanOutcome.CodesDontMatch -> stringResource(R.string.pair_scanned_mismatch)
                     else -> null
                 }
                 if (message != null) {

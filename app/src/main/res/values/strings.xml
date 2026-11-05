@@ -51,6 +51,7 @@
     <string name="pair_camera_grant">Allow camera</string>
     <string name="pair_scanned_self">That is your own code.</string>
     <string name="pair_scanned_unknown">That is not an NChat pairing code.</string>
+    <string name="pair_scanned_mismatch">Codes don\'t match. This code is not the one their phone sends nearby, so it was not saved.</string>
     <string name="pair_verified">Verified %1$s</string>
     <string name="pair_compare_hint">Check these words match the ones on their screen.</string>
     <string name="pair_scan_another">Scan another</string>

@@ -105,6 +105,19 @@ class PublicKeyDirectory(
     fun recordSigningKey(signingKey: ByteArray): ByteArray = file(signingKey, pin = false)
 
     /**
+     * Pins a peer's signing key without touching its agreement key.
+     *
+     * For a QR scan. The six words the user compares cover the signing key
+     * only, so the QR's agreement key is not authenticated: a code with a real
+     * signing key and someone else's agreement key reads exactly the same. The
+     * agreement key must come from a signed ANNOUNCE instead, which [record]
+     * fills in when it arrives.
+     *
+     * @return the peer id this key was filed under.
+     */
+    fun pinSigningKey(signingKey: ByteArray): ByteArray = file(signingKey, pin = true)
+
+    /**
      * Files [signingKey] first-wins, and with [pin] moves an existing transient
      * entry into [pinned] so it survives any number of strangers after it.
      */
