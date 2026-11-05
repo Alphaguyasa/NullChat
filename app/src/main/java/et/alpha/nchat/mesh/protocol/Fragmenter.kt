@@ -270,6 +270,7 @@ data class ReassembledMessage(
  *
  * Every limit here exists because a stranger can address fragments at us:
  * [capacity] caps how many part-finished messages we hold at once,
+ * [maxPerSender] caps how many of those one sender may hold,
  * [maxMessageBytes] caps how large any one of them may grow, and the timeout
  * caps how long a message nobody is going to finish occupies a slot.
  *
@@ -278,6 +279,15 @@ data class ReassembledMessage(
  * and cost half a megabyte of empty slots, times [capacity]. Every piece but the
  * last must therefore be exactly [chunkSize] bytes, as [Fragmenter.fragment]
  * makes them, and `total` may not exceed what [maxMessageBytes] needs at that size.
+ *
+ * Capacity alone is not enough either. A full map evicts its oldest partial, so
+ * one sender starting messages it never finishes pushed out every other peer's
+ * image half-way through. With [maxPerSender], a new message from a sender
+ * already holding that many is dropped instead, and other senders' progress is
+ * left alone. The newcomer is dropped rather than that sender's oldest so a
+ * sender cannot recycle slots faster than the timeout. Minting identities gets
+ * round this, but then the attacker needs `capacity / maxPerSender` announced
+ * keys rather than one.
  */
 class FragmentReassembler(
     private val capacity: Int = DEFAULT_CAPACITY,
@@ -285,6 +295,7 @@ class FragmentReassembler(
     private val maxMessageBytes: Int = DEFAULT_MAX_MESSAGE_BYTES,
     private val timeSource: () -> Long = System::currentTimeMillis,
     private val chunkSize: Int = Fragmenter.DEFAULT_CHUNK_SIZE,
+    private val maxPerSender: Int = DEFAULT_MAX_PER_SENDER,
 ) {
 
     init {
@@ -294,6 +305,7 @@ class FragmentReassembler(
             "maxMessageBytes must be positive, was $maxMessageBytes"
         }
         require(chunkSize > 0) { "chunkSize must be positive, was $chunkSize" }
+        require(maxPerSender > 0) { "maxPerSender must be positive, was $maxPerSender" }
     }
 
     /** The most pieces a message within [maxMessageBytes] can need at [chunkSize]. */
@@ -379,6 +391,13 @@ class FragmentReassembler(
         val existing = partials[key]
 
         val partial = if (existing == null) {
+            // At most `capacity` entries, so the scan is short, and it only runs
+            // when a message starts, not on every fragment.
+            val held = partials.values.count { it.senderId.contentEquals(packet.senderId) }
+            if (held >= maxPerSender) {
+                _droppedFragments++
+                return null
+            }
             val started = Partial(
                 total = fragment.total,
                 senderId = packet.senderId.copyOf(),
@@ -511,6 +530,13 @@ class FragmentReassembler(
 
         /** Concurrent part-finished messages held before the oldest is evicted. */
         const val DEFAULT_CAPACITY: Int = 32
+
+        /**
+         * Part-finished messages one sender may hold. A phone sends one message
+         * at a time and finishes it within seconds, so four leaves room for a
+         * burst and still keeps one sender to an eighth of [DEFAULT_CAPACITY].
+         */
+        const val DEFAULT_MAX_PER_SENDER: Int = 4
 
         /**
          * Ceiling on one reassembled message.

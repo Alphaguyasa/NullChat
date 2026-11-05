@@ -5,6 +5,17 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5zd. Phone checks for pairing, drafts and fragments (2026-11-05)
+*Pairing (#91), two phones:* pair by QR as usual. It still says paired with the
+same six words, and a message turns `sent` then `delivered`. If the phones were
+never near each other before, the first message may stay `queued` until the
+other phone is heard nearby. If a real code ever shows "Codes don't match", say so.
+*Drafts (#92), one phone:* type in one chat, open another, come back: the text is
+still there. Delete that chat with text in the box: the box is empty afterwards.
+*Fragments (#93):* nothing new to see. Images and long messages arrive as before.
+If an image from a contact stops arriving half-way while someone else sends many,
+say so. No radio change in any of these.
+
 ### 5zc. Two-phone check for quieter greetings (2026-11-04)
 *Greetings (#58), two paired phones A and B, both on this build; this changes what
 goes on the air.* When two phones connect, each used to send a fresh introduction
