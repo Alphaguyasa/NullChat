@@ -1,6 +1,7 @@
 package et.alpha.nchat.mesh.crypto
 
 import app.cash.turbine.test
+import et.alpha.nchat.data.db.toHexId
 import et.alpha.nchat.mesh.protocol.Announcement
 import et.alpha.nchat.mesh.protocol.peerIdFor
 import kotlinx.coroutines.test.runTest
@@ -127,6 +128,21 @@ class PublicKeyDirectoryTest {
 
         assertArrayEquals(agreement, directory.agreementKeyFor(peerId))
         assertEquals(2, directory.size)
+    }
+
+    @Test
+    fun `a signing key pinned by a scan survives strangers and learns its agreement key later`() = runTest {
+        val directory = PublicKeyDirectory(maxTransient = 1)
+        directory.pinSigningKey(signing)
+        (1..5).forEach { n -> directory.recordSigningKey(ByteArray(32) { n.toByte() }) }
+
+        assertTrue(directory.knows(peerId))
+        assertNull(directory.agreementKeyFor(peerId))
+        directory.agreementKeyLearned.test {
+            directory.record(Announcement(signing, agreement))
+            assertEquals(peerId.toHexId(), awaitItem())
+        }
+        assertArrayEquals(agreement, directory.agreementKeyFor(peerId))
     }
 
     @Test
