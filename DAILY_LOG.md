@@ -4,6 +4,56 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-11-05 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still
+lists Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. This
+session has no tool to switch the routine's model, so the ACTION FOR ALPHA stays
+open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`4467c62`, tag v2026-11-04-3). No PRs were open.
+- No local Android build (no SDK in the cloud box). CI was the only build.
+- **PR #91**, roadmap #68 (P1, security): the pairing QR's agreement key.
+  - The six words cover the signing key only. A QR with a real signing key and
+    someone else's X25519 key read the same, and that key was stored and pinned,
+    so direct messages to the "verified" contact were sealed to it.
+  - A scan now pins only the signing key (`PublicKeyDirectory.pinSigningKey`).
+    The agreement key comes from a signed ANNOUNCE. A code whose agreement key
+    differs from the signed one shows "Codes don't match" and saves nothing.
+  - Not covered: a contact scanned on an older build may still have the QR's
+    agreement key stored, and first key wins. A genuine contact's QR always
+    matches its announce, so only an already-tampered pairing is affected.
+    Forget and re-pair fixes it.
+  - PairingCheckTest 4, PublicKeyDirectoryTest +1. Green on the first attempt.
+    Merged, tag v2026-11-05-1.
+- **PR #92**, roadmap #75: drafts kept per conversation (in memory, 50 threads).
+  Delete chat and Forget clear the open draft. DraftsTest 4. Green on the first
+  attempt. Merged.
+- **PR #93**, roadmap #73: at most 4 part-assembled messages per sender. A new
+  message from a sender already holding 4 is dropped, not that sender's oldest,
+  so it cannot recycle slots. Minting keys still gets round it (8 identities fill
+  32 slots), which the KDoc says. Trade-off: a fifth long message started while
+  four are still arriving from the same phone is lost, because fragments are not
+  sent again. FragmenterTest +2.
+- Skipped this run: #70 (pairing camera) and #74 (chat rows off the main thread)
+  need a view-model test setup first; next run.
+- Housekeeping: I first pushed #91 to `claude/qr-agreement-key` by mistake. The
+  proxy refused to delete it. It holds the same commit as #91, so it is harmless
+  and can be deleted from GitHub.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #68 QR agreement key (PR #91); #75 drafts per chat (PR #92); #73 per-sender reassembly cap (PR #93) |
+| Merged | #91 yes, v2026-11-05-1; #92 yes; #93 see notification |
+| Failed or blocked | Nothing failed. No local Android build. Stray branch `claude/qr-agreement-key` could not be deleted |
+| Roadmap | 13 open, no replan |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Phone checks 5zd (new), 5zc, 5zb, 5za, 5z, 5y, 5x; model (#7); backup (#3) |
+| Next | #70 pairing camera with a QrPairViewModelTest, #74 chat rows off main, #71 seen-cache size |
+
+---
+
 ## 2026-11-04 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still

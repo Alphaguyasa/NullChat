@@ -507,6 +507,41 @@ class FragmenterTest {
     }
 
     @Test
+    fun `one sender cannot push out another sender's message`() {
+        val reassembler = FragmentReassembler(capacity = 4, maxPerSender = 2)
+        val other = ByteArray(Packet.PEER_ID_SIZE) { 0x77 }
+        val victim = fragment(payload(300), senderId = other)
+        reassembler.offer(victim.first())
+
+        // The bug this guards: a sender opening messages it never finishes
+        // filled every slot, and eviction threw away the other peer's progress.
+        repeat(10) { i ->
+            val id = ByteArray(Packet.MESSAGE_ID_SIZE) { (i + 1).toByte() }
+            reassembler.offer(fragment(payload(300), messageId = id).first())
+        }
+
+        assertEquals(3, reassembler.pendingCount)
+        assertEquals(8L, reassembler.droppedFragments)
+        val completed = victim.drop(1).firstNotNullOfOrNull { reassembler.offer(it) }
+        assertArrayEquals(payload(300), assertPresent(completed).payload)
+    }
+
+    @Test
+    fun `a sender gets a slot back once one of its messages completes`() {
+        val reassembler = FragmentReassembler(maxPerSender = 1)
+        val first = fragment(payload(300))
+        val secondId = ByteArray(Packet.MESSAGE_ID_SIZE) { 0x09 }
+        val second = fragment(payload(200), messageId = secondId)
+
+        reassembler.offer(first.first())
+        assertNull(reassembler.offer(second.first()))
+        first.drop(1).forEach { reassembler.offer(it) }
+
+        val completed = second.firstNotNullOfOrNull { reassembler.offer(it) }
+        assertArrayEquals(payload(200), assertPresent(completed).payload)
+    }
+
+    @Test
     fun `refuses a message declaring more bytes than the ceiling allows`() {
         val reassembler = FragmentReassembler(maxMessageBytes = 100)
 
