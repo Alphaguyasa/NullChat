@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -164,11 +165,18 @@ class ChatViewModel @Inject constructor(
                 isMuted = conversation?.isMuted == true,
             )
         }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = ChatState(),
-    )
+    }
+        // Every receipt, relay count and new message re-emits the whole thread,
+        // and `threadRows` walks all of it to rebuild day dividers and timer
+        // lines. On the main thread that was a dropped frame per receipt in a
+        // long chat, so the rows are built on Default and only the result is
+        // handed to the UI.
+        .flowOn(Dispatchers.Default)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+            initialValue = ChatState(),
+        )
 
     /**
      * Bytes the draft would occupy on the wire, quote included.
