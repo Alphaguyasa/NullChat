@@ -15,7 +15,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 71 | **Seen cache too small for images**: 1000 ids against about 280 fragments per image, so a few images in flight evict everything and late copies are relayed again. Raise to about 20k. | P2 | S | Relay behaviour, needs two-phone check |
 | 72 | **A failed `startAdvertising` is never retried** (`MeshForegroundService`), so one radio error leaves the phone invisible all session. Retry each scan window; move the loop into a testable scheduler. | P2 | S | Needs two-phone check |
 | 76 | **Builds cannot be told apart**: versionCode 1 / "1.0" forever. Derive from the CI run number and sha; show "Build …" in Settings, which phone checks need. | P2 | S | |
 | 77 | **Feature: tell me when this contact is in range**: a chat menu toggle and a one-shot local notification when the peer joins `boundPeers`, rate-limited. | P2 | M | No wire change |
@@ -119,3 +118,4 @@ change once decided.
 | 2026-11-05 | #73 One sender may hold at most 4 part-assembled messages, so it can no longer push out other peers' images half-way | #93 | see log |
 | 2026-11-06 | #70 Pairing camera released with the screen; one save per scan | #94 | see log |
 | 2026-11-06 | #74 Chat rows built on a background thread instead of the main thread | #95 | see log |
+| 2026-11-06 | #71 Seen cache holds 20 000 ids (was 1000), so images in flight no longer evict other packets and late copies are not relayed again | #96 | see log |

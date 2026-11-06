@@ -23,8 +23,8 @@ class SeenCache(
      * written once — a repeat sighting is a dedup hit that leaves the entry
      * untouched — so insertion order *is* recency order here, and it keeps the
      * map's iteration order aligned with the timestamps. That alignment is what
-     * lets [sweepExpired] stop at the first live entry instead of scanning all
-     * thousand on every packet.
+     * lets [sweepExpired] stop at the first live entry instead of scanning every
+     * entry on every packet.
      */
     private val entries = object : LinkedHashMap<MessageId, Long>(INITIAL_BUCKETS, LOAD_FACTOR) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<MessageId, Long>): Boolean =
@@ -83,7 +83,15 @@ class SeenCache(
     }
 
     companion object {
-        const val DEFAULT_CAPACITY: Int = 1000
+        /**
+         * Sized for images, not texts. Every fragment has its own id, and a 14 KB
+         * image is about 280 of them, so at 1000 three or four images in flight
+         * evicted everything else. A late copy of an evicted packet then looked
+         * new and was relayed again, and a fragment that came back round fed a
+         * reassembly that had already finished. 20 000 holds about 70 images'
+         * worth inside the ten-minute window, for roughly 2 MB of heap.
+         */
+        const val DEFAULT_CAPACITY: Int = 20_000
         const val DEFAULT_EXPIRY_MILLIS: Long = 10 * 60 * 1000L
 
         private const val INITIAL_BUCKETS = 16

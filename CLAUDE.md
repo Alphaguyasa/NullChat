@@ -60,7 +60,7 @@ after the AES-GCM tag). `PacketCodec.signedBytes` is the single source of truth 
 the signed region (everything except ttl).
 
 ### Routing rules (flooding, no routing tables)
-1. Drop if `messageId` already seen. 2. Mark seen (LRU 1000, 10 min) — only after
+1. Drop if `messageId` already seen. 2. Mark seen (LRU 20 000, 10 min) — only after
 signature verification. 3. Deliver if addressed to us or broadcast AND verified.
 4. Decrement ttl; stop at 0. 5. Wait 50–500 ms jitter, relay to all peers except
 the one it came from. Store-and-forward: `ForwardQueue`, 500 entries, 24 h expiry,

@@ -5,6 +5,18 @@ phone (reply in the Claude app or edit this file). Resolved items move to the bo
 
 ## Open
 
+### 5ze. Phone checks for pairing camera, chat speed and the seen cache (2026-11-06)
+*Pairing camera (#94), one phone:* open Pair, wait for the camera, then go back. The
+green camera dot at the top of the screen goes off at once. Scan a contact's code: it
+shows paired once, and **Scan another** works as before.
+*Chat speed (#95), one phone plus a contact:* open a long chat while messages and
+receipts arrive. Scrolling stays smooth and nothing looks different.
+*Seen cache (#96), three phones A, B, C in a line (A and C out of range of each
+other); this changes relay behaviour:* send two or three images from A to C one after
+another, then a text. Everything arrives on C once, nothing shows twice, and each item
+turns `sent` then `delivered` on A. If an image or message ever shows twice, or
+Settings → Mesh shows more drops than before, say so and it will be reverted.
+
 ### 5zd. Phone checks for pairing, drafts and fragments (2026-11-05)
 *Pairing (#91), two phones:* pair by QR as usual. It still says paired with the
 same six words, and a message turns `sent` then `delivered`. If the phones were
