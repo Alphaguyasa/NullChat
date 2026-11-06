@@ -11,6 +11,7 @@ import et.alpha.nchat.mesh.protocol.Announcement
 import et.alpha.nchat.mesh.protocol.fingerprintWords
 import et.alpha.nchat.mesh.protocol.parsePairingUri
 import et.alpha.nchat.mesh.protocol.toPairingUri
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,14 +64,24 @@ class QrPairViewModel @Inject constructor(
     val state: StateFlow<QrPairState> = _state.asStateFlow()
 
     /**
+     * Set from the moment a code is accepted until [reset].
+     *
+     * The outcome only turns [ScanOutcome.Paired] once the save has finished,
+     * and the camera delivers the same code many times in that window, from its
+     * analyzer thread. Checking the outcome alone let each of those frames start
+     * its own save: several pins, rows and verified writes for one scan.
+     */
+    private val accepted = AtomicBoolean(false)
+
+    /**
      * Handles a code the camera read.
      *
      * Called for every frame that decodes to anything, so it must be cheap and
      * idempotent — the same code will arrive many times a second while it stays
-     * in view.
+     * in view. Safe to call from the camera's analyzer thread.
      */
     fun onScanned(text: String) {
-        if (_state.value.outcome is ScanOutcome.Paired) return
+        if (accepted.get()) return
 
         val announcement = parsePairingUri(text)
         if (announcement == null) {
@@ -87,6 +98,7 @@ class QrPairViewModel @Inject constructor(
     }
 
     fun reset() {
+        accepted.set(false)
         _state.update { it.copy(outcome = ScanOutcome.Waiting) }
     }
 
@@ -105,7 +117,16 @@ class QrPairViewModel @Inject constructor(
             _state.update { it.copy(outcome = ScanOutcome.CodesDontMatch) }
             return
         }
-        viewModelScope.launch { savePaired(announcement) }
+        if (!accepted.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                savePaired(announcement)
+            } finally {
+                // A save that failed leaves the screen scanning, so let the
+                // next frame try again rather than ignoring the camera forever.
+                if (_state.value.outcome !is ScanOutcome.Paired) accepted.set(false)
+            }
+        }
     }
 
     /**
