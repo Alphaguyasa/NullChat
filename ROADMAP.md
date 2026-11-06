@@ -15,7 +15,6 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 70 | **Pairing camera outlives the screen**: `QrPairScreen` binds CameraX to the activity, never shuts its executor, blocks Main on `getInstance().get()`, and can call `pair()` several times per QR. Unbind in `DisposableEffect`, await the provider, debounce in the view model; add `QrPairViewModelTest`. | P1 | S | |
 | 71 | **Seen cache too small for images**: 1000 ids against about 280 fragments per image, so a few images in flight evict everything and late copies are relayed again. Raise to about 20k. | P2 | S | Relay behaviour, needs two-phone check |
 | 72 | **A failed `startAdvertising` is never retried** (`MeshForegroundService`), so one radio error leaves the phone invisible all session. Retry each scan window; move the loop into a testable scheduler. | P2 | S | Needs two-phone check |
 | 74 | **Chat rows rebuilt on the main thread** from the full list on every receipt (`ChatViewModel`). `flowOn(Dispatchers.Default)` before `stateIn`. | P2 | S | |
@@ -119,3 +118,4 @@ change once decided.
 | 2026-11-05 | #68 Pairing QR's agreement key is no longer trusted: only the signing key is taken from the code, the agreement key comes from a signed announce, and a code that disagrees with it shows "Codes don't match" | #91 | see log |
 | 2026-11-05 | #75 Drafts kept per conversation: switching chats keeps the unsent text and quote (in memory, up to 50 threads); deleting the chat or forgetting the contact clears it | #92 | see log |
 | 2026-11-05 | #73 One sender may hold at most 4 part-assembled messages, so it can no longer push out other peers' images half-way | #93 | see log |
+| 2026-11-06 | #70 Pairing camera released with the screen; one save per scan | #94 | v2026-11-06-1 |

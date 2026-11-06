@@ -1,6 +1,7 @@
 package et.alpha.nchat.ui.pair
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,11 +37,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +72,7 @@ import et.alpha.nchat.ui.theme.NChatTheme
 import et.alpha.nchat.ui.theme.motionSpec
 import et.alpha.nchat.ui.theme.rememberAnimationsEnabled
 import java.util.concurrent.Executors
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Pairing: show my code, scan theirs.
@@ -345,20 +349,43 @@ private fun PairedResult(paired: ScanOutcome.Paired, onReset: () -> Unit) {
 private fun CameraPreview(onScanned: (String) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    // The analyzer outlives any one composition of this lambda, so it reads the
+    // latest callback rather than the one captured when the camera was bound.
+    val currentOnScanned by rememberUpdatedState(onScanned)
     val executor = remember { Executors.newSingleThreadExecutor() }
     val previewView = remember { PreviewView(context) }
-
-    LaunchedEffect(Unit) {
-        val provider = ProcessCameraProvider.getInstance(context).get()
-        val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
-        val analysis = ImageAnalysis.Builder()
+    val preview = remember { Preview.Builder().build() }
+    val analysis = remember {
+        ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
-            .also { it.setAnalyzer(executor) { frame -> frame.use { f -> f.readQrText()?.let(onScanned) } } }
+    }
+    var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
 
+    LaunchedEffect(Unit) {
+        // Awaited, not `get()`: the first call starts the camera service and can
+        // take long enough on the main thread to drop frames or trip an ANR.
+        val cameraProvider = awaitCameraProvider(context)
+        preview.surfaceProvider = previewView.surfaceProvider
+        analysis.setAnalyzer(executor) { frame ->
+            frame.use { f -> f.readQrText()?.let { currentOnScanned(it) } }
+        }
         runCatching {
-            provider.unbindAll()
-            provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            provider = cameraProvider
+            cameraProvider.unbindAll()
+            cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+        }
+    }
+
+    // The lifecycle owner is the activity, which lives on after this screen is
+    // left. Without this the camera stayed on (privacy dot lit, battery spent,
+    // frames decoded) until the activity was destroyed, and each visit leaked a
+    // decoder thread.
+    DisposableEffect(Unit) {
+        onDispose {
+            analysis.clearAnalyzer()
+            provider?.unbind(preview, analysis)
+            executor.shutdown()
         }
     }
 
@@ -375,6 +402,16 @@ private fun CameraPreview(onScanned: (String) -> Unit) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
     }
 }
+
+/** [ProcessCameraProvider.getInstance] without blocking the caller's thread. */
+private suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider =
+    suspendCancellableCoroutine { continuation ->
+        val future = ProcessCameraProvider.getInstance(context)
+        future.addListener(
+            { continuation.resumeWith(runCatching { future.get() }) },
+            ContextCompat.getMainExecutor(context),
+        )
+    }
 
 private const val QR_SIZE_PX = 512
 private const val SHORT_ID_CHARS = 8
