@@ -1,5 +1,6 @@
 package et.alpha.nchat.mesh.router
 
+import et.alpha.nchat.mesh.protocol.Fragmenter
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -63,7 +64,7 @@ class SeenCacheTest {
     }
 
     @Test
-    fun `holds a full thousand before evicting`() {
+    fun `holds its full capacity before evicting`() {
         val cache = SeenCache()
 
         repeat(SeenCache.DEFAULT_CAPACITY) { assertTrue(cache.markSeen(id(it))) }
@@ -72,7 +73,21 @@ class SeenCacheTest {
 
         cache.markSeen(id(SeenCache.DEFAULT_CAPACITY))
         assertEquals(SeenCache.DEFAULT_CAPACITY, cache.size)
-        assertFalse(cache.contains(id(0)), "entry 1001 should push entry 1 out")
+        assertFalse(cache.contains(id(0)), "one past capacity should push entry 1 out")
+    }
+
+    @Test
+    fun `a text seen before a burst of images is still a duplicate after it`() {
+        val cache = SeenCache()
+        val text = ByteArray(16) { 0x7F }
+        assertTrue(cache.markSeen(text))
+
+        // Ten 14 KB images' worth of fragment ids, each a distinct message id.
+        // At the old capacity of 1000 this pushed the text out, so its late copy
+        // was taken for new and relayed again.
+        repeat(IMAGE_FRAGMENTS * 10) { assertTrue(cache.markSeen(id(it + 1))) }
+
+        assertFalse(cache.markSeen(text), "a late copy of the text must still be dropped")
     }
 
     @Test
@@ -103,5 +118,10 @@ class SeenCacheTest {
         assertFalse(cache.contains(id(1)))
         assertTrue(cache.contains(id(2)))
         assertEquals(1, cache.size)
+    }
+
+    private companion object {
+        /** Fragments in one full-size image (14 KB, `ImagePolicy.MAX_ENCODED_BYTES`): 282. */
+        val IMAGE_FRAGMENTS = Fragmenter.fragmentCount(14 * 1024)
     }
 }

@@ -4,6 +4,50 @@ Newest run first. Each entry ends with the REPORT table that was sent to alpha.
 
 ---
 
+## 2026-11-06 — daily run (cloud routine)
+
+**Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still
+lists Claude Fable 5.1 above Opus 5.5, and Opus 5.5 is still the newest Opus. This
+session has no tool to switch the routine's model, so the ACTION FOR ALPHA stays
+open (NEEDS_APPROVAL #7).
+
+- Main CI was green at the start (`0164b08`). No PRs were open.
+- No local Android build (no SDK in the cloud box). CI was the only build.
+- **PR #94**, roadmap #70 (P1): the pairing camera.
+  - The camera was bound to the activity, so it stayed on after leaving the Pair
+    screen, and every visit leaked a decoder thread. It is now unbound, and the
+    executor shut down, when the screen goes away.
+  - The camera provider is awaited instead of `get()` on the main thread.
+  - The view model let every frame of a code in view start its own save until
+    the first one finished. An atomic flag now lets one through per scan until
+    **Scan another**.
+  - QrPairViewModelTest 4 (the first view-model test with `setMain`). Green on
+    the first attempt. Merged.
+- **PR #95**, roadmap #74: chat rows are built on `Dispatchers.Default`
+  (`flowOn` before `stateIn`), not on Main for every receipt.
+  ChatViewModelThreadTest 1. Green on the first attempt. Merged.
+- **PR #96**, roadmap #71: seen cache 1000 → 20 000 ids. A 14 KB image is 282
+  fragments, so three or four images in flight evicted everything. About 2 MB of
+  heap. SeenCacheTest +1. Changes relay behaviour, so it is listed for a
+  three-phone check (NEEDS_APPROVAL 5ze).
+- Housekeeping: after each squash-merge the branch was restarted from main.
+  Instead of force-pushing over the old head, I recorded it with an `-s ours`
+  merge commit. No history was rewritten, and the PR diff shows only the new
+  change.
+
+### REPORT
+| Field | Content |
+|---|---|
+| Done | #70 pairing camera (PR #94); #74 chat rows off main (PR #95); #71 seen-cache size (PR #96) |
+| Merged | #94 yes; #95 yes; #96 see notification. Tags are made by release-tag.yml |
+| Failed or blocked | Nothing failed. No local Android build |
+| Roadmap | 10 open, no replan |
+| Model | Opus 5.5. ACTION FOR ALPHA: switch the routine to Claude Fable 5.1 if your plan includes it without an upgrade |
+| Needs approval | Phone checks 5ze (new; #96 needs three phones), 5zd, 5zc, 5zb, 5za, 5z, 5y, 5x; model (#7); backup (#3) |
+| Next | #72 advertising retry, #76 build numbers in Settings, #77 "tell me when in range" |
+
+---
+
 ## 2026-11-05 — daily run (cloud routine)
 
 **Model:** Opus 5.5 (`claude-opus-5-5`). The models page on platform.claude.com still
