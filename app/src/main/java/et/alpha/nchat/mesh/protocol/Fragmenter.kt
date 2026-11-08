@@ -525,7 +525,7 @@ class FragmentReassembler(
     }
 
     companion object {
-        /** The 60 second reassembly window from CLAUDE.md. */
+        /** The 60 second reassembly window from the engineering handbook. */
         const val DEFAULT_TIMEOUT_MILLIS: Long = 60_000L
 
         /** Concurrent part-finished messages held before the oldest is evicted. */

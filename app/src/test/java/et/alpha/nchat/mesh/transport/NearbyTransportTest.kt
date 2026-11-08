@@ -12,7 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource
  * Tests for the one piece of [NearbyTransport] that is not Nearby glue.
  *
  * The transport itself needs Google Play services and real radios, so it is
- * verified on physical devices per CLAUDE.md. [parseAdvertisedPeerId] is
+ * verified on physical devices per the engineering handbook. [parseAdvertisedPeerId] is
  * deliberately a top-level function free of Android types precisely so the
  * hostile-input path — endpoint names arrive over the air before any connection
  * exists — can be pinned down here on the JVM.

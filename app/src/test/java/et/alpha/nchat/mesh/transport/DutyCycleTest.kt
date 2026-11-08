@@ -9,7 +9,7 @@ import org.junit.jupiter.api.assertThrows
 /**
  * The scan schedule, on a fake clock.
  *
- * The numbers here are the ones from CLAUDE.md — 5 on, 25 off, widening to 60
+ * The numbers here are the ones from the engineering handbook — 5 on, 25 off, widening to 60
  * second intervals after 5 minutes — asserted as durations rather than as
  * elapsed real time, so the whole schedule is checked in microseconds.
  */

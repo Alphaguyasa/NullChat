@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
- * Executable versions of the hard rules in CLAUDE.md.
+ * Executable versions of the hard rules in the engineering handbook.
  *
  * These exist because both rules are invisible at the point they get broken: a
  * stray import compiles perfectly and only shows up much later, as a transport

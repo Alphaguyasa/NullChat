@@ -58,7 +58,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  *
  * Requires the Bluetooth, location (SDK < 31), and `NEARBY_WIFI_DEVICES`
  * (SDK 33+) permissions to already be granted; Nearby fails the start Task if
- * they are not. Cannot be exercised on an emulator — see CLAUDE.md.
+ * they are not. Cannot be exercised on an emulator — see the engineering handbook.
  *
  * @param localPeerId this device's 8-byte protocol id, advertised to peers.
  */

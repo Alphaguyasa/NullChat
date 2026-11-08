@@ -16,7 +16,7 @@ package et.alpha.nchat.mesh.protocol
  * unverifiable to them over a cosmetic field. An unknown packet type, by
  * contrast, fails `PacketCodec.decode` on an old build and is dropped quietly,
  * so the name simply does not show there. That is the "new packet type" route
- * CLAUDE.md allows instead of a protocol version bump.
+ * The engineering handbook allows instead of a protocol version bump.
  *
  * ## Why the name is not trusted for anything
  *

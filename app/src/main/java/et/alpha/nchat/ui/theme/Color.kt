@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 // The mesh palette. These are the only colors the UI is allowed to name; every
 // Material slot in Theme.kt is filled from this list. Dark is the primary
-// theme — see the design principles in CLAUDE.md.
+// theme — see the design principles in the engineering handbook.
 //
 // Ratios in the comments are WCAG 2.1 contrast against BgBase. Two tokens are
 // lighter here than the values written in the design notes: at #5C7370 TextMuted

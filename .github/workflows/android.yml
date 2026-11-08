@@ -44,7 +44,7 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
-      # Unsigned: there is no keystore in the repo (NEEDS_APPROVAL #4). Building it
+      # Unsigned: there is no keystore in the repo (the decision log #4). Building it
       # catches R8 failures (missing classes, broken keep rules) before anyone
       # needs a release, and the step summary tracks APK size over time.
       - name: Build release APK (R8, unsigned)

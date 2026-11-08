@@ -324,7 +324,7 @@ class MeshRouter(
         }
     }
 
-    /** The five routing rules from CLAUDE.md, in order. */
+    /** The five routing rules from the engineering handbook, in order. */
     private fun onInbound(inbound: InboundPayload) {
         // Before anything that costs: decoding, the Ed25519 check and a dedup
         // slot are exactly what a flood is trying to make us spend.

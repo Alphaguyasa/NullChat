@@ -74,7 +74,7 @@ interface ForwardQueueDao {
 
     /**
      * Keeps the [capacity] newest entries and drops the rest — oldest-first
-     * eviction, per the CLAUDE.md store-and-forward rules.
+     * eviction, per the engineering handbook store-and-forward rules.
      *
      * One transaction, so the ids returned are exactly the rows deleted. A
      * flush taking an entry between the read and the delete would otherwise be

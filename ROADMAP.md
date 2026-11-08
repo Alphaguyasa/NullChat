@@ -6,8 +6,8 @@ Effort: **S** < 2 h · **M** half a day · **L** a day or more (split into sever
 
 Audit of 2026-10-14; replanned 2026-10-22 (items 27–41); replanned 2026-10-28
 (third audit, items 43–54); **replanned 2026-10-31** (fourth audit, items 55–66, evidence
-in DAILY_LOG 2026-10-31 second run); **replanned 2026-11-04** (fifth audit, items 67–80,
-evidence in DAILY_LOG 2026-11-04). This round's theme is a
+in the dev log 2026-10-31 second run); **replanned 2026-11-04** (fifth audit, items 67–80,
+evidence in the dev log 2026-11-04). This round's theme is a
 hostile or crowded mesh: what one modified phone, or a festival's worth of strangers,
 can make this phone hold, drop or show. Bugs and abuse resistance come before features.
 
@@ -24,9 +24,9 @@ can make this phone hold, drop or show. Bugs and abuse resistance come before fe
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
-| 23 | **Route strip**: show relay chain on tap. Privacy trade-off — see NEEDS_APPROVAL. | P3 | M | |
+| 23 | **Route strip**: show relay chain on tap. Privacy trade-off — see the decision log. | P3 | M | |
 
-**Waiting for alpha:** keeping chat history out of Google backup (NEEDS_APPROVAL #3).
+**Waiting for alpha:** keeping chat history out of Google backup (the decision log #3).
 The audit found it also undoes panic wipe and disappearing messages. It is an S-sized
 change once decided.
 
@@ -42,7 +42,7 @@ change once decided.
 | 2026-10-14 | #1 Delivery receipts (ACK) | #2 | v2026-10-14-2 |
 | 2026-10-14 | #2 Long text messages (up to 1000 bytes) | #3 | v2026-10-14-3 |
 | 2026-10-14 | #3 Undecryptable message placeholder | #4 | v2026-10-14-4 |
-| 2026-10-15 | #4 Instrumented tests in CI (API 34 emulator, 100 tests) | #7 | — (see NEEDS_APPROVAL, resolved) |
+| 2026-10-15 | #4 Instrumented tests in CI (API 34 emulator, 100 tests) | #7 | — (see the decision log, resolved) |
 | 2026-10-15 | #5 Persist peers' agreement keys (Room 3→4) | #8 | v2026-10-15-2 |
 | 2026-10-15 | #6 No plaintext direct messages (held until keyed) | #9 | v2026-10-15-3 |
 | 2026-10-15 | #24 Release tags from CI (`release-tag.yml`) | #11, #12 | v2026-10-15-5 |

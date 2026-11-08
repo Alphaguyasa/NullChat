@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource
 /**
  * Wire-format tests for [PacketCodec].
  *
- * The golden test below is written directly from the packet format in CLAUDE.md,
+ * The golden test below is written directly from the packet format in the engineering handbook,
  * field by field, and deliberately NOT generated from the encoder — otherwise it
  * would only prove the encoder agrees with itself.
  */

@@ -1,6 +1,6 @@
 # Weekly dependency updates, grouped so a week costs a handful of PRs rather
 # than one per library. Every PR goes through the same CI as any other change,
-# and the daily run reviews and merges it only on green (CLAUDE.md, MERGE POLICY).
+# and the daily run reviews and merges it only on green (the engineering handbook, MERGE POLICY).
 version: 2
 updates:
   - package-ecosystem: gradle

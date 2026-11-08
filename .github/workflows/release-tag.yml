@@ -2,7 +2,7 @@ name: Release tag
 
 # Tags every merge to main as v<YYYY-MM-DD>-<n> (Africa/Nairobi date, n counting
 # up within the day) so any merge can be rolled back to. Done here rather than by
-# the daily cloud run because that session's git proxy refuses tag pushes.
+# the scheduled build because its environment cannot push tags.
 #
 # Merges only land after the Android CI checks pass (MERGE POLICY), so this does
 # not wait for them again.
