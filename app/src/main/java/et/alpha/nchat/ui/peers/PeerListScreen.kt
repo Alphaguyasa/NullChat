@@ -155,11 +155,10 @@ fun PeerListScreen(
                 item {
                     EmptyState(
                         modifier = Modifier.padding(top = 40.dp),
-                        title = "searching for peers nearby",
+                        title = stringResource(R.string.peers_searching_title),
                         // Says what happens meanwhile, because an empty mesh is a
                         // normal state of a radio and not a broken app.
-                        detail = "Phones running Mesh appear here as soon as they " +
-                            "are in range. Anything you send before then is queued.",
+                        detail = stringResource(R.string.peers_searching_detail),
                     )
                 }
             }
@@ -236,7 +235,7 @@ private fun Header(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Mesh",
+                text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 // Weighted so that at 200% font scale the title gives way to the
@@ -611,9 +610,8 @@ private fun PeerListEmptyPreview() {
             HorizontalDivider()
             EmptyState(
                 modifier = Modifier.padding(top = 40.dp),
-                title = "searching for peers nearby",
-                detail = "Phones running Mesh appear here as soon as they are in " +
-                    "range. Anything you send before then is queued.",
+                title = stringResource(R.string.peers_searching_title),
+                detail = stringResource(R.string.peers_searching_detail),
             )
         }
     }
