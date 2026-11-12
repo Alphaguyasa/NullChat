@@ -1,6 +1,7 @@
 package et.alpha.nchat.ui.chat
 
 import android.content.Context
+import androidx.lifecycle.viewModelScope
 import et.alpha.nchat.data.media.AttachmentStore
 import et.alpha.nchat.data.media.ImageScaler
 import et.alpha.nchat.data.repo.MessageRepository
@@ -13,6 +14,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -76,5 +78,11 @@ class ChatViewModelThreadTest {
         // The test dispatcher stands in for Main here. Before the fix the whole
         // pipeline, `threadRows` included, ran on whichever thread collected it.
         assertNotSame(mainThread, builtOn.await())
+
+        // The view model outlives the test otherwise: its pipeline keeps running
+        // on Default and resumes on Main after tearDown has reset it, where no
+        // Main dispatcher exists. That exception surfaced in whichever coroutine
+        // test ran next (UncaughtExceptionsBeforeTest in QrPairViewModelTest).
+        viewModel.viewModelScope.cancel()
     }
 }
