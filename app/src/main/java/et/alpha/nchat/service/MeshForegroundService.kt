@@ -28,6 +28,7 @@ import et.alpha.nchat.mesh.transport.PowerSaveMonitor
 import et.alpha.nchat.mesh.transport.RadioBlocker
 import et.alpha.nchat.mesh.transport.RadioMonitor
 import et.alpha.nchat.mesh.transport.RadioState
+import et.alpha.nchat.mesh.transport.ScanLoop
 import et.alpha.nchat.mesh.transport.Transport
 import et.alpha.nchat.ui.permissions.MeshPermissions
 import javax.inject.Inject
@@ -35,7 +36,6 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -87,6 +87,7 @@ class MeshForegroundService : Service() {
     private lateinit var radio: StateFlow<RadioState>
 
     private val dutyCycle = DutyCycle()
+    private val scanLoop by lazy { ScanLoop(transport, dutyCycle) { Log.d(TAG, it) } }
 
     private val notifications by lazy { getSystemService(NotificationManager::class.java) }
 
@@ -241,9 +242,10 @@ class MeshForegroundService : Service() {
      * Scans in bursts instead of continuously, and not at all while the radio
      * cannot work.
      *
-     * Advertising is started once per readiness window and left up; only
-     * discovery cycles. See [DutyCycle] for why, and [Transport.stopDiscovery]
-     * for why advertising must not cycle with it.
+     * Advertising is started once per readiness window and left up (a failed
+     * start is retried each scan window, see [ScanLoop]); only discovery
+     * cycles. See [DutyCycle] for why, and [Transport.stopDiscovery] for why
+     * advertising must not cycle with it.
      */
     private fun runDutyCycle() = scope.launch {
         // The user's battery mode, applied to the schedule from the next rest.
@@ -273,23 +275,7 @@ class MeshForegroundService : Service() {
                 Log.i(TAG, "radio ready, resuming mesh")
             }
 
-            runCatching { transport.startAdvertising() }
-                .onFailure { Log.e(TAG, "advertising failed to start: ${it.message}") }
-
-            while (isActive && radio.value.isReady) {
-                val backedOff = dutyCycle.isBackedOff()
-                runCatching { transport.startDiscovery() }
-                    .onFailure { Log.e(TAG, "discovery failed to start: ${it.message}") }
-
-                delay(dutyCycle.scanMillis)
-
-                runCatching { transport.stopDiscovery() }
-                    .onFailure { Log.w(TAG, "stopDiscovery failed: ${it.message}") }
-
-                val idle = dutyCycle.idleMillis()
-                Log.d(TAG, "scan window closed, idling ${idle}ms (backedOff=$backedOff)")
-                delay(idle)
-            }
+            scanLoop.runWhileReady { radio.value.isReady }
 
             // The radio went away mid-session. Release everything rather than hold
             // endpoints that cannot possibly still be live.

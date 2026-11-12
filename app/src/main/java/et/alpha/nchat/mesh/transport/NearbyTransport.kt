@@ -2,6 +2,7 @@ package et.alpha.nchat.mesh.transport
 
 import android.content.Context
 import android.util.Log
+import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.AdvertisingOptions
 import com.google.android.gms.nearby.connection.ConnectionInfo
@@ -116,8 +117,15 @@ class NearbyTransport(
     override suspend fun startAdvertising() {
         Log.i(TAG, "advertising as ${tag(localPeerId)}")
         val options = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
-        client.startAdvertising(localPeerId.toHexId(), serviceId, lifecycleCallback, options)
-            .awaitUnit("startAdvertising")
+        try {
+            client.startAdvertising(localPeerId.toHexId(), serviceId, lifecycleCallback, options)
+                .awaitUnit("startAdvertising")
+        } catch (e: TransportException) {
+            // Already up is what the caller wanted. Without this, a retry after a
+            // start that half-worked would fail forever and keep retrying.
+            if ((e.cause as? ApiException)?.statusCode == ConnectionsStatusCodes.STATUS_ALREADY_ADVERTISING) return
+            throw e
+        }
     }
 
     override suspend fun startDiscovery() {
