@@ -40,6 +40,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    // The app's own strings are English only, but AndroidX, Material and Play
+    // services bring about 80 locales of theirs into the APK. Keep the ones the
+    // app speaks; add a locale here when its translation lands.
+    androidResources {
+        localeFilters += listOf("en")
+    }
     buildFeatures {
         compose = true
     }
