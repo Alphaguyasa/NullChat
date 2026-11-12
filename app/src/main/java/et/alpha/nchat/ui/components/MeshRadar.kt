@@ -1,5 +1,6 @@
 package et.alpha.nchat.ui.components
 
+import android.content.res.Resources
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -38,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import et.alpha.nchat.R
 import et.alpha.nchat.ui.theme.MonoSmall
 import et.alpha.nchat.ui.theme.MotionDurationMs
 import et.alpha.nchat.ui.theme.NChatTheme
@@ -158,7 +162,8 @@ fun MeshRadar(
 
     // The radar is a picture of something that is also listed as text below it,
     // so a screen reader gets the summary and then the rows themselves.
-    val description = remember(peers) { peers.describe() }
+    val resources = LocalContext.current.resources
+    val description = remember(peers, resources) { peers.describe(resources) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -197,7 +202,7 @@ fun MeshRadar(
         // drawn into the canvas so that it scales with the user's font setting.
         if (peers.isNotEmpty()) {
             Text(
-                text = "rings = hops away",
+                text = stringResource(R.string.radar_key),
                 style = MonoSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -468,14 +473,14 @@ private fun pulseAlpha(elapsedMs: Long): Float {
 private fun sweepDegrees(elapsedMs: Long): Float =
     (elapsedMs % SweepPeriodMs).toFloat() / SweepPeriodMs * 360f
 
-private fun List<RadarPeer>.describe(): String {
-    if (isEmpty()) return "mesh radar, searching for peers"
+private fun List<RadarPeer>.describe(resources: Resources): String {
+    if (isEmpty()) return resources.getString(R.string.radar_empty)
     val direct = count { it.hops == DirectHops }
     val relayed = size - direct
     return buildString {
-        append("mesh radar, $size peers")
-        if (direct > 0) append(", $direct one hop away")
-        if (relayed > 0) append(", $relayed reached through relays")
+        append(resources.getQuantityString(R.plurals.radar_peers, size, size))
+        if (direct > 0) append(resources.getString(R.string.radar_direct, direct))
+        if (relayed > 0) append(resources.getString(R.string.radar_relayed, relayed))
     }
 }
 

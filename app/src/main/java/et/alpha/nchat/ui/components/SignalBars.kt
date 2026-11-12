@@ -15,10 +15,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import et.alpha.nchat.R
 import et.alpha.nchat.ui.theme.MonoSmall
 import et.alpha.nchat.ui.theme.NChatTheme
 
@@ -56,9 +58,10 @@ fun SignalBars(
     val lit = level.coerceIn(0, barCount)
     val activeColor = MaterialTheme.colorScheme.primary
     val inactiveColor = MaterialTheme.colorScheme.outlineVariant
+    val description = stringResource(R.string.signal_bars, lit, barCount)
 
     Row(
-        modifier = modifier.semantics { contentDescription = "signal $lit of $barCount" },
+        modifier = modifier.semantics { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(BarSpacing),
         verticalAlignment = Alignment.Bottom,
     ) {
