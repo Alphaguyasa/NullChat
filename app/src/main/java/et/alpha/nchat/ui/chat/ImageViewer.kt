@@ -28,12 +28,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import et.alpha.nchat.R
 import et.alpha.nchat.data.media.decodeBoundedImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -112,7 +114,7 @@ fun ImageViewer(path: String, onDismiss: () -> Unit) {
             bitmap?.let { image ->
                 Image(
                     bitmap = image,
-                    contentDescription = "Image, full screen",
+                    contentDescription = stringResource(R.string.image_viewer_full_screen),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxSize()

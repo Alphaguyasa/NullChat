@@ -175,4 +175,14 @@
     <string name="settings_battery_normal">Normal: look for phones every 30 seconds</string>
     <string name="settings_battery_saver">Saver: look for phones once a minute</string>
     <string name="settings_battery_hint">Saver uses about half the radio time. Phones that come into range can take up to a minute longer to be found, so messages may wait longer before they go out.</string>
+    <string name="radar_key">rings = hops away</string>
+    <string name="radar_empty">Radar, searching for peers nearby</string>
+    <plurals name="radar_peers">
+        <item quantity="one">Radar, %d peer</item>
+        <item quantity="other">Radar, %d peers</item>
+    </plurals>
+    <string name="radar_direct">, %d one hop away</string>
+    <string name="radar_relayed">, %d reached through relays</string>
+    <string name="signal_bars">Signal %1$d of %2$d</string>
+    <string name="image_viewer_full_screen">Image, full screen</string>
 </resources>
