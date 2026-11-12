@@ -1,5 +1,12 @@
 <resources>
-    <string name="app_name">NChat</string>
+    <string name="app_name">Null Chat</string>
+    <string name="peers_searching_title">Searching for peers nearby</string>
+    <string name="peers_searching_detail">Phones running Null Chat appear here as soon as they are in range. Anything you send before then is queued.</string>
+    <string name="chat_back">Back to peers</string>
+    <string name="chat_more_options">More options</string>
+    <string name="chat_composer_placeholder">Message</string>
+    <string name="chat_composer_bytes">%1$d/%2$d bytes</string>
+    <string name="chat_send">Send</string>
 
     <!-- Foreground service notification -->
     <string name="mesh_channel_name">Mesh</string>

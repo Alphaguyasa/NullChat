@@ -563,6 +563,9 @@ private fun ChatTopBar(
     onForget: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    // Read here: semantics blocks are not composable, so they cannot look up strings.
+    val backLabel = stringResource(R.string.chat_back)
+    val moreLabel = stringResource(R.string.chat_more_options)
     Column {
         Row(
             modifier = Modifier
@@ -583,7 +586,7 @@ private fun ChatTopBar(
                     // relabelled so a screen reader announces the button rather
                     // than reading out a punctuation character.
                     modifier = Modifier.clearAndSetSemantics {
-                        contentDescription = "Back to peers"
+                        contentDescription = backLabel
                     },
                 )
             }
@@ -615,7 +618,7 @@ private fun ChatTopBar(
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.clearAndSetSemantics {
-                                contentDescription = "More options"
+                                contentDescription = moreLabel
                             },
                         )
                     }
@@ -1537,7 +1540,7 @@ private fun SendBox(
             textStyle = MaterialTheme.typography.bodyLarge,
             placeholder = {
                 Text(
-                    text = "Message",
+                    text = stringResource(R.string.chat_composer_placeholder),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1547,7 +1550,7 @@ private fun SendBox(
                 // Counted in bytes, not characters: one emoji costs four, and a
                 // character counter would quietly mislead.
                 Text(
-                    text = "$draftBytes/${MessagePacket.MAX_TEXT_BYTES} bytes",
+                    text = stringResource(R.string.chat_composer_bytes, draftBytes, MessagePacket.MAX_TEXT_BYTES),
                     style = MonoSmall,
                     color = if (overLimit) Danger else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1567,7 +1570,7 @@ private fun SendBox(
             enabled = canSend,
             modifier = Modifier.padding(bottom = 20.dp),
         ) {
-            Text(text = "Send", style = MaterialTheme.typography.labelLarge)
+            Text(text = stringResource(R.string.chat_send), style = MaterialTheme.typography.labelLarge)
         }
     }
 }
