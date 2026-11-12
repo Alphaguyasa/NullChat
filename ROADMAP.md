@@ -18,8 +18,8 @@ Ordered; this milestone comes before the rest of the open list.
 - [ ] Decide the decision-log #3 question and keep chat data out of Google backup (restores panic wipe)
 - [x] #76 Build identity from CI: versionCode and versionName from the run number, commit in Settings
 - [x] #72 Retry `startAdvertising` each scan window through a testable scheduler
-- [ ] #78 part 1: README with screenshots, a mesh diagram and a threat-model link
-- [ ] docs/SECURITY_DESIGN.md: the threat model and the hostile-mesh hardening series
+- [ ] #78 part 1: README with screenshots, a mesh diagram and a threat-model link (README in #103; screenshots still to come)
+- [x] docs/SECURITY_DESIGN.md: the threat model and the hostile-mesh hardening series
 - [x] #79 Radar pulses attributed to bound peers only
 - [x] docs/FIELD_CHECK.md: a scripted two-phone check (pairing, relay, image, rate-limit counters)
 - [ ] A security case-study page on the portfolio that links the design doc
@@ -137,3 +137,6 @@ change once decided.
 | 2026-11-12 | #79 Radar pulses only for links that proved their peer id, so a stranger cannot make a contact pulse | #99 | see log |
 | 2026-11-12 | #72 A failed advertising start is retried each scan window (`ScanLoop`); "already advertising" counts as success (needs two-phone check) | #100 | see log |
 | 2026-11-12 | Field check: docs/FIELD_CHECK.md, a scripted 30-minute check for two or three phones | #101 | see log |
+| 2026-11-12 | Flaky unit test: a chat view model test no longer leaks into the next test | #102 | see log |
+| 2026-11-12 | README: what it does, the mesh, security in brief, build (screenshots to follow) | #103 | see log |
+| 2026-11-12 | docs/SECURITY_DESIGN.md: threat model, mechanisms with their pull requests, open gaps | #104 | see log |
