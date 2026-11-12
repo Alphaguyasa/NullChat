@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import et.alpha.nchat.BuildConfig
 import et.alpha.nchat.R
 import et.alpha.nchat.mesh.MeshHealth
 import et.alpha.nchat.mesh.protocol.Profile
@@ -93,6 +94,9 @@ fun SettingsScreen(
         onBatteryModeChange = viewModel::onBatteryModeChange,
         onMeshEnabledChange = viewModel::onMeshEnabledChange,
         health = health,
+        buildLabel = remember {
+            BuildIdentity.label(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.COMMIT)
+        },
         modifier = modifier,
     )
 }
@@ -114,6 +118,8 @@ internal fun SettingsContent(
     onBatteryModeChange: (BatteryMode) -> Unit = {},
     onMeshEnabledChange: (Boolean) -> Unit = {},
     health: MeshHealth = MeshHealth(),
+    /** Which build this is; empty in previews and tests. */
+    buildLabel: String = "",
 ) {
     var confirmWipe by remember { mutableStateOf(false) }
     if (confirmWipe) {
@@ -353,6 +359,15 @@ internal fun SettingsContent(
             )
             TextButton(onClick = { confirmWipe = true }) {
                 Text(text = stringResource(R.string.settings_wipe_action), color = Danger)
+            }
+
+            if (buildLabel.isNotEmpty()) {
+                HorizontalDivider()
+                Text(
+                    text = stringResource(R.string.settings_build, buildLabel),
+                    style = MonoBody,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

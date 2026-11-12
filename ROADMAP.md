@@ -11,12 +11,28 @@ evidence in the dev log 2026-11-04). This round's theme is a
 hostile or crowded mesh: what one modified phone, or a festival's worth of strangers,
 can make this phone hold, drop or show. Bugs and abuse resistance come before features.
 
+## Next milestone: cash the security work in
+
+Ordered; this milestone comes before the rest of the open list.
+
+- [ ] Decide the decision-log #3 question and keep chat data out of Google backup (restores panic wipe)
+- [x] #76 Build identity from CI: versionCode and versionName from the run number, commit in Settings
+- [ ] #72 Retry `startAdvertising` each scan window through a testable scheduler
+- [ ] #78 part 1: README with screenshots, a mesh diagram and a threat-model link
+- [ ] docs/SECURITY_DESIGN.md: the threat model and the hostile-mesh hardening series
+- [ ] #79 Radar pulses attributed to bound peers only
+- [ ] docs/FIELD_CHECK.md: a scripted two-phone check (pairing, relay, image, rate-limit counters)
+- [ ] A security case-study page on the portfolio that links the design doc
+
+Later: #77 contact-in-range, #80 locale filters, a cutoff for plaintext direct
+messages from older builds, #21 group channels, #22 voice notes, #54 Doze
+measurement, #23 route strip after its privacy call.
+
 ## Open
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 72 | **A failed `startAdvertising` is never retried** (`MeshForegroundService`), so one radio error leaves the phone invisible all session. Retry each scan window; move the loop into a testable scheduler. | P2 | S | Needs two-phone check |
-| 76 | **Builds cannot be told apart**: versionCode 1 / "1.0" forever. Derive from the CI run number and sha; show "Build …" in Settings, which phone checks need. | P2 | S | |
 | 77 | **Feature: tell me when this contact is in range**: a chat menu toggle and a one-shot local notification when the peer joins `boundPeers`, rate-limited. | P2 | M | No wire change |
 | 78 | **Naming and strings**: `app_name` is "NChat"; "searching for peers nearby" is lowercase and says "Mesh"; about 20 UI literals sit outside `strings.xml`. | P3 | M | |
 | 79 | **Radar pulses by advertised name**, so a stranger can make a contact's node pulse (`PeerListViewModel`). Attribute by bound peers only. | P3 | S | |
@@ -119,3 +135,4 @@ change once decided.
 | 2026-11-06 | #70 Pairing camera released with the screen; one save per scan | #94 | see log |
 | 2026-11-06 | #74 Chat rows built on a background thread instead of the main thread | #95 | see log |
 | 2026-11-06 | #71 Seen cache holds 20 000 ids (was 1000), so images in flight no longer evict other packets and late copies are not relayed again | #96 | see log |
+| 2026-11-12 | #76 Builds carry the CI run number and commit; Settings shows "Build 1.0.N (N) · commit" | #98 | see log |
