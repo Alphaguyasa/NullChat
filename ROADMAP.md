@@ -135,4 +135,4 @@ change once decided.
 | 2026-11-06 | #70 Pairing camera released with the screen; one save per scan | #94 | see log |
 | 2026-11-06 | #74 Chat rows built on a background thread instead of the main thread | #95 | see log |
 | 2026-11-06 | #71 Seen cache holds 20 000 ids (was 1000), so images in flight no longer evict other packets and late copies are not relayed again | #96 | see log |
-| 2026-11-12 | #76 Builds carry the CI run number and commit; Settings shows "Build 1.0.N (N) · commit" | #97 | see log |
+| 2026-11-12 | #76 Builds carry the CI run number and commit; Settings shows "Build 1.0.N (N) · commit" | #98 | see log |
