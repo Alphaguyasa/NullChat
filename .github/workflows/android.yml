@@ -14,6 +14,11 @@ concurrency:
 permissions:
   contents: read
 
+# The commit the APK is stamped with (Settings shows it). On a pull request
+# github.sha is a merge commit nobody can check out, so use the branch head.
+env:
+  NCHAT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   build:
     name: Lint, unit tests, debug APK

@@ -140,6 +140,7 @@
     <string name="settings_wipe_confirm_body">Your keys, messages, images and settings are erased and cannot be recovered. Phones you paired with will see a new, unverified contact. The app closes; open it again to start fresh.</string>
     <string name="settings_wipe_confirm">Wipe</string>
     <string name="settings_wipe_cancel">Cancel</string>
+    <string name="settings_build">Build %1$s</string>
     <string name="settings_lock_title">App lock</string>
     <string name="settings_lock_switch">Ask to unlock</string>
     <string name="settings_lock_hint">Asks for your fingerprint, face or screen lock when Null Chat opens, or comes back after a minute away. Messages still arrive and relay while it is locked.</string>

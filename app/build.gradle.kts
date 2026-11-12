@@ -18,8 +18,17 @@ android {
         applicationId = "et.alpha.nchat"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // CI stamps every build so phones in a field check can be told apart
+        // (Settings shows the line). Local builds stay 1 / "1.0" / "local".
+        // The run number only grows, so an APK from a later run always installs
+        // over an earlier one.
+        val ciRun = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull()
+        val commit = providers.environmentVariable("NCHAT_COMMIT").orNull
+            ?.filter { it.isLetterOrDigit() }
+            .orEmpty()
+        versionCode = ciRun ?: 1
+        versionName = if (ciRun != null) "1.0.$ciRun" else "1.0"
+        buildConfigField("String", "COMMIT", "\"$commit\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -42,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         unitTests.all {
