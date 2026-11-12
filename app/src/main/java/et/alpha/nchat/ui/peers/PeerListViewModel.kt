@@ -153,6 +153,17 @@ internal fun peerLabel(displayName: String?, peerId: String): String {
     return if (displayName.isNullOrBlank()) shortId else "$displayName · $shortId"
 }
 
+/**
+ * Which contact a relay over [endpointId] is shown against, or null when the
+ * link has not proved who is on the other end. Kept separate so the rule is
+ * tested without a transport.
+ */
+internal fun pulsePeerId(
+    endpointId: String,
+    isBound: (String) -> Boolean,
+    peerIdFor: (String) -> String?,
+): String? = if (isBound(endpointId)) peerIdFor(endpointId) else null
+
 @HiltViewModel
 class PeerListViewModel @Inject constructor(
     peers: PeerRepository,
@@ -177,15 +188,19 @@ class PeerListViewModel @Inject constructor(
      *
      * The router speaks link-layer endpoint ids and the rows are keyed by
      * protocol peer ids; the two namespaces are resolved here, which is the first
-     * point that holds both the transport and the roster. An event from an
-     * endpoint whose peer id is not known yet is dropped rather than guessed at.
+     * point that holds both the transport and the roster. Only a link that
+     * proved its peer id is credited: the advertised name is the other phone's
+     * own claim, so a stranger advertising a contact's id would otherwise make
+     * that contact's node pulse. Anything else is dropped rather than guessed at.
      *
      * Cold, so it accumulates only while the screen is watching. Restarting empty
      * costs nothing: these timestamps drive a momentary animation, and a pulse
      * that happened while the list was closed is not one anybody missed.
      */
     private val relayActivity: Flow<Map<String, Long>> = coordinator.relayActivity
-        .mapNotNull { event -> transport.peerIdFor(event.endpointId)?.toHexId() }
+        .mapNotNull { event ->
+            pulsePeerId(event.endpointId, coordinator::isLinkBound) { transport.peerIdFor(it)?.toHexId() }
+        }
         .runningFold(emptyMap<String, Long>()) { active, peerId ->
             active + (peerId to System.currentTimeMillis())
         }

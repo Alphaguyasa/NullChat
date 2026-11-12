@@ -411,6 +411,13 @@ class MeshCoordinator @Inject constructor(
     val boundPeers: StateFlow<Set<String>> = links.boundPeerIds
 
     /**
+     * True when the link [endpointId] proved the peer id it advertised. Only
+     * such a link may be credited with traffic in the UI: the advertised name
+     * alone is whatever the other phone chose to say.
+     */
+    fun isLinkBound(endpointId: String): Boolean = links.isBound(endpointId)
+
+    /**
      * The part of this class that faces the mesh: packets the router delivered
      * become rows, receipts, keys and transfer progress there.
      */
