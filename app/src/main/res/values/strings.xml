@@ -28,6 +28,11 @@
     <string name="mesh_notification_blocked_location">Location is off. Tap to fix.</string>
     <string name="messages_channel_name">Messages</string>
     <string name="messages_channel_description">Direct messages that arrive while you are not looking at the conversation.</string>
+    <string name="range_channel_name">Contacts in range</string>
+    <string name="range_channel_description">A contact you asked about has come into range.</string>
+    <string name="range_notification_public">A contact is in range</string>
+    <string name="range_notification_title">%1$s is in range</string>
+    <string name="range_notification_text">Messages to them go out directly now.</string>
     <string name="messages_notification_public">New message</string>
     <string name="mesh_notification_blocked_both">Bluetooth and location are off. Tap to fix.</string>
     <plurals name="mesh_peer_count">
@@ -82,6 +87,8 @@
     <string name="chat_resend_action">Resend</string>
     <string name="chat_resend_hint">tap to resend</string>
     <string name="chat_actions_label">Message options</string>
+    <string name="chat_range_alert_on">Tell me when they are in range</string>
+    <string name="chat_range_alert_off">Stop in-range alerts</string>
     <string name="chat_attach_image">Attach an image</string>
     <string name="chat_preparing_image">Preparing image</string>
     <string name="chat_view_image">View image</string>

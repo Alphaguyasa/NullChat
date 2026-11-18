@@ -6,6 +6,7 @@ import et.alpha.nchat.data.media.AttachmentStore
 import et.alpha.nchat.data.media.ImageScaler
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
+import et.alpha.nchat.data.settings.RangeWatchStore
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.TransferTracker
 import et.alpha.nchat.service.ForegroundConversation
@@ -69,6 +70,9 @@ class ChatViewModelThreadTest {
             imageScaler = mockk<ImageScaler>(relaxed = true),
             attachments = mockk<AttachmentStore>(relaxed = true),
             foregroundConversation = ForegroundConversation(),
+            rangeWatch = mockk<RangeWatchStore> {
+                every { watched } returns MutableStateFlow(emptySet())
+            },
             context = mockk<Context>(relaxed = true),
             transferTracker = tracker,
         )

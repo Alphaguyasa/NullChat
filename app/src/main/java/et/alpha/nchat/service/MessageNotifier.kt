@@ -52,6 +52,50 @@ class MessageNotifier @Inject constructor(
             lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
         }
         notifications.createNotificationChannel(channel)
+        // Its own channel, so someone can silence these without losing message
+        // notifications, or the other way round.
+        val range = NotificationChannel(
+            RANGE_CHANNEL_ID,
+            context.getString(R.string.range_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = context.getString(R.string.range_channel_description)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
+        }
+        notifications.createNotificationChannel(range)
+    }
+
+    /**
+     * Says that [peerId], a contact the user asked about, is in range (roadmap
+     * #77; [RangeAlerts] decides when).
+     *
+     * [name] is the contact's nickname or chosen name; null shows the short id.
+     * With the app lock on ([hideContent]) it says only that a contact is in
+     * range, as the lock-screen version always does: who is nearby is as
+     * private as what they wrote.
+     */
+    fun onInRange(peerId: String, name: String?, hideContent: Boolean) {
+        val publicTitle = context.getString(R.string.range_notification_public)
+        val publicVersion = NotificationCompat.Builder(context, RANGE_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(publicTitle)
+            .build()
+        val title = if (hideContent) {
+            publicTitle
+        } else {
+            context.getString(R.string.range_notification_title, name ?: peerId.take(SHORT_ID_CHARS))
+        }
+        val notification = NotificationCompat.Builder(context, RANGE_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(title)
+            .setContentText(context.getString(R.string.range_notification_text))
+            .setContentIntent(openThread(peerId))
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
+            .build()
+        notifications.notify(RANGE_TAG_PREFIX + peerId, NOTIFICATION_ID, notification)
     }
 
     /**
@@ -134,5 +178,12 @@ class MessageNotifier @Inject constructor(
 
         /** Constant; the conversation id in the tag tells notifications apart. */
         const val NOTIFICATION_ID = 2
+
+        const val RANGE_CHANNEL_ID = "range"
+
+        /** Peer ids are hex, so this tag can never equal a conversation id. */
+        const val RANGE_TAG_PREFIX = "range:"
+
+        const val SHORT_ID_CHARS = 8
     }
 }

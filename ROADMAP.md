@@ -24,7 +24,7 @@ Ordered; this milestone comes before the rest of the open list.
 - [x] docs/FIELD_CHECK.md: a scripted two-phone check (pairing, relay, image, rate-limit counters)
 - [ ] A security case-study page on the portfolio that links the design doc
 
-Later: #77 contact-in-range, #80 locale filters, a cutoff for plaintext direct
+Later: a cutoff for plaintext direct
 messages from older builds, #21 group channels, #22 voice notes, #54 Doze
 measurement, #23 route strip after its privacy call.
 
@@ -32,7 +32,6 @@ measurement, #23 route strip after its privacy call.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 77 | **Feature: tell me when this contact is in range**: a chat menu toggle and a one-shot local notification when the peer joins `boundPeers`, rate-limited. | P2 | M | No wire change |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
@@ -142,3 +141,4 @@ change once decided.
 | 2026-11-12 | #78 part 2: the app is called Null Chat everywhere; peer list, chat bar and composer text in strings.xml | #107 | see log |
 | 2026-11-12 | #78 part 2: radar description, signal bars and image viewer text in strings.xml | #108 | see log |
 | 2026-11-18 | #78 done: the "Everyone" label, chat subtitles, empty states and the attach button in strings.xml; previews use the same resources | #110 | see log |
+| 2026-11-18 | #77 "Tell me when they are in range": chat menu toggle, one notification when the contact's link proves its id, at most once per 30 minutes (needs two-phone check) | #111 | see log |

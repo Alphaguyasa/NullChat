@@ -14,6 +14,7 @@ import et.alpha.nchat.data.media.AttachmentStore
 import et.alpha.nchat.data.media.ImageScaler
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
+import et.alpha.nchat.data.settings.RangeWatchStore
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.SendResult
 import et.alpha.nchat.mesh.Transfer
@@ -70,6 +71,8 @@ data class ChatState(
     val isBlocked: Boolean = false,
     /** True when the user muted this thread's notifications. */
     val isMuted: Boolean = false,
+    /** True when the user asked to be told when this contact comes into range. */
+    val isWatchingRange: Boolean = false,
 )
 
 /**
@@ -89,6 +92,7 @@ class ChatViewModel @Inject constructor(
     private val imageScaler: ImageScaler,
     private val attachments: AttachmentStore,
     private val foregroundConversation: ForegroundConversation,
+    private val rangeWatch: RangeWatchStore,
     @ApplicationContext private val context: Context,
     transferTracker: TransferTracker,
 ) : ViewModel() {
@@ -142,7 +146,8 @@ class ChatViewModel @Inject constructor(
             // which reads as unverified — correctly.
             if (peer == null) flowOf(null) else peers.observePeer(peer),
             messages.observeConversation(conversationIdFor(peer)),
-        ) { (rows, thread), online, peerRow, conversation ->
+            rangeWatch.watched.map { peer != null && peer in it },
+        ) { (rows, thread), online, peerRow, conversation, watchingRange ->
             val name = peerRow?.preferredName
             ChatState(
                 messages = rows,
@@ -163,6 +168,7 @@ class ChatViewModel @Inject constructor(
                 disappearAfterMillis = conversation?.disappearAfterMillis,
                 isBlocked = peerRow?.isBlocked == true,
                 isMuted = conversation?.isMuted == true,
+                isWatchingRange = watchingRange,
             )
         }
     }
@@ -348,6 +354,8 @@ class ChatViewModel @Inject constructor(
     fun onForget() {
         val peer = peerId.value ?: return
         clearDraft()
+        // A forgotten contact comes back as a stranger; nobody asked to hear about one.
+        rangeWatch.setWatched(peer, false)
         viewModelScope.launch { coordinator.forgetPeer(peer) }
     }
 
@@ -470,6 +478,15 @@ class ChatViewModel @Inject constructor(
     fun onSetMuted(muted: Boolean) {
         val peer = peerId.value ?: return
         viewModelScope.launch { messages.setMuted(directConversationId(peer), peer, muted) }
+    }
+
+    /**
+     * Turns "tell me when this contact is in range" on or off. Direct chats
+     * only: "everyone" has no single arrival to announce.
+     */
+    fun onSetWatchRange(watch: Boolean) {
+        val peer = peerId.value ?: return
+        rangeWatch.setWatched(peer, watch)
     }
 
     private fun conversationIdFor(peer: String?): String =
