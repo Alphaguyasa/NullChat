@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
@@ -18,6 +19,7 @@ import et.alpha.nchat.di.logUncaught
 import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.BatteryModeStore
 import et.alpha.nchat.data.settings.MeshEnabledStore
+import et.alpha.nchat.data.settings.RangeWatchStore
 import et.alpha.nchat.data.repo.MessageRepository
 import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.mesh.MeshCoordinator
@@ -75,6 +77,8 @@ class MeshForegroundService : Service() {
     @Inject lateinit var messageRepository: MessageRepository
 
     @Inject lateinit var appLock: AppLockStore
+
+    @Inject lateinit var rangeWatch: RangeWatchStore
 
     @Inject lateinit var batteryMode: BatteryModeStore
 
@@ -150,6 +154,7 @@ class MeshForegroundService : Service() {
         coordinator.ensureStarted()
         observeNotificationState()
         notifyArrivals()
+        notifyInRange()
         runDutyCycle()
     }
 
@@ -235,6 +240,31 @@ class MeshForegroundService : Service() {
         }
         scope.launch {
             coordinator.withdrawn.collect { messageNotifier.cancel(it) }
+        }
+    }
+
+    /**
+     * Tells the user when a contact they asked about comes into range.
+     *
+     * Bound peers only, through [RangeAlerts]: a link that proved its id, once
+     * per arrival, at most once per half hour per contact.
+     */
+    private fun notifyInRange() = scope.launch {
+        val alerts = RangeAlerts()
+        combine(coordinator.boundPeers, rangeWatch.watched, ::Pair).collect { (bound, watched) ->
+            try {
+                for (peer in alerts.onBoundPeers(bound, watched, SystemClock.elapsedRealtime())) {
+                    val row = peerRepository.findPeer(peer)
+                    // A contact blocked after the watch was set stays silent.
+                    if (row?.isBlocked == true) continue
+                    val hideContent = appLock.enabled.value
+                    messageNotifier.onInRange(peer, if (hideContent) null else row?.preferredName, hideContent)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "range notification failed: ${e::class.simpleName}")
+            }
         }
     }
 
