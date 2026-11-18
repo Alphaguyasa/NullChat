@@ -366,6 +366,13 @@ fun ChatScreen(
                     // way, so neither asks first.
                     onMute = if (state.isBroadcast) null else ({ viewModel.onSetMuted(!state.isMuted) }),
                     isMuted = state.isMuted,
+                    // Not while blocked: their arrival is not news anyone asked for.
+                    onWatchRange = if (state.isBroadcast || state.isBlocked) {
+                        null
+                    } else {
+                        ({ viewModel.onSetWatchRange(!state.isWatchingRange) })
+                    },
+                    isWatchingRange = state.isWatchingRange,
                     onDeleteChat = { isDeletingChat = true },
                     onExport = { isExporting = true },
                     // Unblocking takes nothing away, so only blocking asks first.
@@ -556,6 +563,8 @@ private fun ChatTopBar(
     onDisappearing: (() -> Unit)? = null,
     onMute: (() -> Unit)? = null,
     isMuted: Boolean = false,
+    onWatchRange: (() -> Unit)? = null,
+    isWatchingRange: Boolean = false,
     onDeleteChat: (() -> Unit)? = null,
     onExport: (() -> Unit)? = null,
     onBlock: (() -> Unit)? = null,
@@ -656,6 +665,25 @@ private fun ChatTopBar(
                                     Text(
                                         stringResource(
                                             if (isMuted) R.string.chat_unmute_action else R.string.chat_mute_action,
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    toggle()
+                                },
+                            )
+                        }
+                        onWatchRange?.let { toggle ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            if (isWatchingRange) {
+                                                R.string.chat_range_alert_off
+                                            } else {
+                                                R.string.chat_range_alert_on
+                                            },
                                         ),
                                     )
                                 },
