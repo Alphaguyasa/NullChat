@@ -118,6 +118,10 @@
     <string name="chat_delete_chat_action">Delete chat</string>
     <string name="chat_delete_chat_title">Delete this chat?</string>
     <string name="chat_delete_chat_body">Every message in it is removed from this phone only. Anyone who received them keeps their copy. Your messages still waiting to be sent stay until they go.</string>
+    <string name="chat_image_prepare_failed">That image could not be prepared for sending.</string>
+    <string name="chat_delete_failed">That message could not be deleted.</string>
+    <string name="chat_export_saved">Chat saved.</string>
+    <string name="chat_export_failed">The chat could not be saved.</string>
     <string name="chat_export_action">Export chat</string>
     <string name="chat_export_title">Export this chat?</string>
     <string name="chat_export_body">The messages are saved as a plain text file wherever you choose. The file is not encrypted, the app lock does not cover it, and panic wipe and disappearing messages do not remove it. Images are left out.</string>
