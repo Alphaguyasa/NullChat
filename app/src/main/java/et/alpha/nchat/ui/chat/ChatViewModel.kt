@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import et.alpha.nchat.R
 import et.alpha.nchat.data.db.BROADCAST_CONVERSATION_ID
 import et.alpha.nchat.data.db.MessageEntity
 import et.alpha.nchat.data.db.directConversationId
@@ -290,7 +291,7 @@ class ChatViewModel @Inject constructor(
             }
 
             if (scaled == null) {
-                _errors.value = "That image could not be prepared for sending."
+                _errors.value = context.getString(R.string.chat_image_prepare_failed)
                 return@launch
             }
 
@@ -328,7 +329,7 @@ class ChatViewModel @Inject constructor(
     fun onDelete(messageId: String) {
         viewModelScope.launch {
             if (!coordinator.deleteLocally(messageId)) {
-                _errors.value = "That message could not be deleted."
+                _errors.value = context.getString(R.string.chat_delete_failed)
             }
         }
     }
@@ -418,7 +419,7 @@ class ChatViewModel @Inject constructor(
                     false
                 }
             }
-            _errors.value = if (saved) EXPORT_SAVED else EXPORT_FAILED
+            _errors.value = context.getString(if (saved) R.string.chat_export_saved else R.string.chat_export_failed)
         }
     }
 
@@ -477,8 +478,6 @@ class ChatViewModel @Inject constructor(
 
     private companion object {
         const val EVERYONE = "Everyone"
-        const val EXPORT_SAVED = "Chat saved."
-        const val EXPORT_FAILED = "The chat could not be saved."
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }
