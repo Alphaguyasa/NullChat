@@ -353,9 +353,16 @@ fun ChatScreen(
                     stringResource(R.string.chat_subtitle_disappears, DisappearingTimer.label(it))
                 }
                 val muted = if (state.isMuted) stringResource(R.string.chat_subtitle_muted) else null
+                // Said in the bar, not only in the menu: an alert someone forgot
+                // they set would otherwise look like the app reporting on its own.
+                val watching = if (state.isWatchingRange) {
+                    stringResource(R.string.chat_subtitle_range_alert)
+                } else {
+                    null
+                }
                 ChatTopBar(
                     title = if (state.isBroadcast) stringResource(R.string.peers_everyone) else state.title,
-                    subtitle = listOfNotNull(presence, disappears, muted).joinToString(" · "),
+                    subtitle = listOfNotNull(presence, disappears, muted, watching).joinToString(" · "),
                     // A bare peer id is machine text people compare character by
                     // character; a name or the broadcast thread's "Everyone" is a word
                     // and reads as one.

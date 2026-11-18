@@ -10,6 +10,7 @@
     <string name="chat_out_of_range">Out of range</string>
     <string name="chat_subtitle_disappears">disappears after %1$s</string>
     <string name="chat_subtitle_muted">muted</string>
+    <string name="chat_subtitle_range_alert">in-range alert on</string>
     <string name="chat_empty_title">No messages yet</string>
     <string name="chat_empty_detail">Anything you send now is queued and goes out as soon as someone is in range.</string>
     <string name="chat_back">Back to peers</string>
