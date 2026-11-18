@@ -7,7 +7,7 @@ Effort: **S** < 2 h · **M** half a day · **L** a day or more (split into sever
 Audit of 2026-10-14; replanned 2026-10-22 (items 27–41); replanned 2026-10-28
 (third audit, items 43–54); **replanned 2026-10-31** (fourth audit, items 55–66, evidence
 in the dev log 2026-10-31 second run); **replanned 2026-11-04** (fifth audit, items 67–80,
-evidence in the dev log 2026-11-04). This round's theme is a
+evidence in the dev log 2026-11-04); items 81–85 added 2026-11-18. This round's theme is a
 hostile or crowded mesh: what one modified phone, or a festival's worth of strangers,
 can make this phone hold, drop or show. Bugs and abuse resistance come before features.
 
@@ -32,6 +32,11 @@ measurement, #23 route strip after its privacy call.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
+| 84 | **Plaintext direct-message cutoff**: stop accepting unencrypted direct messages (the `openedBody` fallback for builds before #9); show the undecryptable placeholder instead. Every build since 2026-10-15 encrypts. | P2 | S | Waits on the decision log |
+| 81 | **In-range alert, part 2**: list watched contacts in Settings so they can be turned off in one place (the chat bar already says "in-range alert on"). | P3 | S | Follows #77 |
+| 82 | **Send failures as reason codes**: `SendResult.Rejected/Failed` carry English text from the mesh layer; give them codes the UI maps to strings.xml. | P3 | S | Follows #78 |
+| 83 | **Timer text from resources**: `DisappearingTimer.label` and the timer lines in `ThreadRows` as plurals in strings.xml. | P3 | S | Follows #78 |
+| 85 | **Large-font UI tests**: Compose tests at 200% font scale for the chat bar (subtitle with timer, mute and alert) and the peer row (long name plus badge). | P3 | S | |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
@@ -43,7 +48,6 @@ change once decided.
 
 ### Tech debt (slot into light days)
 
-- Receiving side still accepts plaintext direct messages from older builds (`openedBody` fallback). Once every phone runs a build with #9, consider rejecting them.
 - `MeshCoordinator` is about 1200 lines. The send-side glue now has JVM tests (`sendHeld`, `markFlushed`, #72); an `OutboundSender` class split is still open if the file keeps growing.
 
 ## Done
