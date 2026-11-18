@@ -344,15 +344,18 @@ fun ChatScreen(
                     onClose = closeSearch,
                 )
             } else {
+                val presence = when {
+                    state.isBroadcast -> stringResource(R.string.peers_everyone_in_range)
+                    state.isPeerOnline -> stringResource(R.string.chat_in_range)
+                    else -> stringResource(R.string.chat_out_of_range)
+                }
+                val disappears = state.disappearAfterMillis?.let {
+                    stringResource(R.string.chat_subtitle_disappears, DisappearingTimer.label(it))
+                }
+                val muted = if (state.isMuted) stringResource(R.string.chat_subtitle_muted) else null
                 ChatTopBar(
-                    title = state.title,
-                    subtitle = when {
-                        state.isBroadcast -> "Everyone in range"
-                        state.isPeerOnline -> "In range"
-                        else -> "Out of range"
-                    } + state.disappearAfterMillis
-                        ?.let { " · disappears after ${DisappearingTimer.label(it)}" }
-                        .orEmpty() + if (state.isMuted) " · muted" else "",
+                    title = if (state.isBroadcast) stringResource(R.string.peers_everyone) else state.title,
+                    subtitle = listOfNotNull(presence, disappears, muted).joinToString(" · "),
                     // A bare peer id is machine text people compare character by
                     // character; a name or the broadcast thread's "Everyone" is a word
                     // and reads as one.
@@ -424,12 +427,11 @@ fun ChatScreen(
                 if (state.rows.isEmpty() && state.title.isNotEmpty()) {
                     EmptyState(
                         modifier = Modifier.align(Alignment.Center),
-                        title = "No messages yet",
+                        title = stringResource(R.string.chat_empty_title),
                         // Says what the mesh will do with a message sent into an
                         // empty room, because "nobody is here" is not the same
                         // thing as "this will not work".
-                        detail = "Anything you send now is queued and goes out as " +
-                            "soon as someone is in range.",
+                        detail = stringResource(R.string.chat_empty_detail),
                     )
                 } else {
                     LazyColumn(
@@ -1530,6 +1532,10 @@ private fun SendBox(
 ) {
     val overLimit = draftBytes > MessagePacket.MAX_TEXT_BYTES
     val canSend = draft.isNotBlank() && !overLimit
+    // Resolved here: the semantics block below is not composable.
+    val attachDescription = stringResource(
+        if (isPreparingImage) R.string.chat_preparing_image else R.string.chat_attach_image,
+    )
 
     Row(
         modifier = Modifier
@@ -1556,8 +1562,7 @@ private fun SendBox(
                 // Says what the button does, and what it is busy doing — a
                 // screen reader gets nothing usable out of "+" or an ellipsis.
                 modifier = Modifier.clearAndSetSemantics {
-                    contentDescription =
-                        if (isPreparingImage) "Preparing image" else "Attach an image"
+                    contentDescription = attachDescription
                 },
             )
         }
@@ -1618,31 +1623,30 @@ private fun ChatChromePreview() {
         Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
             ChatTopBar(
                 title = "9e8b7a65",
-                subtitle = "In range",
+                subtitle = stringResource(R.string.chat_in_range),
                 isMonoTitle = true,
                 isOnline = true,
                 onBack = {},
             )
             WarningBanner(
-                text = "You have not verified this contact.",
-                actionLabel = "Pair",
+                text = stringResource(R.string.chat_unverified_warning),
+                actionLabel = stringResource(R.string.chat_pair_action),
                 onAction = {},
             )
             EmptyState(
                 modifier = Modifier.padding(top = 48.dp),
-                title = "No messages yet",
-                detail = "Anything you send now is queued and goes out as soon as " +
-                    "someone is in range.",
+                title = stringResource(R.string.chat_empty_title),
+                detail = stringResource(R.string.chat_empty_detail),
             )
             Spacer(Modifier.height(48.dp))
             ChatTopBar(
-                title = "Everyone",
-                subtitle = "Everyone in range",
+                title = stringResource(R.string.peers_everyone),
+                subtitle = stringResource(R.string.peers_everyone_in_range),
                 isMonoTitle = false,
                 isOnline = true,
                 onBack = {},
             )
-            WarningBanner(text = "Messages to Everyone are not encrypted.")
+            WarningBanner(text = stringResource(R.string.chat_broadcast_warning))
         }
     }
 }
@@ -1657,8 +1661,8 @@ private fun ChatPreview() {
                 .padding(vertical = 12.dp),
         ) {
             WarningBanner(
-                text = "You have not verified this contact.",
-                actionLabel = "Pair",
+                text = stringResource(R.string.chat_unverified_warning),
+                actionLabel = stringResource(R.string.chat_pair_action),
                 onAction = {},
             )
             Spacer(Modifier.height(12.dp))
