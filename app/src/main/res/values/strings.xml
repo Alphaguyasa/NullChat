@@ -2,6 +2,16 @@
     <string name="app_name">Null Chat</string>
     <string name="peers_searching_title">Searching for peers nearby</string>
     <string name="peers_searching_detail">Phones running Null Chat appear here as soon as they are in range. Anything you send before then is queued.</string>
+    <string name="peers_everyone">Everyone</string>
+    <string name="peers_everyone_in_range">Everyone in range</string>
+    <string name="peers_nobody_in_range">Nobody in range yet</string>
+    <string name="peers_no_messages">No messages yet</string>
+    <string name="chat_in_range">In range</string>
+    <string name="chat_out_of_range">Out of range</string>
+    <string name="chat_subtitle_disappears">disappears after %1$s</string>
+    <string name="chat_subtitle_muted">muted</string>
+    <string name="chat_empty_title">No messages yet</string>
+    <string name="chat_empty_detail">Anything you send now is queued and goes out as soon as someone is in range.</string>
     <string name="chat_back">Back to peers</string>
     <string name="chat_more_options">More options</string>
     <string name="chat_composer_placeholder">Message</string>
@@ -72,6 +82,8 @@
     <string name="chat_resend_action">Resend</string>
     <string name="chat_resend_hint">tap to resend</string>
     <string name="chat_actions_label">Message options</string>
+    <string name="chat_attach_image">Attach an image</string>
+    <string name="chat_preparing_image">Preparing image</string>
     <string name="chat_view_image">View image</string>
     <string name="chat_copy_action">Copy</string>
     <string name="chat_forward_action">Forward</string>

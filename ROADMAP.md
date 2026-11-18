@@ -33,7 +33,6 @@ measurement, #23 route strip after its privacy call.
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 77 | **Feature: tell me when this contact is in range**: a chat menu toggle and a one-shot local notification when the peer joins `boundPeers`, rate-limited. | P2 | M | No wire change |
-| 78 | **Naming and strings**: app name, peer list, chat bar and composer done (#107); radar, signal bars and image viewer in #108. Left: the "Everyone" row label and preview-only text. | P3 | S | |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
@@ -141,3 +140,5 @@ change once decided.
 | 2026-11-12 | docs/SECURITY_DESIGN.md: threat model, mechanisms with their pull requests, open gaps | #104 | see log |
 | 2026-11-12 | #80 APK ships only the English locale (`localeFilters`); dependencies brought about 80 | #105 | see log |
 | 2026-11-12 | #78 part 2: the app is called Null Chat everywhere; peer list, chat bar and composer text in strings.xml | #107 | see log |
+| 2026-11-12 | #78 part 2: radar description, signal bars and image viewer text in strings.xml | #108 | see log |
+| 2026-11-18 | #78 done: the "Everyone" label, chat subtitles, empty states and the attach button in strings.xml; previews use the same resources | #110 | see log |

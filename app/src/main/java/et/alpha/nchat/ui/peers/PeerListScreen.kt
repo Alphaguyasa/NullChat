@@ -327,7 +327,10 @@ internal fun PeerRowItem(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = row.label,
+                    // The broadcast label is resolved here, in composition, so it
+                    // follows the app's resources; the view model's copy only
+                    // feeds sorting and search.
+                    text = if (row.isBroadcast) stringResource(R.string.peers_everyone) else row.label,
                     // A peer id is machine text people compare character by
                     // character; the broadcast row's "Everyone" is a word and
                     // reads as one.
@@ -362,12 +365,12 @@ internal fun PeerRowItem(
                 }
             }
             val subtitle = row.lastMessage ?: when {
-                row.isBroadcast && row.isOnline -> "Everyone in range"
+                row.isBroadcast && row.isOnline -> stringResource(R.string.peers_everyone_in_range)
                 // Not "Everyone in range" regardless, which is what this used to
                 // say: with nobody around it claimed an audience that does not
                 // exist, directly under a header reading "no devices in range".
-                row.isBroadcast -> "Nobody in range yet"
-                else -> "No messages yet"
+                row.isBroadcast -> stringResource(R.string.peers_nobody_in_range)
+                else -> stringResource(R.string.peers_no_messages)
             }
             Text(
                 text = subtitle,
@@ -576,7 +579,7 @@ private fun PeerListPreview() {
             )
             HorizontalDivider()
             PeerRowItem(
-                row = PeerRow(null, "Everyone", true, "meet me at the north gate", 2),
+                row = PeerRow(null, stringResource(R.string.peers_everyone), true, "meet me at the north gate", 2),
                 onClick = {},
             )
             HorizontalDivider()
@@ -606,7 +609,7 @@ private fun PeerListEmptyPreview() {
             HorizontalDivider()
             MeshRadar(peers = emptyList(), modifier = Modifier.padding(vertical = 12.dp))
             HorizontalDivider()
-            PeerRowItem(row = PeerRow(null, "Everyone", false, null, 0), onClick = {})
+            PeerRowItem(row = PeerRow(null, stringResource(R.string.peers_everyone), false, null, 0), onClick = {})
             HorizontalDivider()
             EmptyState(
                 modifier = Modifier.padding(top = 40.dp),
