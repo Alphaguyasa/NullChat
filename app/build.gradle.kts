@@ -87,8 +87,8 @@ ksp {
 // Compose pinned.
 configurations.matching { it.name.contains("AndroidTest") }.configureEach {
     resolutionStrategy {
-        force("org.jetbrains.kotlinx:kotlinx-serialization-core:1.12.0")
-        force("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.12.0")
+        force("org.jetbrains.kotlinx:kotlinx-serialization-core:1.13.0")
+        force("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.13.0")
     }
 }
 
