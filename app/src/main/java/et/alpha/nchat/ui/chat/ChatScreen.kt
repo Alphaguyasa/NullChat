@@ -559,10 +559,11 @@ private fun TimerChangeLine(text: String, modifier: Modifier = Modifier) {
  * the peer and their reachability — and a `TopAppBar` is a fixed 64dp container
  * that clips whatever does not fit. At 200% font scale those two lines measure
  * around 100dp and the second one disappeared, taking the only statement this
- * screen makes about the radio with it. This grows instead.
+ * screen makes about the radio with it. This grows instead. Internal so
+ * `LargeFontTest` can hold it to that at 200%.
  */
 @Composable
-private fun ChatTopBar(
+internal fun ChatTopBar(
     title: String,
     subtitle: String,
     isMonoTitle: Boolean,
