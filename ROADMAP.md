@@ -31,6 +31,10 @@ measurement, #23 route strip after its privacy call.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
+| 89 | **Dependency bumps** (Gradle 9.9.1, AGP 9.5.1, KSP 2.3.13, MockK 1.14.12, serialization 1.13.0): find the nondeterministic CI failure seen with them, then land them. | P2 | S | Open PR #112 |
+| 88 | **"Turn off" on the in-range notification**: an action that clears the alert without opening the app. | P3 | S | Follows #81 |
+| 86 | **Settings UI test for in-range alerts**: Compose test for the empty line, the list and the spoken "Turn off" label. | P3 | S | Follows #81 |
+| 87 | **`OutboundSender` split**: move the send-side glue out of `MeshCoordinator` (about 1200 lines) behind the existing JVM tests. | P3 | M | Tech debt |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
