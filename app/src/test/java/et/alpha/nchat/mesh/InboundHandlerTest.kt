@@ -207,6 +207,69 @@ class InboundHandlerTest {
     }
 
     @Test
+    fun `a direct message sent in the clear by an old build shows the placeholder`() = runTest {
+        val handler = handler()
+        val arrivals = arrivalsOf(handler)
+        // Valid UTF-8 but not sealed: what builds before the cutoff sent when
+        // they lacked our agreement key.
+        val packet = MessagePacket.build(newMessageId(), alice, self.peerId.toHexId(), "hi", timestamp = 42L)
+
+        handler.handle(packet)
+
+        assertEquals(MessagePacket.UNDECRYPTABLE_BODY, store.rows.getValue(packet.messageId.toHexId()).body)
+        assertEquals(MessagePacket.UNDECRYPTABLE_BODY, arrivals.single().preview)
+    }
+
+    @Test
+    fun `a broadcast is still read as text`() = runTest {
+        val handler = handler()
+        val packet = broadcast("hello, everyone")
+
+        handler.handle(packet)
+
+        assertEquals("hello, everyone", store.rows.getValue(packet.messageId.toHexId()).body)
+    }
+
+    @Test
+    fun `an image sent in the clear by an old build is not stored or shown`() = runTest {
+        val handler = handler()
+        val arrivals = arrivalsOf(handler)
+        val messageId = newMessageId()
+        val pieces = Fragmenter.fragment(
+            messageId = messageId.hexIdToBytes(),
+            senderId = alice,
+            recipientId = self.peerId,
+            payload = Attachment.jpeg(ByteArray(500) { it.toByte() }).encode(),
+            timestamp = 42L,
+        )
+
+        pieces.forEach { handler.handle(it) }
+
+        val row = store.rows.getValue(messageId)
+        assertEquals(MessagePacket.UNDECRYPTABLE_BODY, row.body)
+        assertNull(row.attachmentFile)
+        assertTrue(store.images.isEmpty())
+        assertFalse(arrivals.single().isImage)
+    }
+
+    @Test
+    fun `long text sent in the clear by an old build shows the placeholder`() = runTest {
+        val handler = handler()
+        val messageId = newMessageId()
+        val pieces = Fragmenter.fragment(
+            messageId = messageId.hexIdToBytes(),
+            senderId = alice,
+            recipientId = self.peerId,
+            payload = Attachment.text("a".repeat(300)).encode(),
+            timestamp = 42L,
+        )
+
+        pieces.forEach { handler.handle(it) }
+
+        assertEquals(MessagePacket.UNDECRYPTABLE_BODY, store.rows.getValue(messageId).body)
+    }
+
+    @Test
     fun `a receipt from the addressee marks our message delivered`() = runTest {
         val handler = handler()
         val ours = store.outgoing(to = aliceHex)
