@@ -32,7 +32,6 @@ measurement, #23 route strip after its privacy call.
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
 | 81 | **In-range alert, part 2**: list watched contacts in Settings so they can be turned off in one place (the chat bar already says "in-range alert on"). | P3 | S | Follows #77 |
-| 82 | **Send failures as reason codes**: `SendResult.Rejected/Failed` carry English text from the mesh layer; give them codes the UI maps to strings.xml. | P3 | S | Follows #78 |
 | 85 | **Large-font UI tests**: Compose tests at 200% font scale for the chat bar (subtitle with timer, mute and alert) and the peer row (long name plus badge). | P3 | S | |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
@@ -145,3 +144,4 @@ change once decided.
 | 2026-11-18 | #77 "Tell me when they are in range": chat menu toggle, one notification when the contact's link proves its id, at most once per 30 minutes (needs two-phone check) | #111 | see log |
 | 2026-11-23 | #84 Plaintext direct-message cutoff: an unsealed direct message shows "could not be decrypted", an unsealed image is not stored | — | see log |
 | 2026-11-23 | #83 Timer label and timer lines from strings.xml, with plurals (minutes, hours, days, weeks) | — | see log |
+| 2026-11-23 | #82 Send failures as `SendFailure` codes; the chat maps each to a sentence in strings.xml | — | see log |

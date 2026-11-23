@@ -268,10 +268,10 @@ class ChatViewModel @Inject constructor(
         _replyTo.value = null
         viewModelScope.launch {
             when (val result = coordinator.send(body = body, recipientHexId = target)) {
-                is SendResult.Rejected -> _errors.value = result.reason
+                is SendResult.Rejected -> _errors.value = context.getString(sendFailureText(result.reason))
                 // Only long, fragmented text can fail outright; a short message
                 // with nobody in range is Pending and goes out later.
-                is SendResult.Failed -> _errors.value = result.reason
+                is SendResult.Failed -> _errors.value = context.getString(sendFailureText(result.reason))
                 SendResult.Pending, SendResult.Sent -> Unit
             }
         }
@@ -302,11 +302,11 @@ class ChatViewModel @Inject constructor(
             }
 
             when (val result = coordinator.sendImage(scaled.jpeg, target)) {
-                is SendResult.Rejected -> _errors.value = result.reason
+                is SendResult.Rejected -> _errors.value = context.getString(sendFailureText(result.reason))
                 // Images are not store-and-forwarded: a fragment that finds no
                 // peer ends the transfer, so this is a real failure the user has
                 // to know about, not the quiet "will go out later" that text gets.
-                is SendResult.Failed -> _errors.value = result.reason
+                is SendResult.Failed -> _errors.value = context.getString(sendFailureText(result.reason))
                 SendResult.Pending, SendResult.Sent -> Unit
             }
         }
@@ -321,8 +321,8 @@ class ChatViewModel @Inject constructor(
     fun onResend(messageId: String) {
         viewModelScope.launch {
             when (val result = coordinator.resend(messageId)) {
-                is SendResult.Rejected -> _errors.value = result.reason
-                is SendResult.Failed -> _errors.value = result.reason
+                is SendResult.Rejected -> _errors.value = context.getString(sendFailureText(result.reason))
+                is SendResult.Failed -> _errors.value = context.getString(sendFailureText(result.reason))
                 SendResult.Pending, SendResult.Sent -> Unit
             }
         }

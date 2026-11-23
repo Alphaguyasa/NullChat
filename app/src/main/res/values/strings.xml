@@ -175,6 +175,18 @@
     <string name="timer_line_peer_off">%1$s turned off disappearing messages</string>
     <string name="timer_line_you_set">You set messages to disappear after %1$s</string>
     <string name="timer_line_peer_set">%1$s set messages to disappear after %2$s</string>
+    <!-- Why a send did not go out (snackbar). -->
+    <string name="send_failure_empty">There is nothing to send.</string>
+    <string name="send_failure_text_too_long">This message is too long to send. Split it into shorter ones.</string>
+    <string name="send_failure_image_too_large">This image is too large to send, even after shrinking it.</string>
+    <string name="send_failure_image_not_saved">Could not save the image on this phone.</string>
+    <string name="send_failure_not_prepared">Could not prepare the message for sending.</string>
+    <string name="send_failure_no_key">No encryption key for this person yet. Try again once they have been in range, or pair by QR code.</string>
+    <string name="send_failure_nobody_in_range">Nobody was in range for long enough to receive it.</string>
+    <string name="send_failure_already_resending">That message is already being sent again.</string>
+    <string name="send_failure_message_gone">That message is no longer here.</string>
+    <string name="send_failure_not_failed">Only a message that failed can be sent again.</string>
+    <string name="send_failure_image_gone">The image for that message is no longer stored.</string>
     <string name="chat_disappearing_action">Disappearing messages</string>
     <string name="chat_disappearing_title">Disappearing messages</string>
     <string name="chat_disappearing_body">New messages in this chat are deleted from this phone after the time you pick. Messages already here stay. Other phones keep their own copies.</string>
