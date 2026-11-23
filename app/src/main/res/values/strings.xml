@@ -151,6 +151,30 @@
     <string name="chat_rename_body">Only you see this name. Leave it empty to use the name they chose.</string>
     <string name="chat_rename_label">Nickname</string>
     <string name="chat_rename_save">Save</string>
+    <string name="timer_off">Off</string>
+    <plurals name="timer_minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <plurals name="timer_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <plurals name="timer_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="timer_weeks">
+        <item quantity="one">%d week</item>
+        <item quantity="other">%d weeks</item>
+    </plurals>
+    <!-- Timer lines in the thread. Whole sentences per subject, so a translation
+         can agree the verb with "you" and with a name. -->
+    <string name="timer_line_unnamed_contact">Your contact</string>
+    <string name="timer_line_you_off">You turned off disappearing messages</string>
+    <string name="timer_line_peer_off">%1$s turned off disappearing messages</string>
+    <string name="timer_line_you_set">You set messages to disappear after %1$s</string>
+    <string name="timer_line_peer_set">%1$s set messages to disappear after %2$s</string>
     <string name="chat_disappearing_action">Disappearing messages</string>
     <string name="chat_disappearing_title">Disappearing messages</string>
     <string name="chat_disappearing_body">New messages in this chat are deleted from this phone after the time you pick. Messages already here stay. Other phones keep their own copies.</string>
