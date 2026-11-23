@@ -75,8 +75,8 @@ sealed interface SendResult {
      */
     data object Pending : SendResult
 
-    /** Rejected before storage — currently only ever an over-length body. */
-    data class Rejected(val reason: String) : SendResult
+    /** Rejected before storage: an empty or over-length body, or a resend that cannot happen. */
+    data class Rejected(val reason: SendFailure) : SendResult
 
     /**
      * Stored, but the transfer could not finish; the row is FAILED.
@@ -85,7 +85,7 @@ sealed interface SendResult {
      * an empty mesh is a real failure the user needs to hear about rather than
      * the quiet "will go out later" of [Pending].
      */
-    data class Failed(val reason: String) : SendResult
+    data class Failed(val reason: SendFailure) : SendResult
 }
 
 /**
@@ -842,18 +842,18 @@ class MeshCoordinator @Inject constructor(
     suspend fun resend(messageId: String): SendResult = scope.outliveCaller { resendNow(messageId) }
 
     private suspend fun resendNow(messageId: String): SendResult {
-        if (!resending.add(messageId)) return SendResult.Rejected("That message is already being sent again.")
+        if (!resending.add(messageId)) return SendResult.Rejected(SendFailure.ALREADY_RESENDING)
         try {
             val row = messages.findMessage(messageId)
-                ?: return SendResult.Rejected("That message is no longer here.")
+                ?: return SendResult.Rejected(SendFailure.MESSAGE_GONE)
             val target = resendTarget(row)
-                ?: return SendResult.Rejected("Only a message that failed can be sent again.")
+                ?: return SendResult.Rejected(SendFailure.NOT_FAILED)
 
             val attachment = row.attachmentFile
                 ?: return sendText(row.body, target.recipientHexId, replaces = row.id)
 
             val jpeg = attachments.read(attachment)
-                ?: return SendResult.Rejected("The image for that message is no longer stored.")
+                ?: return SendResult.Rejected(SendFailure.IMAGE_GONE)
             val result = sendImageNow(jpeg, target.recipientHexId, replaces = row.id)
             // Keyed on the old row being gone rather than on the result: the new
             // row stores its own copy under its own id, and some failures land
@@ -955,12 +955,9 @@ class MeshCoordinator @Inject constructor(
     }
 
     private suspend fun sendText(body: String, recipientHexId: String?, replaces: String?): SendResult {
-        if (body.isBlank()) return SendResult.Rejected("empty message")
+        if (body.isBlank()) return SendResult.Rejected(SendFailure.EMPTY)
         if (!MessagePacket.isSendable(body)) {
-            return SendResult.Rejected(
-                "message is ${MessagePacket.bodyByteCount(body)} bytes, " +
-                    "over the ${MessagePacket.MAX_TEXT_BYTES} byte limit",
-            )
+            return SendResult.Rejected(SendFailure.TEXT_TOO_LONG)
         }
         if (!MessagePacket.fits(body)) return sendLongText(body, recipientHexId, replaces)
 
@@ -1006,17 +1003,14 @@ class MeshCoordinator @Inject constructor(
         replaces: String?,
     ): SendResult {
         if (!ImagePolicy.fits(jpeg.size)) {
-            return SendResult.Rejected(
-                "image is ${jpeg.size} bytes, over the " +
-                    "${ImagePolicy.MAX_ENCODED_BYTES} byte limit",
-            )
+            return SendResult.Rejected(SendFailure.IMAGE_TOO_LARGE)
         }
 
         val messageId = newMessageId()
         // Stored before anything is transmitted, same ordering as text: a crash
         // mid-send leaves a visible row rather than a message that vanished.
         val fileName = attachments.write(messageId, jpeg)
-            ?: return SendResult.Rejected("could not save the image")
+            ?: return SendResult.Rejected(SendFailure.IMAGE_NOT_SAVED)
 
         val conversationId = conversationIdFor(recipientHexId)
         val row = messages.recordOutgoing(
@@ -1035,11 +1029,11 @@ class MeshCoordinator @Inject constructor(
             .onFailure { Log.w(TAG, "could not fragment image: ${it.message}") }
             .getOrElse {
                 messages.markFailed(row.id)
-                return SendResult.Rejected("could not prepare the image for sending")
+                return SendResult.Rejected(SendFailure.NOT_PREPARED)
             }
             ?: run {
                 messages.markFailed(row.id)
-                return SendResult.Failed(NO_KEY_FOR_FRAGMENTS)
+                return SendResult.Failed(SendFailure.NO_KEY)
             }
 
         return transmitFragments(row.id, fragments)
@@ -1072,11 +1066,11 @@ class MeshCoordinator @Inject constructor(
             .onFailure { Log.w(TAG, "could not fragment long text: ${it.message}") }
             .getOrElse {
                 messages.markFailed(row.id)
-                return SendResult.Failed("Could not prepare the message for sending.")
+                return SendResult.Failed(SendFailure.NOT_PREPARED)
             }
             ?: run {
                 messages.markFailed(row.id)
-                return SendResult.Failed(NO_KEY_FOR_FRAGMENTS)
+                return SendResult.Failed(SendFailure.NO_KEY)
             }
 
         return transmitFragments(row.id, fragments)
@@ -1158,7 +1152,7 @@ class MeshCoordinator @Inject constructor(
                     Log.w(TAG, "transfer stalled at fragment $index/${fragments.size}, no peers")
                     transfers.fail(messageId)
                     messages.markFailed(messageId)
-                    return@onCancellation SendResult.Failed("Nobody was in range for long enough to receive it.")
+                    return@onCancellation SendResult.Failed(SendFailure.NOBODY_IN_RANGE)
                 }
                 transfers.advance(messageId, index + 1)
                 if (index < fragments.lastIndex) delay(FRAGMENT_SPACING_MILLIS)
@@ -1352,14 +1346,6 @@ class MeshCoordinator @Inject constructor(
 
         /** Withdrawals held for a slow listener; one sweep rarely touches more threads. */
         const val WITHDRAWN_BUFFER = 64
-
-        /**
-         * Why a long message or image to a not-yet-introduced peer failed.
-         * Fragments cannot be held for later the way single packets are.
-         */
-        const val NO_KEY_FOR_FRAGMENTS =
-            "No encryption key for this person yet. Try again once they have been " +
-                "in range, or pair by QR code."
 
         /**
          * How often queued rows are checked against the queue's lifetime.
