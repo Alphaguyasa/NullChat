@@ -349,8 +349,9 @@ fun ChatScreen(
                     state.isPeerOnline -> stringResource(R.string.chat_in_range)
                     else -> stringResource(R.string.chat_out_of_range)
                 }
+                val timerWords = rememberTimerWords()
                 val disappears = state.disappearAfterMillis?.let {
-                    stringResource(R.string.chat_subtitle_disappears, DisappearingTimer.label(it))
+                    stringResource(R.string.chat_subtitle_disappears, DisappearingTimer.label(it, timerWords))
                 }
                 val muted = if (state.isMuted) stringResource(R.string.chat_subtitle_muted) else null
                 // Said in the bar, not only in the menu: an alert someone forgot
@@ -450,7 +451,7 @@ fun ChatScreen(
                         items(state.rows, key = { it.key }) { row ->
                             if (row is ThreadRow.TimerLine) {
                                 TimerChangeLine(
-                                    text = timerLineText(row.change, state.peerName),
+                                    text = timerLineText(row.change, state.peerName, rememberTimerWords()),
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = if (animate) MotionSpec else null,
                                         placementSpec = if (animate) MotionPlacementSpec else null,
@@ -1283,6 +1284,7 @@ private fun DisappearingDialog(
                     ),
                 )
                 Spacer(Modifier.height(8.dp))
+                val timerWords = rememberTimerWords()
                 DisappearingTimer.OPTIONS.forEach { option ->
                     Row(
                         modifier = Modifier
@@ -1299,7 +1301,7 @@ private fun DisappearingDialog(
                         // the button is only the picture of the choice.
                         RadioButton(selected = option == current, onClick = null)
                         Spacer(Modifier.width(12.dp))
-                        Text(DisappearingTimer.label(option))
+                        Text(DisappearingTimer.label(option, timerWords))
                     }
                 }
             }

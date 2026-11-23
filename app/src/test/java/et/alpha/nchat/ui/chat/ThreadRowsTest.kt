@@ -64,19 +64,19 @@ class ThreadRowsTest {
     fun `a line says who changed the timer and to what`() {
         assertEquals(
             "Maya set messages to disappear after 1 hour",
-            timerLineText(change(1, 0, byPeer = true, millis = HOUR), "Maya"),
+            timerLineText(change(1, 0, byPeer = true, millis = HOUR), "Maya", EnglishTimerWords),
         )
         assertEquals(
             "Maya turned off disappearing messages",
-            timerLineText(change(1, 0, byPeer = true, millis = null), "Maya"),
+            timerLineText(change(1, 0, byPeer = true, millis = null), "Maya", EnglishTimerWords),
         )
         assertEquals(
             "You set messages to disappear after 1 week",
-            timerLineText(change(1, 0, byPeer = false, millis = 7 * 24 * HOUR), "Maya"),
+            timerLineText(change(1, 0, byPeer = false, millis = 7 * 24 * HOUR), "Maya", EnglishTimerWords),
         )
         assertEquals(
             "You turned off disappearing messages",
-            timerLineText(change(1, 0, byPeer = false, millis = null), null),
+            timerLineText(change(1, 0, byPeer = false, millis = null), null, EnglishTimerWords),
         )
     }
 
@@ -84,7 +84,7 @@ class ThreadRowsTest {
     fun `an unnamed contact is not shown as a bare id`() {
         assertEquals(
             "Your contact turned off disappearing messages",
-            timerLineText(change(1, 0, byPeer = true, millis = null), null),
+            timerLineText(change(1, 0, byPeer = true, millis = null), null, EnglishTimerWords),
         )
     }
 

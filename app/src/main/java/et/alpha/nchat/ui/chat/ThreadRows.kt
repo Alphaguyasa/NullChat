@@ -46,10 +46,11 @@ internal fun threadRows(messages: List<MessageEntity>, changes: List<TimerChange
  * [peerName] is the name the thread's title uses, or null when the peer has
  * none; the line then says "Your contact" rather than a 16-character id.
  */
-internal fun timerLineText(change: TimerChangeEntity, peerName: String?): String {
-    val who = if (change.byPeer) peerName ?: "Your contact" else "You"
-    return when (val millis = change.disappearAfterMillis) {
-        null -> "$who turned off disappearing messages"
-        else -> "$who set messages to disappear after ${DisappearingTimer.label(millis)}"
+internal fun timerLineText(change: TimerChangeEntity, peerName: String?, words: TimerWords): String {
+    val millis = change.disappearAfterMillis
+    if (!change.byPeer) {
+        return if (millis == null) words.youTurnedOff() else words.youSet(DisappearingTimer.label(millis, words))
     }
+    val who = peerName ?: words.unnamedContact()
+    return if (millis == null) words.peerTurnedOff(who) else words.peerSet(who, DisappearingTimer.label(millis, words))
 }
