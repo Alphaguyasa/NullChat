@@ -141,7 +141,7 @@ change once decided.
 | 2026-11-12 | #78 part 2: radar description, signal bars and image viewer text in strings.xml | #108 | see log |
 | 2026-11-18 | #78 done: the "Everyone" label, chat subtitles, empty states and the attach button in strings.xml; previews use the same resources | #110 | see log |
 | 2026-11-18 | #77 "Tell me when they are in range": chat menu toggle, one notification when the contact's link proves its id, at most once per 30 minutes (needs two-phone check) | #111 | see log |
-| 2026-11-23 | #84 Plaintext direct-message cutoff: an unsealed direct message shows "could not be decrypted", an unsealed image is not stored | — | see log |
-| 2026-11-23 | #83 Timer label and timer lines from strings.xml, with plurals (minutes, hours, days, weeks) | — | see log |
-| 2026-11-23 | #82 Send failures as `SendFailure` codes; the chat maps each to a sentence in strings.xml | — | see log |
-| 2026-11-23 | #85 Large-font UI tests: chat bar (timer, mute, alert) and peer row (long name, badge, unread) at 200% and 360dp | — | see log |
+| 2026-11-23 | #84 Plaintext direct-message cutoff: an unsealed direct message shows "could not be decrypted", an unsealed image is not stored | #116 | see log |
+| 2026-11-23 | #83 Timer label and timer lines from strings.xml, with plurals (minutes, hours, days, weeks) | #117 | see log |
+| 2026-11-23 | #82 Send failures as `SendFailure` codes; the chat maps each to a sentence in strings.xml | #118 | see log |
+| 2026-11-23 | #85 Large-font UI tests: chat bar (timer, mute, alert) and peer row (long name, badge, unread) at 200% and 360dp | #119 | see log |
