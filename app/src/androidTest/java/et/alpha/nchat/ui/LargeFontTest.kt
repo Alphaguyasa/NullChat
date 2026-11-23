@@ -71,7 +71,7 @@ class LargeFontTest {
         // Displayed is not enough: a fixed-height bar would place the line and
         // clip it. The bar must have grown to hold all of it.
         val bar = compose.onNodeWithTag(FRAME).getUnclippedBoundsInRoot()
-        val line = compose.onNodeWithText(subtitle).getUnclippedBoundsInRoot()
+        val line = compose.onNodeWithText(subtitle, useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue("subtitle ends below the bar", line.bottom <= bar.bottom)
         assertTrue("subtitle runs past the bar's width", line.right <= bar.right)
     }
@@ -93,10 +93,12 @@ class LargeFontTest {
         }
 
         val row = compose.onNodeWithTag(FRAME).getUnclippedBoundsInRoot()
+        // The row is clickable, so its texts merge into one node; bounds are
+        // read from the unmerged tree, or every text would measure as the row.
         compose.onNodeWithText("unverified").assertIsDisplayed()
         compose.onNodeWithText("3").assertIsDisplayed()
-        val badge = compose.onNodeWithText("unverified").getUnclippedBoundsInRoot()
-        val unread = compose.onNodeWithText("3").getUnclippedBoundsInRoot()
+        val badge = compose.onNodeWithText("unverified", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val unread = compose.onNodeWithText("3", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue("badge pushed off the row", badge.right <= row.right)
         assertTrue("unread count pushed off the row", unread.right <= row.right)
         assertTrue("badge overlaps the unread count", badge.right <= unread.left)
