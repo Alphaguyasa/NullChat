@@ -31,7 +31,6 @@ measurement, #23 route strip after its privacy call.
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 81 | **In-range alert, part 2**: list watched contacts in Settings so they can be turned off in one place (the chat bar already says "in-range alert on"). | P3 | S | Follows #77 |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
 | 22 | **Voice notes** (≤10 s Opus over Fragmenter). | P3 | L | |
@@ -145,3 +144,4 @@ change once decided.
 | 2026-11-23 | #83 Timer label and timer lines from strings.xml, with plurals (minutes, hours, days, weeks) | #117 | see log |
 | 2026-11-23 | #82 Send failures as `SendFailure` codes; the chat maps each to a sentence in strings.xml | #118 | see log |
 | 2026-11-23 | #85 Large-font UI tests: chat bar (timer, mute, alert) and peer row (long name, badge, unread) at 200% and 360dp | #119 | see log |
+| 2026-11-23 | #81 In-range alert part 2: Settings lists watched contacts, each with "Turn off" | #120 | see log |
