@@ -21,6 +21,7 @@ import et.alpha.nchat.mesh.MeshHealth
 import et.alpha.nchat.mesh.transport.BatteryMode
 import et.alpha.nchat.ui.settings.SettingsContent
 import et.alpha.nchat.ui.settings.SettingsState
+import et.alpha.nchat.ui.settings.WatchedContact
 import et.alpha.nchat.ui.theme.NChatTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -32,6 +33,57 @@ class SettingsScreenTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun noInRangeAlertsSaysWhereToTurnOneOn() {
+        compose.setContent {
+            NChatTheme {
+                SettingsContent(
+                    state = SettingsState(selfId = SELF),
+                    saved = false,
+                    wipeFailed = false,
+                    onBack = {},
+                    onDraftChange = {},
+                    onSave = {},
+                    onWipe = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("In-range alerts").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Tell me when they are in range", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun anInRangeAlertCanBeTurnedOffByName() {
+        val stopped = mutableListOf<String>()
+        compose.setContent {
+            NChatTheme {
+                SettingsContent(
+                    state = SettingsState(selfId = SELF),
+                    saved = false,
+                    wipeFailed = false,
+                    onBack = {},
+                    onDraftChange = {},
+                    onSave = {},
+                    onWipe = {},
+                    watchedContacts = listOf(
+                        WatchedContact("aaaaaaaa11111111", "Dawit · aaaaaaaa"),
+                        WatchedContact("bbbbbbbb22222222", "Maya · bbbbbbbb"),
+                    ),
+                    onStopWatching = { stopped += it },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Maya · bbbbbbbb").performScrollTo().assertIsDisplayed()
+        // Each button says whose alert it turns off, not only "Turn off".
+        compose.onNode(hasContentDescription("Turn off the in-range alert for Maya · bbbbbbbb"))
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(listOf("bbbbbbbb22222222"), stopped)
+    }
 
     @Test
     fun saveIsOfferedOnlyOnceTheNameChanges() {

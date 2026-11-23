@@ -6,7 +6,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import et.alpha.nchat.data.settings.AppLockStore
 import et.alpha.nchat.data.settings.BatteryModeStore
 import et.alpha.nchat.data.settings.DisplayNameStore
+import et.alpha.nchat.data.repo.PeerRepository
 import et.alpha.nchat.data.settings.MeshEnabledStore
+import et.alpha.nchat.data.settings.RangeWatchStore
 import et.alpha.nchat.data.wipe.PanicWipe
 import et.alpha.nchat.mesh.MeshCoordinator
 import et.alpha.nchat.mesh.MeshHealth
@@ -53,7 +55,21 @@ class SettingsViewModel @Inject constructor(
     private val battery: BatteryModeStore,
     private val mesh: MeshEnabledStore,
     private val coordinator: MeshCoordinator,
+    private val rangeWatch: RangeWatchStore,
+    peers: PeerRepository,
 ) : ViewModel() {
+
+    /**
+     * Contacts with the in-range alert on, so they can be turned off in one
+     * place rather than chat by chat (roadmap #81).
+     */
+    val watchedContacts: StateFlow<List<WatchedContact>> =
+        combine(rangeWatch.watched, peers.observePeers()) { ids, all -> watchedContacts(ids, all) }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+                initialValue = emptyList(),
+            )
 
     /**
      * The router's counters, read every [HEALTH_POLL_MS] while the screen is
@@ -144,6 +160,10 @@ class SettingsViewModel @Inject constructor(
      */
     fun onMeshEnabledChange(enabled: Boolean) {
         mesh.setEnabled(enabled)
+    }
+
+    fun onStopWatching(peerId: String) {
+        rangeWatch.setWatched(peerId, watched = false)
     }
 
     fun onBatteryModeChange(mode: BatteryMode) {

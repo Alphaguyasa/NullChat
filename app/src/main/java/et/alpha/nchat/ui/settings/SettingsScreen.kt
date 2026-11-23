@@ -78,6 +78,7 @@ fun SettingsScreen(
     val saved by viewModel.saved.collectAsState()
     val wipeFailed by viewModel.wipeFailed.collectAsState()
     val health by viewModel.health.collectAsState()
+    val watched by viewModel.watchedContacts.collectAsState()
     val context = LocalContext.current
     val lockAvailable = remember { SystemUnlock.isAvailable(context) }
 
@@ -94,6 +95,8 @@ fun SettingsScreen(
         onBatteryModeChange = viewModel::onBatteryModeChange,
         onMeshEnabledChange = viewModel::onMeshEnabledChange,
         health = health,
+        watchedContacts = watched,
+        onStopWatching = viewModel::onStopWatching,
         buildLabel = remember {
             BuildIdentity.label(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.COMMIT)
         },
@@ -118,6 +121,8 @@ internal fun SettingsContent(
     onBatteryModeChange: (BatteryMode) -> Unit = {},
     onMeshEnabledChange: (Boolean) -> Unit = {},
     health: MeshHealth = MeshHealth(),
+    watchedContacts: List<WatchedContact> = emptyList(),
+    onStopWatching: (String) -> Unit = {},
     /** Which build this is; empty in previews and tests. */
     buildLabel: String = "",
 ) {
@@ -306,6 +311,10 @@ internal fun SettingsContent(
 
             HorizontalDivider()
 
+            WatchedContactRows(watchedContacts, onStopWatching)
+
+            HorizontalDivider()
+
             Text(
                 text = stringResource(R.string.settings_battery_title),
                 style = MaterialTheme.typography.titleSmall,
@@ -378,6 +387,52 @@ internal fun SettingsContent(
  * count means rather than naming the counter, so a non-technical reader can
  * tell a crowd walking past (failed relays) from someone attacking (forged).
  */
+/**
+ * The contacts the user asked to hear about, each with a way to stop.
+ *
+ * Shown even when empty, with a line saying where the alert is turned on:
+ * a section that appears only once something is set is one nobody finds.
+ */
+@Composable
+private fun WatchedContactRows(contacts: List<WatchedContact>, onStop: (String) -> Unit) {
+    Text(
+        text = stringResource(R.string.settings_range_title),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    if (contacts.isEmpty()) {
+        Text(
+            text = stringResource(R.string.settings_range_none),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    contacts.forEach { contact ->
+        val stopLabel = stringResource(R.string.settings_range_stop_for, contact.label)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = contact.label,
+                style = MonoBody,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                onClick = { onStop(contact.peerId) },
+                // "Turn off" alone, repeated down a list, does not say for whom.
+                modifier = Modifier.semantics { contentDescription = stopLabel },
+            ) {
+                Text(stringResource(R.string.settings_range_stop))
+            }
+        }
+    }
+    Text(
+        text = stringResource(R.string.settings_range_hint),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
 @Composable
 private fun MeshHealthRows(health: MeshHealth) {
     Text(

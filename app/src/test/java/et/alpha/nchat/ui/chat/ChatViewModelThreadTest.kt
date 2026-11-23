@@ -15,10 +15,11 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -87,6 +88,9 @@ class ChatViewModelThreadTest {
         // on Default and resumes on Main after tearDown has reset it, where no
         // Main dispatcher exists. That exception surfaced in whichever coroutine
         // test ran next (UncaughtExceptionsBeforeTest in QrPairViewModelTest).
-        viewModel.viewModelScope.cancel()
+        // Cancel alone was not enough: the Default side could still be handing
+        // its cancellation back to Main when tearDown ran. Joining waits for
+        // every child, on either dispatcher, to finish first.
+        viewModel.viewModelScope.coroutineContext.job.cancelAndJoin()
     }
 }
