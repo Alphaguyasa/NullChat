@@ -24,15 +24,13 @@ Ordered; this milestone comes before the rest of the open list.
 - [x] docs/FIELD_CHECK.md: a scripted two-phone check (pairing, relay, image, rate-limit counters)
 - [ ] A security case-study page on the portfolio that links the design doc
 
-Later: a cutoff for plaintext direct
-messages from older builds, #21 group channels, #22 voice notes, #54 Doze
+Later: #21 group channels, #22 voice notes, #54 Doze
 measurement, #23 route strip after its privacy call.
 
 ## Open
 
 | # | Item | Pri | Effort | Notes |
 |---|---|---|---|---|
-| 84 | **Plaintext direct-message cutoff**: stop accepting unencrypted direct messages (the `openedBody` fallback for builds before #9); show the undecryptable placeholder instead. Every build since 2026-10-15 encrypts. | P2 | S | Waits on the decision log |
 | 81 | **In-range alert, part 2**: list watched contacts in Settings so they can be turned off in one place (the chat bar already says "in-range alert on"). | P3 | S | Follows #77 |
 | 82 | **Send failures as reason codes**: `SendResult.Rejected/Failed` carry English text from the mesh layer; give them codes the UI maps to strings.xml. | P3 | S | Follows #78 |
 | 83 | **Timer text from resources**: `DisappearingTimer.label` and the timer lines in `ThreadRows` as plurals in strings.xml. | P3 | S | Follows #78 |
@@ -146,3 +144,4 @@ change once decided.
 | 2026-11-12 | #78 part 2: radar description, signal bars and image viewer text in strings.xml | #108 | see log |
 | 2026-11-18 | #78 done: the "Everyone" label, chat subtitles, empty states and the attach button in strings.xml; previews use the same resources | #110 | see log |
 | 2026-11-18 | #77 "Tell me when they are in range": chat menu toggle, one notification when the contact's link proves its id, at most once per 30 minutes (needs two-phone check) | #111 | see log |
+| 2026-11-23 | #84 Plaintext direct-message cutoff: an unsealed direct message shows "could not be decrypted", an unsealed image is not stored | — | see log |

@@ -52,6 +52,9 @@ resisting radio jamming.
   unknown: it waits, `queued`, until a signed announcement brings the key (#9),
   and agreement keys are stored so a restart does not lose them (#8).
 - A message that cannot be decrypted is shown as such, never as garbage text (#4).
+- A direct message that arrives unsealed (only builds older than #9 sent one)
+  is shown as "could not be decrypted", never as its text, and an unsealed
+  image is not stored (#84).
 
 ## Links: who is actually nearby
 
@@ -106,8 +109,9 @@ advertised. The name is that phone's claim, so:
   someone who later takes both a phone's keys and a recording of the radio
   traffic can read past messages. A ratchet would fix this at the cost of state
   that must survive the mesh's long delays.
-- **Older builds.** The receiving side still accepts plaintext direct messages
-  from builds older than #9. A cutoff is planned once no such builds are in use.
+- **Older builds.** A phone still on a build older than #9 can send a direct
+  message in the clear when it lacks the agreement key. Current builds refuse
+  to show it (#84), but the relays that carried it could still read it.
 - **Metadata.** Sender and recipient ids, packet sizes and timing are visible to
   every phone in range.
 - **Broadcasts** in "Everyone" are signed but not encrypted, by design.

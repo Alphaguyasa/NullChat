@@ -330,17 +330,18 @@ internal class InboundHandler(
     /**
      * Recovers a delivered message's text.
      *
-     * A direct message is tried through the cipher first and falls back to
-     * reading the payload as text, because builds before held direct messages
-     * (see [sealOrHold]) sent in the clear when they lacked our agreement key.
-     * The fallback only accepts well-formed UTF-8; real ciphertext that would
-     * not open becomes a placeholder instead of being rendered as garbage. See [MessagePacket.undecryptedBody].
+     * A direct message that will not open is shown as the placeholder, never
+     * read as text. Builds before 2026-10-15 sent a direct message in the clear
+     * when they lacked our agreement key, readable by every relay on the way.
+     * Every build since holds such a message until the key arrives (see
+     * `sealOrHold` in MeshCoordinator), so showing clear text here would only
+     * keep an old build's leak looking like a private chat.
      */
     private fun openedBody(packet: Packet): String {
         if (packet.isBroadcast) return MessagePacket.bodyOf(packet)
 
         val plaintext = decrypt(packet.senderId, packet.messageId, packet.payload)
-        return plaintext?.toString(Charsets.UTF_8) ?: MessagePacket.undecryptedBody(packet.payload)
+        return plaintext?.toString(Charsets.UTF_8) ?: MessagePacket.UNDECRYPTABLE_BODY
     }
 
     /**
@@ -486,25 +487,27 @@ internal class InboundHandler(
      * Turns a fully reassembled message into a row.
      *
      * Decryption happens here rather than per fragment because the payload was
-     * sealed once before splitting — see `MeshCoordinator.fragmentsFor`. The
-     * plaintext fallback is the same one [openedBody] documents: a peer that does
-     * not hold our agreement key sends in the clear, and refusing to render that
-     * would make the app look broken to two users who have only just met.
+     * sealed once before splitting — see `MeshCoordinator.fragmentsFor`. A
+     * direct payload that will not open becomes the placeholder text, the same
+     * rule [openedBody] documents, so a clear image from an old build is not
+     * written to disk or shown either.
      */
     private suspend fun deliverReassembled(message: ReassembledMessage, hops: Int?) {
         val senderHex = message.senderId.toHexId()
 
-        val decrypted = if (message.isBroadcast) {
+        val opened = if (message.isBroadcast) {
             message.payload
         } else {
             decrypt(message.senderId, message.messageId, message.payload)
         }
-        val plaintext = decrypted ?: message.payload
 
-        val attachment = Attachment.parse(plaintext)
+        val attachment = if (opened == null) {
             // A sealed message we could not open: say so in the thread rather
             // than drop it without a trace.
-            ?: Attachment.text(MessagePacket.UNDECRYPTABLE_BODY).takeIf { decrypted == null }
+            Attachment.text(MessagePacket.UNDECRYPTABLE_BODY)
+        } else {
+            Attachment.parse(opened)
+        }
         if (attachment == null) {
             log.warn("reassembled message from ${Packet.tag(message.senderId)} was not readable")
             return
@@ -521,13 +524,7 @@ internal class InboundHandler(
         store.recordSeen(senderHex)
 
         val isImage = attachment.contentType == ContentType.IMAGE_JPEG
-        // An undecrypted payload that happens to parse as an envelope is still
-        // only shown if its text is genuinely text.
-        val textBody = when {
-            isImage -> ""
-            decrypted != null -> attachment.asText()
-            else -> MessagePacket.undecryptedBody(attachment.data)
-        }
+        val textBody = if (isImage) "" else attachment.asText()
 
         val isNew = when (attachment.contentType) {
             ContentType.IMAGE_JPEG -> {

@@ -137,16 +137,6 @@ object MessagePacket {
             .decode(ByteBuffer.wrap(bytes))
             .toString()
     }.getOrNull()
-
-    /**
-     * The text of a direct message whose decryption failed, or the placeholder.
-     *
-     * Decryption fails for two different reasons. The sender may not have held
-     * our agreement key yet and sent in the clear, which reads as valid UTF-8 and
-     * is shown. Or it really is ciphertext we cannot open (a key mismatch,
-     * corruption), which is never shown as text.
-     */
-    fun undecryptedBody(payload: ByteArray): String = strictUtf8(payload) ?: UNDECRYPTABLE_BODY
 }
 
 /**
