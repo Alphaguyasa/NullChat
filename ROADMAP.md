@@ -33,7 +33,6 @@ measurement, #23 route strip after its privacy call.
 |---|---|---|---|---|
 | 89 | **Dependency bumps** (Gradle 9.9.1, AGP 9.5.1, KSP 2.3.13, MockK 1.14.12, serialization 1.13.0): find the nondeterministic CI failure seen with them, then land them. | P2 | S | Open PR #112 |
 | 88 | **"Turn off" on the in-range notification**: an action that clears the alert without opening the app. | P3 | S | Follows #81 |
-| 86 | **Settings UI test for in-range alerts**: Compose test for the empty line, the list and the spoken "Turn off" label. | P3 | S | Follows #81 |
 | 87 | **`OutboundSender` split**: move the send-side glue out of `MeshCoordinator` (about 1200 lines) behind the existing JVM tests. | P3 | M | Tech debt |
 | 54 | **Duty cycle under Doze**: no wake lock or alarm, so `delay` in the duty cycle may stall when the phone dozes. Measure on a phone first; fix only with evidence. | P3 | S | Needs phone evidence |
 | 21 | **Group channels** with a shared key, invite by QR. | P3 | L | |
@@ -149,3 +148,4 @@ change once decided.
 | 2026-11-23 | #82 Send failures as `SendFailure` codes; the chat maps each to a sentence in strings.xml | #118 | see log |
 | 2026-11-23 | #85 Large-font UI tests: chat bar (timer, mute, alert) and peer row (long name, badge, unread) at 200% and 360dp | #119 | see log |
 | 2026-11-23 | #81 In-range alert part 2: Settings lists watched contacts, each with "Turn off" | #120 | see log |
+| 2026-11-23 | #86 Settings UI tests for in-range alerts: the empty line, and "Turn off" by the contact's name | #120 | see log |
